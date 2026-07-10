@@ -18,22 +18,31 @@ DOWNLOAD_URL="${API_URL}/agent/download/linux-amd64?key=${AGENT_KEY}"
 
 echo "=== Havet Supervision Agent (${PROFILE}) ==="
 
-for cmd in curl wget systemctl; do
-  if ! command -v "$cmd" &>/dev/null && [[ "$cmd" != "curl" ]]; then
-    echo "Commande requise manquante: $cmd"
-    exit 1
-  fi
-done
+if ! command -v systemctl &>/dev/null; then
+  echo "systemctl requis (systemd)"
+  exit 1
+fi
+if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
+  echo "curl ou wget requis"
+  exit 1
+fi
 
 mkdir -p "$INSTALL_DIR"
 
+if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+  echo "→ Arrêt de l'agent existant..."
+  systemctl stop "${SERVICE_NAME}"
+fi
+
+TMP_AGENT="${INSTALL_DIR}/agent.new.$$"
 echo "→ Téléchargement de l'agent..."
 if command -v curl &>/dev/null; then
-  curl -fsSL "$DOWNLOAD_URL" -o "${INSTALL_DIR}/agent"
+  curl -fsSL "$DOWNLOAD_URL" -o "$TMP_AGENT"
 else
-  wget -qO "${INSTALL_DIR}/agent" "$DOWNLOAD_URL"
+  wget -qO "$TMP_AGENT" "$DOWNLOAD_URL"
 fi
-chmod +x "${INSTALL_DIR}/agent"
+chmod +x "$TMP_AGENT"
+mv -f "$TMP_AGENT" "${INSTALL_DIR}/agent"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
 [Unit]

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Installe l'agent Havet Supervision (profil passé en variable d'environnement)
-# Usage: SUPERVISION_API_URL=... SUPERVISION_AGENT_KEY=... SUPERVISION_PROFILE=linux|plesk bash install.sh
 set -euo pipefail
 
 API_URL="${SUPERVISION_API_URL:?SUPERVISION_API_URL required}"
@@ -19,12 +17,18 @@ fi
 echo "=== Havet Supervision Agent (${PROFILE}) ==="
 mkdir -p "$INSTALL_DIR"
 
-if command -v curl &>/dev/null; then
-  curl -fsSL "$DOWNLOAD_URL" -o "${INSTALL_DIR}/agent"
-else
-  wget -qO "${INSTALL_DIR}/agent" "$DOWNLOAD_URL"
+if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+  systemctl stop "${SERVICE_NAME}"
 fi
-chmod +x "${INSTALL_DIR}/agent"
+
+TMP_AGENT="${INSTALL_DIR}/agent.new.$$"
+if command -v curl &>/dev/null; then
+  curl -fsSL "$DOWNLOAD_URL" -o "$TMP_AGENT"
+else
+  wget -qO "$TMP_AGENT" "$DOWNLOAD_URL"
+fi
+chmod +x "$TMP_AGENT"
+mv -f "$TMP_AGENT" "${INSTALL_DIR}/agent"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
 [Unit]
