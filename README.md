@@ -18,8 +18,10 @@ Plateforme de supervision pour serveurs Linux (Ubuntu, Debian, Plesk) et surveil
 
 ```bash
 # Sur le serveur 217.182.43.234
-sudo apt update && sudo apt install -y git docker.io docker-compose-plugin
-sudo usermod -aG docker $USER && newgrp docker
+sudo apt update && sudo apt install -y git
+sudo bash scripts/install-docker.sh   # Docker officiel + Compose v2
+# Ou si le repo n'est pas encore cloné :
+# curl -fsSL https://get.docker.com | sh
 
 git clone https://github.com/oachin/supervision-web.git
 cd supervision-web
