@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { api, type ServerDetail, type ServerMetric } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatCpuPercent } from '@/lib/utils';
 
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -40,6 +40,7 @@ export default function ServerDetailPage() {
     memory: m.memoryPercent,
     disk: m.diskPercent,
   }));
+  const cpuChartMax = Math.max(10, ...chartData.map((d) => d.cpu), 0.5);
 
   async function handleDelete() {
     if (!id) return;
@@ -146,15 +147,17 @@ export default function ServerDetailPage() {
       )}
 
       {latest && (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'CPU', value: `${latest.cpuPercent.toFixed(1)}%` },
-            { label: 'Mémoire', value: `${latest.memoryPercent.toFixed(1)}%` },
-            { label: 'Disque', value: `${latest.diskPercent.toFixed(1)}%` },
+            { label: 'CPU', value: formatCpuPercent(latest.cpuPercent) },
+            { label: 'Mémoire', value: `${latest.memoryPercent.toFixed(1)}%`, sub: latest.memoryTotalMb ? `${Math.round(latest.memoryUsedMb ?? 0)} / ${Math.round(latest.memoryTotalMb)} Mo` : undefined },
+            { label: 'Disque', value: `${latest.diskPercent.toFixed(1)}%`, sub: latest.diskTotalGb ? `${(latest.diskUsedGb ?? 0).toFixed(0)} / ${latest.diskTotalGb.toFixed(0)} Go` : undefined },
+            { label: 'Charge (1 min)', value: latest.loadAvg1?.toFixed(2) ?? '—' },
           ].map((m) => (
             <div key={m.label} className="card text-center">
               <p className="text-sm text-muted-foreground">{m.label}</p>
               <p className="mt-1 text-2xl font-bold">{m.value}</p>
+              {'sub' in m && m.sub && <p className="mt-1 text-xs text-muted-foreground">{m.sub}</p>}
             </div>
           ))}
         </div>
@@ -167,15 +170,18 @@ export default function ServerDetailPage() {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
               <XAxis dataKey="time" stroke="hsl(215 20% 55%)" fontSize={12} />
-              <YAxis stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} />
+              <YAxis yAxisId="pct" stroke="hsl(215 20% 55%)" fontSize={12} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+              <YAxis yAxisId="cpu" orientation="right" stroke="hsl(217 91% 60%)" fontSize={12} domain={[0, cpuChartMax]} tickFormatter={(v) => `${v}%`} />
               <Tooltip
                 contentStyle={{ background: 'hsl(222 47% 9%)', border: '1px solid hsl(217 33% 17%)', borderRadius: 8 }}
+                formatter={(value: number, name: string) => [`${value.toFixed(2)}%`, name]}
               />
-              <Line type="monotone" dataKey="cpu" stroke="hsl(217 91% 60%)" strokeWidth={2} dot={false} name="CPU %" />
-              <Line type="monotone" dataKey="memory" stroke="hsl(142 76% 45%)" strokeWidth={2} dot={false} name="RAM %" />
-              <Line type="monotone" dataKey="disk" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} name="Disque %" />
+              <Line yAxisId="cpu" type="monotone" dataKey="cpu" stroke="hsl(217 91% 60%)" strokeWidth={2} dot={false} name="CPU %" />
+              <Line yAxisId="pct" type="monotone" dataKey="memory" stroke="hsl(142 76% 45%)" strokeWidth={2} dot={false} name="RAM %" />
+              <Line yAxisId="pct" type="monotone" dataKey="disk" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} name="Disque %" />
             </LineChart>
           </ResponsiveContainer>
+          <p className="mt-2 text-xs text-muted-foreground">CPU : échelle à droite (0–{cpuChartMax.toFixed(0)} %). RAM et disque : échelle à gauche (0–100 %).</p>
         </div>
       )}
 

@@ -20,6 +20,11 @@ export function formatUptime(seconds: number) {
   return `${hours}h`;
 }
 
+export function formatCpuPercent(value: number) {
+  if (value > 0 && value < 0.1) return '< 0.1%';
+  return `${value.toFixed(value < 10 ? 2 : 1)}%`;
+}
+
 export function statusColor(status: string) {
   switch (status) {
     case 'ONLINE':

@@ -243,7 +243,11 @@ export interface ServerMetric {
   id: string;
   cpuPercent: number;
   memoryPercent: number;
+  memoryUsedMb?: number;
+  memoryTotalMb?: number;
   diskPercent: number;
+  diskUsedGb?: number;
+  diskTotalGb?: number;
   loadAvg1: number;
   collectedAt: string;
 }

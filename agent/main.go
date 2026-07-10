@@ -192,7 +192,7 @@ func fileExists(path string) bool {
 
 func readCPUPercent() float64 {
 	idle1, total1 := readCPUStat()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(time.Second)
 	idle2, total2 := readCPUStat()
 
 	idleDelta := idle2 - idle1
@@ -221,6 +221,9 @@ func readCPUStat() (idle, total uint64) {
 		total += val
 		if i == 4 {
 			idle = val
+		}
+		if i == 5 {
+			idle += val // iowait
 		}
 	}
 	return idle, total
