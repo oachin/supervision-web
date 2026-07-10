@@ -6,10 +6,10 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 cd "$PROJECT_DIR"
+# shellcheck source=load-env.sh
+source "$SCRIPT_DIR/load-env.sh"
 
-set -a
-source .env
-set +a
+load_env .env
 
 DOMAIN="${DOMAIN:?DOMAIN required}"
 EMAIL="${CERTBOT_EMAIL:?CERTBOT_EMAIL required}"

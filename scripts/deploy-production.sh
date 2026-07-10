@@ -6,6 +6,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 cd "$PROJECT_DIR"
+# shellcheck source=load-env.sh
+source "$SCRIPT_DIR/load-env.sh"
 
 echo "=== Havet Supervision — Déploiement production ==="
 echo ""
@@ -19,9 +21,7 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-set -a
-source .env
-set +a
+load_env .env
 
 DOMAIN="${DOMAIN:-supervision-web-01.havetdigital.app}"
 

@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
+# shellcheck source=load-env.sh
+source "$SCRIPT_DIR/load-env.sh"
 
 echo "=== Havet Supervision - Déploiement local ==="
 
@@ -17,9 +19,7 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-set -a
-source .env
-set +a
+load_env .env
 
 for var in JWT_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY AGENT_API_KEY_SALT POSTGRES_PASSWORD REDIS_PASSWORD ADMIN_PASSWORD; do
   if [ -z "${!var:-}" ]; then
