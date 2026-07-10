@@ -47,6 +47,25 @@ NGINX_TEMPLATE=/etc/nginx/templates/nginx-init.conf.template $COMPOSE up -d --fo
 echo "→ Attente de Nginx..."
 sleep 5
 
+if ! docker compose -f docker-compose.yml -f docker-compose.prod.yml ps nginx 2>/dev/null | grep -q "Up"; then
+  echo "❌ Le conteneur Nginx n'est pas démarré. Logs :"
+  $COMPOSE logs --tail 30 nginx
+  exit 1
+fi
+
+if ! curl -sf --max-time 5 "http://127.0.0.1/" >/dev/null; then
+  echo "❌ Nginx ne répond pas sur le port 80 local. Logs :"
+  $COMPOSE logs --tail 30 nginx
+  exit 1
+fi
+
+echo "→ Vérification préalable (DNS, firewall, .env)..."
+bash scripts/preflight-production.sh || {
+  echo ""
+  echo "Corrigez les problèmes ci-dessus puis relancez : bash scripts/init-letsencrypt.sh"
+  exit 1
+}
+
 echo "→ Demande du certificat Let's Encrypt..."
 $COMPOSE run --rm --entrypoint certbot certbot certonly \
   --webroot \
