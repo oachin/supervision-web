@@ -10,7 +10,7 @@ cd "$PROJECT_DIR"
 source "$SCRIPT_DIR/load-env.sh"
 
 load_env .env
-load_env .env.secrets
+load_env_quiet .env.secrets
 
 DOMAIN="${DOMAIN:?DOMAIN required}"
 EMAIL="${CERTBOT_EMAIL:?CERTBOT_EMAIL required}"

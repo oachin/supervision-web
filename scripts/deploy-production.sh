@@ -24,7 +24,7 @@ if [ ! -f .env.secrets ]; then
 fi
 
 load_env .env
-load_env .env.secrets
+load_env_quiet .env.secrets
 
 DOMAIN="${DOMAIN:-supervision-web-01.havetdigital.app}"
 

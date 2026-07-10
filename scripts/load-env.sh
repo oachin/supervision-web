@@ -14,3 +14,18 @@ load_env() {
   set +a
   set -u
 }
+
+# Lit un fichier env sans expansion bash (pour mots de passe avec $)
+load_env_quiet() {
+  local env_file="${1:-.env}"
+  if [ ! -f "$env_file" ]; then
+    return 1
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// }" ]] && continue
+    if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      printf -v "${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
+    fi
+  done < "$env_file"
+}
