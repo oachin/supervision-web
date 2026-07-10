@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested, IsNumber, IsInt, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class LoginDto {
@@ -223,22 +223,45 @@ export class AgentMetricsDto {
   @IsString()
   profile?: string;
 
+  @IsNumber()
   cpuPercent!: number;
+
+  @IsNumber()
   memoryPercent!: number;
+
+  @IsNumber()
   memoryUsedMb!: number;
+
+  @IsNumber()
   memoryTotalMb!: number;
+
+  @IsNumber()
   diskPercent!: number;
+
+  @IsNumber()
   diskUsedGb!: number;
+
+  @IsNumber()
   diskTotalGb!: number;
+
+  @IsNumber()
   loadAvg1!: number;
+
+  @IsNumber()
   loadAvg5!: number;
+
+  @IsNumber()
   loadAvg15!: number;
+
+  @IsInt()
   uptimeSeconds!: number;
 
   @IsOptional()
+  @IsInt()
   pleskDomains?: number;
 
   @IsOptional()
+  @IsObject()
   pleskServices?: Record<string, string>;
 
   @IsOptional()
