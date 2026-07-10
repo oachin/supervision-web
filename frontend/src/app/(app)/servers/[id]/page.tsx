@@ -33,7 +33,8 @@ export default function ServerDetailPage() {
     </div>;
   }
 
-  const latest = server.metrics?.[0];
+  const latest = metrics[0] ?? server.metrics?.[0];
+  const pleskServices = latest?.pleskServices;
   const chartData = metrics.map((m) => ({
     time: new Date(m.collectedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     cpu: m.cpuPercent,
@@ -182,6 +183,20 @@ export default function ServerDetailPage() {
             </LineChart>
           </ResponsiveContainer>
           <p className="mt-2 text-xs text-muted-foreground">CPU : échelle à droite (0–{cpuChartMax.toFixed(0)} %). RAM et disque : échelle à gauche (0–100 %).</p>
+        </div>
+      )}
+
+      {server.profile === 'PLESK' && pleskServices && Object.keys(pleskServices).length > 0 && (
+        <div className="card">
+          <h2 className="mb-4 text-lg font-semibold">Services Plesk (interne)</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(pleskServices).map(([name, state]) => (
+              <div key={name} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2">
+                <span className="font-mono text-sm">{name}</span>
+                <StatusBadge status={state === 'running' ? 'ONLINE' : 'OFFLINE'} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

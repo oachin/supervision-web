@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Copy, Check, Trash2, Terminal } from 'lucide-react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Copy, Check, Trash2, Terminal, X } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, type Server, type ServerCreateResult } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -13,7 +14,15 @@ const profileLabels: Record<string, string> = {
   PLESK: 'Plesk',
 };
 
-export default function ServersPage() {
+const filterLabels: Record<string, string> = {
+  alert: 'serveurs en alerte',
+  degraded: 'serveurs dégradés',
+  offline: 'serveurs hors ligne',
+};
+
+function ServersPageContent() {
+  const searchParams = useSearchParams();
+  const filter = searchParams.get('filter');
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -66,17 +75,39 @@ export default function ServersPage() {
     }
   }
 
+  const filteredServers = useMemo(() => {
+    if (filter === 'alert') {
+      return servers.filter((s) => s.status === 'OFFLINE' || s.status === 'DEGRADED');
+    }
+    if (filter === 'degraded') return servers.filter((s) => s.status === 'DEGRADED');
+    if (filter === 'offline') return servers.filter((s) => s.status === 'OFFLINE');
+    return servers;
+  }, [servers, filter]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Serveurs</h1>
-          <p className="text-sm text-muted-foreground">Installez l&apos;agent via wget depuis chaque serveur distant</p>
+          <p className="text-sm text-muted-foreground">
+            {filter && filterLabels[filter]
+              ? `Filtre actif : ${filterLabels[filter]}`
+              : 'Installez l\'agent via wget depuis chaque serveur distant'}
+          </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">
           <Plus className="h-4 w-4" /> Ajouter
         </button>
       </div>
+
+      {filter && (
+        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <span>Affichage filtré : {filterLabels[filter] ?? filter} ({filteredServers.length})</span>
+          <Link href="/servers" className="inline-flex items-center gap-1 text-primary hover:underline">
+            <X className="h-4 w-4" /> Tout afficher
+          </Link>
+        </div>
+      )}
 
       {installInfo && (
         <div className="card border-accent/30 bg-accent/5">
@@ -172,9 +203,14 @@ export default function ServersPage() {
         <div className="flex h-32 items-center justify-center">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
-      ) : servers.length === 0 ? (
+      ) : filteredServers.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-muted-foreground">Aucun serveur. Ajoutez un serveur et installez l&apos;agent via wget.</p>
+          <p className="text-muted-foreground">
+            {filter ? 'Aucun serveur ne correspond à ce filtre.' : 'Aucun serveur. Ajoutez un serveur et installez l\'agent via wget.'}
+          </p>
+          {filter && (
+            <Link href="/servers" className="btn-secondary mt-4 inline-flex">Voir tous les serveurs</Link>
+          )}
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
@@ -191,7 +227,7 @@ export default function ServersPage() {
               </tr>
             </thead>
             <tbody>
-              {servers.map((s) => (
+              {filteredServers.map((s) => (
                 <tr key={s.id} className="border-b border-white/5 hover:bg-secondary/20 transition-colors">
                   <td className="p-4">
                     <Link href={`/servers/${s.id}`} className="font-medium hover:text-primary">{s.name}</Link>
@@ -234,5 +270,17 @@ export default function ServersPage() {
         loading={deleting}
       />
     </div>
+  );
+}
+
+export default function ServersPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-32 items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <ServersPageContent />
+    </Suspense>
   );
 }

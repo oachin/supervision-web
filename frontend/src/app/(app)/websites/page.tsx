@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, X } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { formatDate } from '@/lib/utils';
 
-export default function WebsitesPage() {
+const filterLabels: Record<string, string> = {
+  alert: 'sites en alerte',
+  down: 'sites hors ligne',
+  degraded: 'sites dégradés',
+};
+
+function WebsitesPageContent() {
+  const searchParams = useSearchParams();
+  const filter = searchParams.get('filter');
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -41,17 +50,41 @@ export default function WebsitesPage() {
     }
   }
 
+  const filteredWebsites = useMemo(() => {
+    if (filter === 'alert') {
+      return websites.filter((w) => w.status === 'DOWN' || w.status === 'DEGRADED');
+    }
+    if (filter === 'down') return websites.filter((w) => w.status === 'DOWN');
+    if (filter === 'degraded') return websites.filter((w) => w.status === 'DEGRADED');
+    return websites;
+  }, [websites, filter]);
+
+  const hasDualCheck = websites.some((w) => w.checkMode === 'BOTH');
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sites web</h1>
-          <p className="text-sm text-muted-foreground">Surveillance de disponibilité et SSL</p>
+          <p className="text-sm text-muted-foreground">
+            {filter && filterLabels[filter]
+              ? `Filtre actif : ${filterLabels[filter]}`
+              : 'Surveillance externe (Internet) et interne (Plesk) pour les sites importés'}
+          </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">
           <Plus className="h-4 w-4" /> Ajouter
         </button>
       </div>
+
+      {filter && (
+        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <span>Affichage filtré : {filterLabels[filter] ?? filter} ({filteredWebsites.length})</span>
+          <Link href="/websites" className="inline-flex items-center gap-1 text-primary hover:underline">
+            <X className="h-4 w-4" /> Tout afficher
+          </Link>
+        </div>
+      )}
 
       {showForm && (
         <div className="card">
@@ -81,9 +114,14 @@ export default function WebsitesPage() {
         <div className="flex h-32 items-center justify-center">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
-      ) : websites.length === 0 ? (
+      ) : filteredWebsites.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-muted-foreground">Aucun site surveillé.</p>
+          <p className="text-muted-foreground">
+            {filter ? 'Aucun site ne correspond à ce filtre.' : 'Aucun site surveillé.'}
+          </p>
+          {filter && (
+            <Link href="/websites" className="btn-secondary mt-4 inline-flex">Voir tous les sites</Link>
+          )}
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
@@ -92,6 +130,8 @@ export default function WebsitesPage() {
               <tr className="border-b border-white/5 text-left text-muted-foreground">
                 <th className="p-4 font-medium">Nom</th>
                 <th className="p-4 font-medium">URL</th>
+                {hasDualCheck && <th className="p-4 font-medium">Externe</th>}
+                {hasDualCheck && <th className="p-4 font-medium">Interne</th>}
                 <th className="p-4 font-medium">Réponse</th>
                 <th className="p-4 font-medium">SSL expire</th>
                 <th className="p-4 font-medium">Dernier check</th>
@@ -100,13 +140,27 @@ export default function WebsitesPage() {
               </tr>
             </thead>
             <tbody>
-              {websites.map((w) => (
+              {filteredWebsites.map((w) => (
                 <tr key={w.id} className="border-b border-white/5 hover:bg-secondary/20">
                   <td className="p-4">
                     <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">{w.name}</Link>
                   </td>
                   <td className="p-4 font-mono text-xs">{w.url}</td>
-                  <td className="p-4 font-mono text-xs">{w.lastResponseMs != null ? `${w.lastResponseMs}ms` : '—'}</td>
+                  {hasDualCheck && (
+                    <td className="p-4">
+                      {w.checkMode === 'BOTH' ? <StatusBadge status={w.externalStatus ?? 'UNKNOWN'} /> : '—'}
+                    </td>
+                  )}
+                  {hasDualCheck && (
+                    <td className="p-4">
+                      {w.checkMode === 'BOTH' ? <StatusBadge status={w.internalStatus ?? 'UNKNOWN'} /> : '—'}
+                    </td>
+                  )}
+                  <td className="p-4 font-mono text-xs">
+                    {w.checkMode === 'BOTH'
+                      ? `${w.lastExternalResponseMs ?? '—'} / ${w.lastInternalResponseMs ?? '—'} ms`
+                      : w.lastResponseMs != null ? `${w.lastResponseMs}ms` : '—'}
+                  </td>
                   <td className="p-4 text-xs">{formatDate(w.sslExpiresAt)}</td>
                   <td className="p-4 text-xs text-muted-foreground">{formatDate(w.lastCheckAt)}</td>
                   <td className="p-4"><StatusBadge status={w.status} /></td>
@@ -141,5 +195,17 @@ export default function WebsitesPage() {
         loading={deleting}
       />
     </div>
+  );
+}
+
+export default function WebsitesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-32 items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <WebsitesPageContent />
+    </Suspense>
   );
 }

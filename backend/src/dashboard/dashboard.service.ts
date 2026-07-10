@@ -14,10 +14,11 @@ export class DashboardService {
       websitesTotal,
       websitesUp,
       websitesDown,
+      websitesDegraded,
       activeAlerts,
       recentAlerts,
-      servers,
-      websites,
+      serversInAlert,
+      websitesInAlert,
     ] = await Promise.all([
       this.prisma.server.count(),
       this.prisma.server.count({ where: { status: 'ONLINE' } }),
@@ -26,6 +27,7 @@ export class DashboardService {
       this.prisma.website.count(),
       this.prisma.website.count({ where: { status: 'UP' } }),
       this.prisma.website.count({ where: { status: 'DOWN' } }),
+      this.prisma.website.count({ where: { status: 'DEGRADED' } }),
       this.prisma.alert.count({ where: { status: { in: ['ACTIVE', 'ACKNOWLEDGED'] } } }),
       this.prisma.alert.findMany({
         where: { status: { not: 'CLOSED' } },
@@ -37,6 +39,7 @@ export class DashboardService {
         },
       }),
       this.prisma.server.findMany({
+        where: { status: { in: ['OFFLINE', 'DEGRADED'] } },
         select: {
           id: true,
           name: true,
@@ -44,6 +47,7 @@ export class DashboardService {
           status: true,
           lastSeenAt: true,
           hasPlesk: true,
+          profile: true,
           metrics: {
             take: 1,
             orderBy: { collectedAt: 'desc' },
@@ -58,28 +62,35 @@ export class DashboardService {
         orderBy: { name: 'asc' },
       }),
       this.prisma.website.findMany({
+        where: { status: { in: ['DOWN', 'DEGRADED'] } },
         select: {
           id: true,
           name: true,
           url: true,
           status: true,
+          checkMode: true,
+          externalStatus: true,
+          internalStatus: true,
           lastCheckAt: true,
           lastResponseMs: true,
+          lastExternalResponseMs: true,
+          lastInternalResponseMs: true,
           sslExpiresAt: true,
         },
         orderBy: { name: 'asc' },
+        take: 20,
       }),
     ]);
 
     return {
       summary: {
         servers: { total: serversTotal, online: serversOnline, offline: serversOffline, degraded: serversDegraded },
-        websites: { total: websitesTotal, up: websitesUp, down: websitesDown },
+        websites: { total: websitesTotal, up: websitesUp, down: websitesDown, degraded: websitesDegraded },
         activeAlerts,
       },
       recentAlerts,
-      servers,
-      websites,
+      servers: serversInAlert,
+      websites: websitesInAlert,
     };
   }
 }

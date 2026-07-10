@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 export function StatusBadge({ status }: { status: string }) {
@@ -38,15 +39,17 @@ export function MetricCard({
   subtitle,
   icon: Icon,
   trend,
+  href,
 }: {
   title: string;
   value: string | number;
   subtitle?: string;
   icon: React.ComponentType<{ className?: string }>;
   trend?: 'up' | 'down' | 'neutral';
+  href?: string;
 }) {
-  return (
-    <div className="card group hover:border-primary/20 transition-colors">
+  const content = (
+    <>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>
@@ -62,6 +65,20 @@ export function MetricCard({
           <Icon className="h-5 w-5" />
         </div>
       </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="card group block hover:border-primary/20 transition-colors cursor-pointer">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="card group hover:border-primary/20 transition-colors">
+      {content}
     </div>
   );
 }

@@ -27,6 +27,17 @@ enum WebsiteStatus {
   UNKNOWN
 }
 
+enum WebsiteCheckMode {
+  EXTERNAL
+  INTERNAL
+  BOTH
+}
+
+enum WebsiteCheckSource {
+  EXTERNAL
+  INTERNAL
+}
+
 enum AlertSeverity {
   INFO
   WARNING
@@ -130,43 +141,56 @@ model ServerMetric {
 }
 
 model Website {
-  id              String        @id @default(uuid())
+  id              String            @id @default(uuid())
   name            String
   url             String
   serverId        String?
-  server          Server?       @relation(fields: [serverId], references: [id], onDelete: SetNull)
-  status          WebsiteStatus @default(UNKNOWN)
-  checkInterval   Int           @default(60)
-  expectedStatus  Int           @default(200)
+  server          Server?           @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  status          WebsiteStatus     @default(UNKNOWN)
+  checkMode       WebsiteCheckMode  @default(EXTERNAL)
+  externalStatus  WebsiteStatus     @default(UNKNOWN)
+  internalStatus  WebsiteStatus     @default(UNKNOWN)
+  checkInterval   Int               @default(60)
+  expectedStatus  Int               @default(200)
   expectedKeyword String?
-  sslEnabled      Boolean       @default(true)
+  sslEnabled      Boolean           @default(true)
   sslExpiresAt    DateTime?
   lastCheckAt     DateTime?
   lastResponseMs  Int?
   lastStatusCode  Int?
-  source          String        @default("manual")
+  lastExternalCheckAt    DateTime?
+  lastInternalCheckAt    DateTime?
+  lastExternalResponseMs Int?
+  lastInternalResponseMs Int?
+  lastExternalStatusCode Int?
+  lastInternalStatusCode Int?
+  source          String            @default("manual")
   tags            String[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   checks          WebsiteCheck[]
   alerts          Alert[]
 
   @@index([status])
+  @@index([externalStatus])
+  @@index([internalStatus])
 }
 
 model WebsiteCheck {
-  id           String   @id @default(uuid())
+  id           String             @id @default(uuid())
   websiteId    String
-  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website      Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   status       WebsiteStatus
+  checkSource  WebsiteCheckSource @default(EXTERNAL)
   statusCode   Int?
   responseMs   Int?
   sslValid     Boolean?
   sslExpiresAt DateTime?
   errorMessage String?
-  checkedAt    DateTime @default(now())
+  checkedAt    DateTime           @default(now())
 
   @@index([websiteId, checkedAt])
+  @@index([websiteId, checkSource, checkedAt])
 }
 
 model Alert {

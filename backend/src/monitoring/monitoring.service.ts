@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { WebsiteStatus } from '@prisma/client';
+import { Website, WebsiteStatus } from '@prisma/client';
 import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
-import { ServersService } from '../servers/servers.service';
+import { probeResultToStatus, worstWebsiteStatus } from '../websites/website-status.util';
 
 @Injectable()
 export class MonitoringService {
@@ -16,12 +16,13 @@ export class MonitoringService {
   constructor(
     private prisma: PrismaService,
     private alerts: AlertsService,
-    private servers: ServersService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async checkWebsites() {
-    const websites = await this.prisma.website.findMany();
+    const websites = await this.prisma.website.findMany({
+      where: { checkMode: { in: ['EXTERNAL', 'BOTH'] } },
+    });
     const now = Date.now();
 
     for (const website of websites) {
@@ -31,66 +32,72 @@ export class MonitoringService {
       this.lastWebsiteCheck.set(website.id, now);
 
       try {
-        const result = await this.probeWebsite(website.url, website.expectedStatus, website.expectedKeyword);
-        const previousStatus = website.status;
-        let status: WebsiteStatus = 'UP';
-
-        if (!result.ok) {
-          status = 'DOWN';
-        } else if (result.responseMs > 3000) {
-          status = 'DEGRADED';
-        }
-
-        await this.prisma.websiteCheck.create({
-          data: {
-            websiteId: website.id,
-            status,
-            statusCode: result.statusCode,
-            responseMs: result.responseMs,
-            sslValid: result.sslValid,
-            sslExpiresAt: result.sslExpiresAt,
-            errorMessage: result.error,
-          },
-        });
-
-        await this.prisma.website.update({
-          where: { id: website.id },
-          data: {
-            status,
-            lastCheckAt: new Date(),
-            lastResponseMs: result.responseMs,
-            lastStatusCode: result.statusCode,
-            sslExpiresAt: result.sslExpiresAt,
-          },
-        });
-
-        if (status === 'DOWN') {
-          await this.alerts.create({
-            title: `Site hors ligne: ${website.name}`,
-            message: `${website.url} - ${result.error || `HTTP ${result.statusCode}`}`,
-            severity: 'CRITICAL',
-            websiteId: website.id,
-          });
-        } else if (status === 'UP' && (previousStatus === 'DOWN' || previousStatus === 'DEGRADED')) {
-          await this.alerts.onIssueResolved({
-            websiteId: website.id,
-            titleContains: 'hors ligne',
-          });
-        }
-
-        if (result.sslExpiresAt) {
-          const daysUntilExpiry = (result.sslExpiresAt.getTime() - now) / (1000 * 60 * 60 * 24);
-          if (daysUntilExpiry < 14 && daysUntilExpiry > 0) {
-            await this.alerts.create({
-              title: `Certificat SSL expire bientôt: ${website.name}`,
-              message: `Expire le ${result.sslExpiresAt.toISOString().split('T')[0]} (${Math.floor(daysUntilExpiry)} jours)`,
-              severity: daysUntilExpiry < 7 ? 'CRITICAL' : 'WARNING',
-              websiteId: website.id,
-            });
-          }
-        }
+        await this.runExternalCheck(website, now);
       } catch (err) {
         this.logger.error(`Check failed for ${website.url}: ${err}`);
+      }
+    }
+  }
+
+  async runExternalCheck(website: Website, now = Date.now()) {
+    const result = await this.probeWebsite(website.url, website.expectedStatus, website.expectedKeyword);
+    const externalStatus = probeResultToStatus(result.ok, result.responseMs);
+    const previousExternal = website.externalStatus;
+    const combinedStatus = website.checkMode === 'BOTH'
+      ? worstWebsiteStatus(externalStatus, website.internalStatus)
+      : externalStatus;
+
+    await this.prisma.websiteCheck.create({
+      data: {
+        websiteId: website.id,
+        status: externalStatus,
+        checkSource: 'EXTERNAL',
+        statusCode: result.statusCode,
+        responseMs: result.responseMs,
+        sslValid: result.sslValid,
+        sslExpiresAt: result.sslExpiresAt,
+        errorMessage: result.error,
+      },
+    });
+
+    await this.prisma.website.update({
+      where: { id: website.id },
+      data: {
+        status: combinedStatus,
+        externalStatus,
+        lastCheckAt: new Date(),
+        lastResponseMs: result.responseMs,
+        lastStatusCode: result.statusCode,
+        lastExternalCheckAt: new Date(),
+        lastExternalResponseMs: result.responseMs,
+        lastExternalStatusCode: result.statusCode,
+        sslExpiresAt: result.sslExpiresAt,
+      },
+    });
+
+    if (externalStatus === 'DOWN') {
+      await this.alerts.create({
+        title: `Site hors ligne (externe): ${website.name}`,
+        message: `${website.url} — ${result.error || `HTTP ${result.statusCode}`}`,
+        severity: 'CRITICAL',
+        websiteId: website.id,
+      });
+    } else if (externalStatus === 'UP' && (previousExternal === 'DOWN' || previousExternal === 'DEGRADED')) {
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'externe',
+      });
+    }
+
+    if (result.sslExpiresAt) {
+      const daysUntilExpiry = (result.sslExpiresAt.getTime() - now) / (1000 * 60 * 60 * 24);
+      if (daysUntilExpiry < 14 && daysUntilExpiry > 0) {
+        await this.alerts.create({
+          title: `Certificat SSL expire bientôt: ${website.name}`,
+          message: `Expire le ${result.sslExpiresAt.toISOString().split('T')[0]} (${Math.floor(daysUntilExpiry)} jours)`,
+          severity: daysUntilExpiry < 7 ? 'CRITICAL' : 'WARNING',
+          websiteId: website.id,
+        });
       }
     }
   }
@@ -133,6 +140,7 @@ export class MonitoringService {
     url: string,
     expectedStatus: number,
     expectedKeyword?: string | null,
+    maxRedirects = 5,
   ): Promise<{
     ok: boolean;
     statusCode?: number;
@@ -141,69 +149,94 @@ export class MonitoringService {
     sslExpiresAt?: Date;
     error?: string;
   }> {
-    return new Promise((resolve) => {
-      const start = Date.now();
-      const parsed = new URL(url);
-      const isHttps = parsed.protocol === 'https:';
-      const lib = isHttps ? https : http;
+    const start = Date.now();
 
-      const req = lib.get(
-        url,
-        {
-          timeout: 15000,
-          headers: { 'User-Agent': 'HavetSupervision/1.0' },
-          rejectUnauthorized: true,
-        },
-        (res) => {
-          let body = '';
-          res.on('data', (chunk) => { body += chunk; });
-          res.on('end', () => {
-            const responseMs = Date.now() - start;
+    const follow = (targetUrl: string, redirectsLeft: number): ReturnType<MonitoringService['probeWebsite']> =>
+      new Promise((resolve) => {
+        let parsed: URL;
+        try {
+          parsed = new URL(targetUrl);
+        } catch {
+          resolve({ ok: false, responseMs: Date.now() - start, error: 'URL invalide' });
+          return;
+        }
+
+        const isHttps = parsed.protocol === 'https:';
+        const lib = isHttps ? https : http;
+
+        const req = lib.get(
+          targetUrl,
+          {
+            timeout: 15000,
+            headers: { 'User-Agent': 'HavetSupervision/1.0' },
+            rejectUnauthorized: true,
+          },
+          (res) => {
             const statusCode = res.statusCode ?? 0;
-            let sslExpiresAt: Date | undefined;
+            const location = res.headers.location;
 
-            if (isHttps && res.socket) {
-              const cert = (res.socket as import('tls').TLSSocket).getPeerCertificate();
-              if (cert?.valid_to) {
-                sslExpiresAt = new Date(cert.valid_to);
-              }
+            if (
+              redirectsLeft > 0 &&
+              location &&
+              [301, 302, 303, 307, 308].includes(statusCode)
+            ) {
+              res.resume();
+              const nextUrl = new URL(location, targetUrl).href;
+              follow(nextUrl, redirectsLeft - 1).then(resolve);
+              return;
             }
 
-            const statusOk = statusCode === expectedStatus;
-            const keywordOk = !expectedKeyword || body.includes(expectedKeyword);
+            let body = '';
+            res.on('data', (chunk) => { body += chunk; });
+            res.on('end', () => {
+              const responseMs = Date.now() - start;
+              let sslExpiresAt: Date | undefined;
 
-            resolve({
-              ok: statusOk && keywordOk,
-              statusCode,
-              responseMs,
-              sslValid: isHttps ? true : undefined,
-              sslExpiresAt,
-              error: !statusOk
-                ? `Statut attendu ${expectedStatus}, reçu ${statusCode}`
-                : !keywordOk
-                  ? 'Mot-clé attendu non trouvé'
-                  : undefined,
+              if (isHttps && res.socket) {
+                const cert = (res.socket as import('tls').TLSSocket).getPeerCertificate();
+                if (cert?.valid_to) {
+                  sslExpiresAt = new Date(cert.valid_to);
+                }
+              }
+
+              const statusOk = statusCode >= 200 && statusCode < 400;
+              const keywordOk = !expectedKeyword || body.includes(expectedKeyword);
+              const expectedOk = statusCode === expectedStatus || statusOk;
+
+              resolve({
+                ok: expectedOk && keywordOk,
+                statusCode,
+                responseMs,
+                sslValid: isHttps ? true : undefined,
+                sslExpiresAt,
+                error: !expectedOk
+                  ? `Statut attendu ${expectedStatus}, reçu ${statusCode}`
+                  : !keywordOk
+                    ? 'Mot-clé attendu non trouvé'
+                    : undefined,
+              });
             });
+          },
+        );
+
+        req.on('error', (err) => {
+          resolve({
+            ok: false,
+            responseMs: Date.now() - start,
+            error: err.message,
           });
-        },
-      );
+        });
 
-      req.on('error', (err) => {
-        resolve({
-          ok: false,
-          responseMs: Date.now() - start,
-          error: err.message,
+        req.on('timeout', () => {
+          req.destroy();
+          resolve({
+            ok: false,
+            responseMs: Date.now() - start,
+            error: 'Timeout (15s)',
+          });
         });
       });
 
-      req.on('timeout', () => {
-        req.destroy();
-        resolve({
-          ok: false,
-          responseMs: Date.now() - start,
-          error: 'Timeout (15s)',
-        });
-      });
-    });
+    return follow(url, maxRedirects);
   }
 }

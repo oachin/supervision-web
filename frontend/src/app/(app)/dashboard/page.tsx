@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Server, Globe, Bell, AlertTriangle } from 'lucide-react';
 import { api, type DashboardData } from '@/lib/api';
 import { MetricCard, StatusBadge, SeverityBadge } from '@/components/ui';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatCpuPercent } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -34,6 +34,8 @@ export default function DashboardPage() {
   if (!data) return <p className="text-destructive">Erreur de chargement</p>;
 
   const { summary, recentAlerts, servers, websites } = data;
+  const serversInAlert = summary.servers.offline + summary.servers.degraded;
+  const websitesInAlert = summary.websites.down + summary.websites.degraded;
 
   return (
     <div className="space-y-8">
@@ -46,16 +48,18 @@ export default function DashboardPage() {
         <MetricCard
           title="Serveurs en ligne"
           value={`${summary.servers.online}/${summary.servers.total}`}
-          subtitle={summary.servers.offline > 0 ? `${summary.servers.offline} hors ligne` : 'Tous opérationnels'}
+          subtitle={serversInAlert > 0 ? `${serversInAlert} en alerte` : 'Tous opérationnels'}
           icon={Server}
-          trend={summary.servers.offline > 0 ? 'down' : 'up'}
+          trend={serversInAlert > 0 ? 'down' : 'up'}
+          href={serversInAlert > 0 ? '/servers?filter=alert' : '/servers'}
         />
         <MetricCard
           title="Sites en ligne"
           value={`${summary.websites.up}/${summary.websites.total}`}
-          subtitle={summary.websites.down > 0 ? `${summary.websites.down} hors ligne` : 'Tous accessibles'}
+          subtitle={websitesInAlert > 0 ? `${websitesInAlert} en alerte` : 'Tous accessibles'}
           icon={Globe}
-          trend={summary.websites.down > 0 ? 'down' : 'up'}
+          trend={websitesInAlert > 0 ? 'down' : 'up'}
+          href={websitesInAlert > 0 ? '/websites?filter=alert' : '/websites'}
         />
         <MetricCard
           title="Alertes actives"
@@ -63,6 +67,7 @@ export default function DashboardPage() {
           subtitle="Non résolues"
           icon={Bell}
           trend={summary.activeAlerts > 0 ? 'down' : 'neutral'}
+          href="/alerts"
         />
         <MetricCard
           title="Serveurs dégradés"
@@ -70,18 +75,19 @@ export default function DashboardPage() {
           subtitle="Ressources élevées"
           icon={AlertTriangle}
           trend={summary.servers.degraded > 0 ? 'down' : 'up'}
+          href={summary.servers.degraded > 0 ? '/servers?filter=degraded' : '/servers'}
         />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Serveurs</h2>
-            <Link href="/servers" className="text-sm text-primary hover:underline">Voir tout</Link>
+            <h2 className="text-lg font-semibold">Serveurs en alerte</h2>
+            <Link href="/servers?filter=alert" className="text-sm text-primary hover:underline">Voir tout</Link>
           </div>
           <div className="space-y-3">
             {servers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun serveur configuré</p>
+              <p className="text-sm text-muted-foreground">Aucun serveur en alerte</p>
             ) : (
               servers.map((s) => {
                 const m = s.metrics?.[0];
@@ -98,7 +104,7 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       {m && (
                         <span className="font-mono text-xs text-muted-foreground">
-                          CPU {m.cpuPercent.toFixed(0)}%
+                          CPU {formatCpuPercent(m.cpuPercent)}
                         </span>
                       )}
                       <StatusBadge status={s.status} />
@@ -112,12 +118,12 @@ export default function DashboardPage() {
 
         <div className="card">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Sites web</h2>
-            <Link href="/websites" className="text-sm text-primary hover:underline">Voir tout</Link>
+            <h2 className="text-lg font-semibold">Sites en alerte</h2>
+            <Link href="/websites?filter=alert" className="text-sm text-primary hover:underline">Voir tout</Link>
           </div>
           <div className="space-y-3">
             {websites.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun site configuré</p>
+              <p className="text-sm text-muted-foreground">Aucun site en alerte</p>
             ) : (
               websites.map((w) => (
                 <Link
@@ -128,6 +134,11 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{w.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{w.url}</p>
+                    {w.checkMode === 'BOTH' && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Externe : {w.externalStatus ?? '—'} · Interne : {w.internalStatus ?? '—'}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {w.lastResponseMs != null && (

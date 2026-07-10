@@ -185,7 +185,7 @@ export const api = new ApiClient();
 export interface DashboardData {
   summary: {
     servers: { total: number; online: number; offline: number; degraded: number };
-    websites: { total: number; up: number; down: number };
+    websites: { total: number; up: number; down: number; degraded: number };
     activeAlerts: number;
   };
   recentAlerts: Alert[];
@@ -249,6 +249,7 @@ export interface ServerMetric {
   diskUsedGb?: number;
   diskTotalGb?: number;
   loadAvg1: number;
+  pleskServices?: Record<string, string>;
   collectedAt: string;
 }
 
@@ -257,9 +258,14 @@ export interface Website {
   name: string;
   url: string;
   status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
+  checkMode?: 'EXTERNAL' | 'INTERNAL' | 'BOTH';
+  externalStatus?: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
+  internalStatus?: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
   checkInterval: number;
   lastCheckAt?: string;
   lastResponseMs?: number;
+  lastExternalResponseMs?: number;
+  lastInternalResponseMs?: number;
   lastStatusCode?: number;
   sslExpiresAt?: string;
   server?: { id: string; name: string; hostname: string };

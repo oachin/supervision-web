@@ -4,6 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ServersService } from '../servers/servers.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AgentMetricsDto } from '../common/dto';
+import { probeResultToStatus, worstWebsiteStatus } from '../websites/website-status.util';
+
+const PLESK_CRITICAL_SERVICES = ['nginx', 'apache2', 'httpd', 'sw-engine', 'mariadb', 'mysql'] as const;
 
 @Injectable()
 export class AgentService {
@@ -33,10 +36,6 @@ export class AgentService {
       serverUpdates.hostname = dto.hostname.trim();
     }
 
-    if (dto.hostname?.trim() && !server.ipAddress) {
-      // IP optionnelle : laissée vide, hostname suffit pour identification
-    }
-
     await this.prisma.$transaction([
       this.prisma.serverMetric.create({
         data: {
@@ -64,6 +63,14 @@ export class AgentService {
 
     if (server.profile === 'PLESK' && dto.pleskWebsites?.length) {
       await this.syncPleskWebsites(server.id, dto.pleskWebsites);
+    }
+
+    if (server.profile === 'PLESK' && dto.pleskWebsiteChecks?.length) {
+      await this.processInternalWebsiteChecks(server.id, dto.pleskWebsiteChecks);
+    }
+
+    if (server.profile === 'PLESK' && dto.pleskServices) {
+      await this.processPleskServiceAlerts(server, dto.pleskServices);
     }
 
     if (previousStatus !== 'OFFLINE' && status === 'OFFLINE') {
@@ -134,9 +141,110 @@ export class AgentService {
           url: normalized,
           serverId,
           source: 'agent',
+          checkMode: 'BOTH',
           sslEnabled: url.startsWith('https'),
         },
       });
+    }
+  }
+
+  private async processInternalWebsiteChecks(
+    serverId: string,
+    checks: {
+      name: string;
+      url: string;
+      statusCode: number;
+      responseMs: number;
+      ok: boolean;
+      error?: string;
+    }[],
+  ) {
+    for (const check of checks) {
+      const url = check.url.startsWith('http') ? check.url : `https://${check.url}`;
+      const normalized = url.replace(/\/$/, '') + '/';
+
+      const website = await this.prisma.website.findFirst({
+        where: {
+          serverId,
+          OR: [
+            { url: normalized },
+            { url: url.replace(/\/$/, '') },
+            { name: check.name },
+          ],
+        },
+      });
+      if (!website) continue;
+
+      const internalStatus = probeResultToStatus(check.ok, check.responseMs);
+      const previousInternal = website.internalStatus;
+      const combinedStatus = website.checkMode === 'BOTH'
+        ? worstWebsiteStatus(website.externalStatus, internalStatus)
+        : internalStatus;
+
+      await this.prisma.websiteCheck.create({
+        data: {
+          websiteId: website.id,
+          status: internalStatus,
+          checkSource: 'INTERNAL',
+          statusCode: check.statusCode,
+          responseMs: check.responseMs,
+          errorMessage: check.error,
+        },
+      });
+
+      await this.prisma.website.update({
+        where: { id: website.id },
+        data: {
+          status: combinedStatus,
+          internalStatus,
+          lastInternalCheckAt: new Date(),
+          lastInternalResponseMs: check.responseMs,
+          lastInternalStatusCode: check.statusCode,
+        },
+      });
+
+      if (internalStatus === 'DOWN') {
+        await this.alerts.create({
+          title: `Site hors ligne (interne Plesk): ${website.name}`,
+          message: `${check.name} — Apache/Nginx local: ${check.error || `HTTP ${check.statusCode}`}`,
+          severity: 'CRITICAL',
+          websiteId: website.id,
+        });
+      } else if (internalStatus === 'UP' && (previousInternal === 'DOWN' || previousInternal === 'DEGRADED')) {
+        await this.alerts.onIssueResolved({
+          websiteId: website.id,
+          titleContains: 'interne Plesk',
+        });
+      }
+    }
+  }
+
+  private async processPleskServiceAlerts(
+    server: Server,
+    services: Record<string, string>,
+  ) {
+    for (const serviceName of PLESK_CRITICAL_SERVICES) {
+      const state = services[serviceName];
+      if (!state) continue;
+
+      const label = serviceName === 'httpd' ? 'Apache (httpd)' : serviceName;
+
+      if (state === 'running') {
+        await this.alerts.onIssueResolved({
+          serverId: server.id,
+          titleContains: `Service ${label}`,
+        });
+        continue;
+      }
+
+      if (state === 'stopped' || state === 'inactive' || state === 'failed' || state === 'dead') {
+        await this.alerts.create({
+          title: `Service Plesk arrêté: ${label}`,
+          message: `${server.name} — état systemctl: ${state}`,
+          severity: 'CRITICAL',
+          serverId: server.id,
+        });
+      }
     }
   }
 

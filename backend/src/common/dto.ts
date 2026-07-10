@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested, IsNumber, IsInt, IsObject } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested, IsNumber, IsInt, IsObject, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class LoginDto {
@@ -210,6 +210,27 @@ export class AgentPleskWebsiteDto {
   url!: string;
 }
 
+export class AgentPleskWebsiteCheckDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  url!: string;
+
+  @IsInt()
+  statusCode!: number;
+
+  @IsNumber()
+  responseMs!: number;
+
+  @IsBoolean()
+  ok!: boolean;
+
+  @IsOptional()
+  @IsString()
+  error?: string;
+}
+
 export class AgentMetricsDto {
   @IsOptional()
   @IsString()
@@ -269,4 +290,10 @@ export class AgentMetricsDto {
   @ValidateNested({ each: true })
   @Type(() => AgentPleskWebsiteDto)
   pleskWebsites?: AgentPleskWebsiteDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgentPleskWebsiteCheckDto)
+  pleskWebsiteChecks?: AgentPleskWebsiteCheckDto[];
 }
