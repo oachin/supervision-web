@@ -88,9 +88,16 @@ class ApiClient {
       }
     }
 
+    if (res.status === 429) {
+      throw new Error('Trop de requêtes, réessayez dans quelques secondes.');
+    }
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: 'Erreur serveur' }));
-      throw new Error(err.message || `HTTP ${res.status}`);
+      const message = typeof err.message === 'string'
+        ? err.message.replace(/^ThrottlerException:\s*/i, '')
+        : `HTTP ${res.status}`;
+      throw new Error(message || `HTTP ${res.status}`);
     }
 
     return res.json();

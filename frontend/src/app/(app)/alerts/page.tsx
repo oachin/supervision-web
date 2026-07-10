@@ -7,9 +7,8 @@ import { formatDate } from '@/lib/utils';
 import { useAlerts } from '@/components/alert-provider';
 
 export default function AlertsPage() {
-  const { refresh } = useAlerts();
-  const [data, setData] = useState<AlertSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { summary, refresh } = useAlerts();
+  const [loading, setLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'active' | 'acknowledged' | 'pendingClose' | 'closed'>('active');
   const [closeForm, setCloseForm] = useState<{ id: string; origin: string; resolutionMethod: string } | null>(null);
@@ -17,15 +16,18 @@ export default function AlertsPage() {
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    api.getAlertsSummary()
-      .then(setData)
+    refresh()
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur de chargement'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
+    if (summary) {
+      setLoading(false);
+      return;
+    }
     load();
-  }, [load]);
+  }, [summary, load]);
 
   async function handleClose(e: React.FormEvent) {
     e.preventDefault();
@@ -33,10 +35,9 @@ export default function AlertsPage() {
     await api.closeAlert(closeForm.id, closeForm.origin, closeForm.resolutionMethod);
     setCloseForm(null);
     refresh();
-    load();
   }
 
-  if (loading) {
+  if (loading && !summary) {
     return (
       <div className="flex h-32 items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -44,7 +45,7 @@ export default function AlertsPage() {
     );
   }
 
-  if (error || !data) {
+  if (!summary) {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold">Alertes</h1>
@@ -57,6 +58,8 @@ export default function AlertsPage() {
       </div>
     );
   }
+
+  const data = summary;
 
   const tabs = [
     { id: 'active' as const, label: 'En cours', count: data.counts.active },

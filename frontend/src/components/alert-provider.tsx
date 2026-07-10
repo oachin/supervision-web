@@ -6,10 +6,10 @@ import { AlertPopup } from './alert-popup';
 
 interface AlertContextValue {
   summary: AlertSummary | null;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
-const AlertContext = createContext<AlertContextValue>({ summary: null, refresh: () => {} });
+const AlertContext = createContext<AlertContextValue>({ summary: null, refresh: async () => {} });
 
 export function useAlerts() {
   return useContext(AlertContext);
@@ -20,20 +20,24 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const [currentPopup, setCurrentPopup] = useState<Alert | null>(null);
   const [summary, setSummary] = useState<AlertSummary | null>(null);
 
-  const refresh = useCallback(() => {
-    api.getAlertsSummary().then(setSummary).catch(console.error);
-    api.getAlertsPopup().then((alerts) => {
-      setPopupAlerts(alerts);
-      setCurrentPopup((prev) => {
-        if (prev && alerts.some((a) => a.id === prev.id)) return prev;
-        return alerts[0] ?? null;
-      });
-    }).catch(console.error);
+  const refresh = useCallback(async () => {
+    const [summaryData, popupData] = await Promise.all([
+      api.getAlertsSummary(),
+      api.getAlertsPopup(),
+    ]);
+    setSummary(summaryData);
+    setPopupAlerts(popupData);
+    setCurrentPopup((prev) => {
+      if (prev && popupData.some((a) => a.id === prev.id)) return prev;
+      return popupData[0] ?? null;
+    });
   }, []);
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 20000);
+    refresh().catch(console.error);
+    const interval = setInterval(() => {
+      refresh().catch(console.error);
+    }, 20000);
     return () => clearInterval(interval);
   }, [refresh]);
 
