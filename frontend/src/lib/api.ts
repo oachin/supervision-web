@@ -265,22 +265,19 @@ export interface Website {
   name: string;
   url: string;
   status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
-  checkMode?: 'EXTERNAL' | 'INTERNAL' | 'BOTH';
-  externalStatus?: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
-  internalStatus?: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
   checkInterval: number;
+  sslAlertDays?: number;
   lastCheckAt?: string;
   lastResponseMs?: number;
-  lastExternalResponseMs?: number;
-  lastInternalResponseMs?: number;
   lastStatusCode?: number;
   sslExpiresAt?: string;
+  sslDaysRemaining?: number;
+  sslIssuer?: string;
+  sslSubject?: string;
+  lastDnsOk?: boolean;
+  lastPort443Open?: boolean;
+  lastTlsVersion?: string;
   server?: { id: string; name: string; hostname: string };
-}
-
-export interface WebsiteSummary extends Website {}
-export interface WebsiteDetail extends Website {
-  checks: WebsiteCheck[];
 }
 
 export interface WebsiteCheck {
@@ -288,8 +285,20 @@ export interface WebsiteCheck {
   status: string;
   statusCode?: number;
   responseMs?: number;
-  checkedAt: string;
+  sslValid?: boolean;
+  sslChainValid?: boolean;
+  sslDaysRemaining?: number;
+  sslIssuer?: string;
+  tlsVersion?: string;
+  dnsOk?: boolean;
+  port443Open?: boolean;
   errorMessage?: string;
+  checkedAt: string;
+}
+
+export interface WebsiteSummary extends Website {}
+export interface WebsiteDetail extends Website {
+  checks: WebsiteCheck[];
 }
 
 export interface Alert {

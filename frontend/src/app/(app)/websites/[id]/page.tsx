@@ -43,6 +43,7 @@ export default function WebsiteDetailPage() {
         <div>
           <h1 className="text-2xl font-bold">{website.name}</h1>
           <p className="font-mono text-sm text-muted-foreground">{website.url}</p>
+          <p className="text-xs text-muted-foreground mt-1">Supervision externe HTTP/SSL</p>
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={website.status} />
@@ -56,33 +57,53 @@ export default function WebsiteDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card text-center">
-          <p className="text-sm text-muted-foreground">Temps de réponse</p>
-          <p className="mt-1 text-2xl font-bold">{website.lastResponseMs ?? '—'}<span className="text-sm font-normal">ms</span></p>
-        </div>
-        <div className="card text-center">
-          <p className="text-sm text-muted-foreground">Code HTTP</p>
+          <p className="text-sm text-muted-foreground">HTTP</p>
           <p className="mt-1 text-2xl font-bold">{website.lastStatusCode ?? '—'}</p>
+          <p className="text-xs text-muted-foreground">{website.lastResponseMs ?? '—'} ms</p>
         </div>
         <div className="card text-center">
-          <p className="text-sm text-muted-foreground">Intervalle</p>
-          <p className="mt-1 text-2xl font-bold">{website.checkInterval}<span className="text-sm font-normal">s</span></p>
+          <p className="text-sm text-muted-foreground">DNS / Port 443</p>
+          <p className="mt-1 text-lg font-bold">
+            {website.lastDnsOk == null ? '—' : website.lastDnsOk ? 'DNS OK' : 'DNS FAIL'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {website.lastPort443Open == null ? '—' : website.lastPort443Open ? '443 ouvert' : '443 fermé'}
+          </p>
         </div>
         <div className="card text-center">
-          <p className="text-sm text-muted-foreground">SSL expire</p>
-          <p className="mt-1 text-lg font-bold">{formatDate(website.sslExpiresAt)}</p>
+          <p className="text-sm text-muted-foreground">SSL</p>
+          <p className="mt-1 text-2xl font-bold">
+            {website.sslDaysRemaining != null ? `${website.sslDaysRemaining}j` : '—'}
+          </p>
+          <p className="text-xs text-muted-foreground">{formatDate(website.sslExpiresAt)}</p>
+        </div>
+        <div className="card text-center">
+          <p className="text-sm text-muted-foreground">TLS</p>
+          <p className="mt-1 text-lg font-bold">{website.lastTlsVersion ?? '—'}</p>
+          <p className="text-xs text-muted-foreground">Seuil alerte : {website.sslAlertDays ?? 15}j</p>
         </div>
       </div>
+
+      {(website.sslIssuer || website.sslSubject) && (
+        <div className="card text-sm space-y-1">
+          {website.sslIssuer && <p><span className="text-muted-foreground">Émetteur :</span> {website.sslIssuer}</p>}
+          {website.sslSubject && <p><span className="text-muted-foreground">Sujet :</span> {website.sslSubject}</p>}
+        </div>
+      )}
 
       <div className="card">
         <h2 className="mb-4 text-lg font-semibold">Historique des vérifications</h2>
         <div className="space-y-1 max-h-96 overflow-y-auto">
           {website.checks.map((c) => (
-            <div key={c.id} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-sm">
+            <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-white/5 px-3 py-2 text-sm">
               <span className="text-muted-foreground">{formatDate(c.checkedAt)}</span>
               <span className="font-mono">{c.responseMs ?? '—'}ms</span>
-              <span className="font-mono">{c.statusCode ?? '—'}</span>
+              <span className="font-mono">HTTP {c.statusCode ?? '—'}</span>
+              <span className="text-xs">{c.dnsOk === false ? 'DNS FAIL' : c.dnsOk ? 'DNS OK' : ''}</span>
+              <span className="text-xs">{c.tlsVersion ?? ''}</span>
+              <span className="text-xs">{c.sslDaysRemaining != null ? `SSL ${c.sslDaysRemaining}j` : ''}</span>
               <StatusBadge status={c.status} />
               {c.errorMessage && <span className="text-xs text-destructive">{c.errorMessage}</span>}
             </div>

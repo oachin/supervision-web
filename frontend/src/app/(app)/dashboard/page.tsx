@@ -134,9 +134,9 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                     <p className="font-medium">{w.name}</p>
                     <p className="truncate text-xs text-muted-foreground">{w.url}</p>
-                    {w.checkMode === 'BOTH' && (
+                    {w.sslDaysRemaining != null && (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Externe : {w.externalStatus ?? '—'} · Interne : {w.internalStatus ?? '—'}
+                        SSL : {w.sslDaysRemaining}j restants
                       </p>
                     )}
                   </div>

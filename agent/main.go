@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,15 +28,6 @@ type PleskWebsitePayload struct {
 	URL  string `json:"url"`
 }
 
-type PleskWebsiteCheckPayload struct {
-	Name       string `json:"name"`
-	URL        string `json:"url"`
-	StatusCode int    `json:"statusCode"`
-	ResponseMs int    `json:"responseMs"`
-	OK         bool   `json:"ok"`
-	Error      string `json:"error,omitempty"`
-}
-
 type MetricsPayload struct {
 	OSVersion     string                `json:"osVersion,omitempty"`
 	Hostname      string                `json:"hostname,omitempty"`
@@ -55,8 +45,7 @@ type MetricsPayload struct {
 	UptimeSeconds int                   `json:"uptimeSeconds"`
 	PleskDomains  *int                  `json:"pleskDomains,omitempty"`
 	PleskServices map[string]string     `json:"pleskServices,omitempty"`
-	PleskWebsites      []PleskWebsitePayload      `json:"pleskWebsites,omitempty"`
-	PleskWebsiteChecks []PleskWebsiteCheckPayload `json:"pleskWebsiteChecks,omitempty"`
+	PleskWebsites []PleskWebsitePayload `json:"pleskWebsites,omitempty"`
 }
 
 func main() {
@@ -190,9 +179,6 @@ func collectMetrics(cfg Config) (*MetricsPayload, error) {
 		m.PleskDomains = countPleskDomains()
 		if cfg.Profile == "plesk" {
 			m.PleskWebsites = collectPleskWebsites()
-			if len(m.PleskWebsites) > 0 {
-				m.PleskWebsiteChecks = probeLocalWebsites(m.PleskWebsites)
-			}
 		}
 	}
 
@@ -247,7 +233,7 @@ func collectPleskServices() map[string]string {
 	services := map[string]string{}
 	names := []string{"sw-engine", "sw-cp-server", "nginx", "apache2", "httpd", "mariadb", "mysql", "postfix"}
 	for _, name := range names {
-		status := "stopped"
+		status := "absent"
 		if out, err := exec.Command("systemctl", "is-active", name).Output(); err == nil {
 			s := strings.TrimSpace(string(out))
 			if s == "active" {
@@ -256,7 +242,15 @@ func collectPleskServices() map[string]string {
 				status = s
 			}
 		}
+		if status == "absent" || status == "inactive" {
+			continue
+		}
 		services[name] = status
+	}
+	if services["apache2"] == "running" {
+		delete(services, "httpd")
+	} else if services["httpd"] == "running" {
+		delete(services, "apache2")
 	}
 	return services
 }
@@ -299,72 +293,6 @@ func collectPleskWebsites() []PleskWebsitePayload {
 	}
 
 	return sites
-}
-
-func probeLocalWebsites(sites []PleskWebsitePayload) []PleskWebsiteCheckPayload {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
-				return http.ErrUseLastResponse
-			}
-			return nil
-		},
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	checks := make([]PleskWebsiteCheckPayload, 0, len(sites))
-	for _, site := range sites {
-		checks = append(checks, probeLocalWebsite(client, site))
-	}
-	return checks
-}
-
-func probeLocalWebsite(client *http.Client, site PleskWebsitePayload) PleskWebsiteCheckPayload {
-	domain := strings.TrimPrefix(strings.TrimPrefix(site.URL, "https://"), "http://")
-	domain = strings.TrimSuffix(domain, "/")
-
-	result := PleskWebsiteCheckPayload{
-		Name: site.Name,
-		URL:  site.URL,
-	}
-
-	start := time.Now()
-	var lastErr string
-
-	for _, scheme := range []string{"http", "https"} {
-		req, err := http.NewRequest("GET", scheme+"://127.0.0.1/", nil)
-		if err != nil {
-			lastErr = err.Error()
-			continue
-		}
-		req.Host = domain
-
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err.Error()
-			continue
-		}
-		io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-
-		result.ResponseMs = int(time.Since(start).Milliseconds())
-		result.StatusCode = resp.StatusCode
-		result.OK = resp.StatusCode >= 200 && resp.StatusCode < 400
-		if !result.OK {
-			result.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)
-		}
-		return result
-	}
-
-	result.ResponseMs = int(time.Since(start).Milliseconds())
-	result.Error = lastErr
-	if result.Error == "" {
-		result.Error = "Connexion locale impossible"
-	}
-	return result
 }
 
 func pushMetrics(client *http.Client, cfg Config, metrics *MetricsPayload) error {

@@ -59,8 +59,6 @@ function WebsitesPageContent() {
     return websites;
   }, [websites, filter]);
 
-  const hasDualCheck = websites.some((w) => w.checkMode === 'BOTH');
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -69,7 +67,7 @@ function WebsitesPageContent() {
           <p className="text-sm text-muted-foreground">
             {filter && filterLabels[filter]
               ? `Filtre actif : ${filterLabels[filter]}`
-              : 'Surveillance externe (Internet) et interne (Plesk) pour les sites importés'}
+              : 'Surveillance externe HTTP/SSL depuis la plateforme (DNS, port 443, certificat, redirections)'}
           </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">
@@ -130,10 +128,9 @@ function WebsitesPageContent() {
               <tr className="border-b border-white/5 text-left text-muted-foreground">
                 <th className="p-4 font-medium">Nom</th>
                 <th className="p-4 font-medium">URL</th>
-                {hasDualCheck && <th className="p-4 font-medium">Externe</th>}
-                {hasDualCheck && <th className="p-4 font-medium">Interne</th>}
-                <th className="p-4 font-medium">Réponse</th>
-                <th className="p-4 font-medium">SSL expire</th>
+                <th className="p-4 font-medium">HTTP</th>
+                <th className="p-4 font-medium">DNS</th>
+                <th className="p-4 font-medium">SSL (jours)</th>
                 <th className="p-4 font-medium">Dernier check</th>
                 <th className="p-4 font-medium">Statut</th>
                 <th className="p-4 font-medium w-12"></th>
@@ -146,22 +143,15 @@ function WebsitesPageContent() {
                     <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">{w.name}</Link>
                   </td>
                   <td className="p-4 font-mono text-xs">{w.url}</td>
-                  {hasDualCheck && (
-                    <td className="p-4">
-                      {w.checkMode === 'BOTH' ? <StatusBadge status={w.externalStatus ?? 'UNKNOWN'} /> : '—'}
-                    </td>
-                  )}
-                  {hasDualCheck && (
-                    <td className="p-4">
-                      {w.checkMode === 'BOTH' ? <StatusBadge status={w.internalStatus ?? 'UNKNOWN'} /> : '—'}
-                    </td>
-                  )}
                   <td className="p-4 font-mono text-xs">
-                    {w.checkMode === 'BOTH'
-                      ? `${w.lastExternalResponseMs ?? '—'} / ${w.lastInternalResponseMs ?? '—'} ms`
-                      : w.lastResponseMs != null ? `${w.lastResponseMs}ms` : '—'}
+                    {w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—'}
                   </td>
-                  <td className="p-4 text-xs">{formatDate(w.sslExpiresAt)}</td>
+                  <td className="p-4">
+                    {w.lastDnsOk == null ? '—' : w.lastDnsOk ? 'OK' : 'FAIL'}
+                  </td>
+                  <td className="p-4 text-xs">
+                    {w.sslDaysRemaining != null ? `${w.sslDaysRemaining}j` : formatDate(w.sslExpiresAt)}
+                  </td>
                   <td className="p-4 text-xs text-muted-foreground">{formatDate(w.lastCheckAt)}</td>
                   <td className="p-4"><StatusBadge status={w.status} /></td>
                   <td className="p-4">

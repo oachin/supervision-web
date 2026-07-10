@@ -154,7 +154,14 @@ model Website {
   expectedStatus  Int               @default(200)
   expectedKeyword String?
   sslEnabled      Boolean           @default(true)
+  sslAlertDays    Int               @default(15)
   sslExpiresAt    DateTime?
+  sslIssuer       String?
+  sslSubject      String?
+  sslDaysRemaining Int?
+  lastDnsOk       Boolean?
+  lastPort443Open Boolean?
+  lastTlsVersion  String?
   lastCheckAt     DateTime?
   lastResponseMs  Int?
   lastStatusCode  Int?
@@ -185,7 +192,14 @@ model WebsiteCheck {
   statusCode   Int?
   responseMs   Int?
   sslValid     Boolean?
+  sslChainValid Boolean?
   sslExpiresAt DateTime?
+  sslIssuer    String?
+  sslSubject   String?
+  sslDaysRemaining Int?
+  dnsOk        Boolean?
+  port443Open  Boolean?
+  tlsVersion   String?
   errorMessage String?
   checkedAt    DateTime           @default(now())
 

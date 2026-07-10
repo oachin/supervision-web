@@ -96,7 +96,28 @@ Créez d'abord le serveur dans l'interface pour obtenir la clé agent.
 
 ---
 
-## Architecture
+## Architecture de supervision
+
+| Composant | Mode | Détail |
+|-----------|------|--------|
+| **Serveur Linux** | Agent | Métriques CPU, RAM, disque, uptime |
+| **Serveur Plesk** | Agent | Métriques + services (nginx, Apache, MariaDB…) + import des domaines |
+| **Sites web** | Externe (plateforme) | HTTP (curl-like, redirections), DNS, port 443, SSL/TLS, chaîne de certificats |
+
+Les sites importés depuis Plesk sont **surveillés uniquement depuis l'extérieur** (serveur de supervision).  
+Seul le **serveur Plesk** bénéficie de la supervision interne (ressources + services).
+
+Script CLI de référence (bash) : `scripts/monitor-websites.sh`
+
+```bash
+SSL_ALERT_DAYS=15 ./scripts/monitor-websites.sh domaine1.com domaine2.com
+# ou
+./scripts/monitor-websites.sh liste-domaines.txt
+```
+
+---
+
+## Architecture déploiement
 
 ```
 Internet → Nginx (443/80, Let's Encrypt)

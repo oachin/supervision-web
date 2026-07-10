@@ -1,12 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Website, WebsiteStatus } from '@prisma/client';
-import * as https from 'https';
-import * as http from 'http';
-import { URL } from 'url';
+import { Website } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
-import { probeResultToStatus, worstWebsiteStatus } from '../websites/website-status.util';
+import { probeResultToStatus } from '../websites/website-status.util';
+import { WebsiteProbeService } from './website-probe.service';
 
 @Injectable()
 export class MonitoringService {
@@ -16,13 +14,12 @@ export class MonitoringService {
   constructor(
     private prisma: PrismaService,
     private alerts: AlertsService,
+    private probe: WebsiteProbeService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async checkWebsites() {
-    const websites = await this.prisma.website.findMany({
-      where: { checkMode: { in: ['EXTERNAL', 'BOTH'] } },
-    });
+    const websites = await this.prisma.website.findMany();
     const now = Date.now();
 
     for (const website of websites) {
@@ -40,22 +37,26 @@ export class MonitoringService {
   }
 
   async runExternalCheck(website: Website, now = Date.now()) {
-    const result = await this.probeWebsite(website.url, website.expectedStatus, website.expectedKeyword);
-    const externalStatus = probeResultToStatus(result.ok, result.responseMs);
-    const previousExternal = website.externalStatus;
-    const combinedStatus = website.checkMode === 'BOTH'
-      ? worstWebsiteStatus(externalStatus, website.internalStatus)
-      : externalStatus;
+    const result = await this.probe.probe(website.url, website.expectedStatus, website.expectedKeyword);
+    const status = probeResultToStatus(result.ok, result.responseMs);
+    const previousStatus = website.status;
 
     await this.prisma.websiteCheck.create({
       data: {
         websiteId: website.id,
-        status: externalStatus,
+        status,
         checkSource: 'EXTERNAL',
         statusCode: result.statusCode,
         responseMs: result.responseMs,
         sslValid: result.sslValid,
+        sslChainValid: result.sslChainValid,
         sslExpiresAt: result.sslExpiresAt,
+        sslIssuer: result.sslIssuer,
+        sslSubject: result.sslSubject,
+        sslDaysRemaining: result.sslDaysRemaining,
+        dnsOk: result.dnsOk,
+        port443Open: result.port443Open,
+        tlsVersion: result.tlsVersion,
         errorMessage: result.error,
       },
     });
@@ -63,8 +64,8 @@ export class MonitoringService {
     await this.prisma.website.update({
       where: { id: website.id },
       data: {
-        status: combinedStatus,
-        externalStatus,
+        status,
+        externalStatus: status,
         lastCheckAt: new Date(),
         lastResponseMs: result.responseMs,
         lastStatusCode: result.statusCode,
@@ -72,33 +73,53 @@ export class MonitoringService {
         lastExternalResponseMs: result.responseMs,
         lastExternalStatusCode: result.statusCode,
         sslExpiresAt: result.sslExpiresAt,
+        sslIssuer: result.sslIssuer,
+        sslSubject: result.sslSubject,
+        sslDaysRemaining: result.sslDaysRemaining,
+        lastDnsOk: result.dnsOk,
+        lastPort443Open: result.port443Open,
+        lastTlsVersion: result.tlsVersion,
       },
     });
 
-    if (externalStatus === 'DOWN') {
+    if (status === 'DOWN') {
+      const details = [
+        result.error,
+        result.dnsOk === false ? 'DNS en échec' : null,
+        result.port443Open === false ? 'Port 443 fermé' : null,
+        result.sslValid === false ? result.sslError : null,
+      ].filter(Boolean).join(' · ');
+
       await this.alerts.create({
-        title: `Site hors ligne (externe): ${website.name}`,
-        message: `${website.url} — ${result.error || `HTTP ${result.statusCode}`}`,
+        title: `Site hors ligne: ${website.name}`,
+        message: `${website.url} — ${details || 'Indisponible'}`,
         severity: 'CRITICAL',
         websiteId: website.id,
       });
-    } else if (externalStatus === 'UP' && (previousExternal === 'DOWN' || previousExternal === 'DEGRADED')) {
+    } else if (status === 'UP' && (previousStatus === 'DOWN' || previousStatus === 'DEGRADED')) {
       await this.alerts.onIssueResolved({
         websiteId: website.id,
-        titleContains: 'externe',
+        titleContains: 'hors ligne',
       });
     }
 
-    if (result.sslExpiresAt) {
-      const daysUntilExpiry = (result.sslExpiresAt.getTime() - now) / (1000 * 60 * 60 * 24);
-      if (daysUntilExpiry < 14 && daysUntilExpiry > 0) {
-        await this.alerts.create({
-          title: `Certificat SSL expire bientôt: ${website.name}`,
-          message: `Expire le ${result.sslExpiresAt.toISOString().split('T')[0]} (${Math.floor(daysUntilExpiry)} jours)`,
-          severity: daysUntilExpiry < 7 ? 'CRITICAL' : 'WARNING',
-          websiteId: website.id,
-        });
-      }
+    if (result.sslChainValid === false) {
+      await this.alerts.create({
+        title: `Chaîne SSL incomplète: ${website.name}`,
+        message: `${website.url} — certificats intermédiaires manquants ou invalides`,
+        severity: 'WARNING',
+        websiteId: website.id,
+      });
+    }
+
+    const alertDays = website.sslAlertDays ?? 15;
+    if (result.sslDaysRemaining != null && result.sslDaysRemaining > 0 && result.sslDaysRemaining < alertDays) {
+      await this.alerts.create({
+        title: `Certificat SSL expire bientôt: ${website.name}`,
+        message: `Expire le ${result.sslExpiresAt?.toISOString().split('T')[0]} (${result.sslDaysRemaining} jours, seuil ${alertDays}j)`,
+        severity: result.sslDaysRemaining < 7 ? 'CRITICAL' : 'WARNING',
+        websiteId: website.id,
+      });
     }
   }
 
@@ -134,109 +155,5 @@ export class MonitoringService {
     await this.prisma.serverMetric.deleteMany({ where: { collectedAt: { lt: cutoff } } });
     await this.prisma.websiteCheck.deleteMany({ where: { checkedAt: { lt: cutoff } } });
     this.logger.log('Old metrics cleaned up');
-  }
-
-  private probeWebsite(
-    url: string,
-    expectedStatus: number,
-    expectedKeyword?: string | null,
-    maxRedirects = 5,
-  ): Promise<{
-    ok: boolean;
-    statusCode?: number;
-    responseMs: number;
-    sslValid?: boolean;
-    sslExpiresAt?: Date;
-    error?: string;
-  }> {
-    const start = Date.now();
-
-    const follow = (targetUrl: string, redirectsLeft: number): ReturnType<MonitoringService['probeWebsite']> =>
-      new Promise((resolve) => {
-        let parsed: URL;
-        try {
-          parsed = new URL(targetUrl);
-        } catch {
-          resolve({ ok: false, responseMs: Date.now() - start, error: 'URL invalide' });
-          return;
-        }
-
-        const isHttps = parsed.protocol === 'https:';
-        const lib = isHttps ? https : http;
-
-        const req = lib.get(
-          targetUrl,
-          {
-            timeout: 15000,
-            headers: { 'User-Agent': 'HavetSupervision/1.0' },
-            rejectUnauthorized: true,
-          },
-          (res) => {
-            const statusCode = res.statusCode ?? 0;
-            const location = res.headers.location;
-
-            if (
-              redirectsLeft > 0 &&
-              location &&
-              [301, 302, 303, 307, 308].includes(statusCode)
-            ) {
-              res.resume();
-              const nextUrl = new URL(location, targetUrl).href;
-              follow(nextUrl, redirectsLeft - 1).then(resolve);
-              return;
-            }
-
-            let body = '';
-            res.on('data', (chunk) => { body += chunk; });
-            res.on('end', () => {
-              const responseMs = Date.now() - start;
-              let sslExpiresAt: Date | undefined;
-
-              if (isHttps && res.socket) {
-                const cert = (res.socket as import('tls').TLSSocket).getPeerCertificate();
-                if (cert?.valid_to) {
-                  sslExpiresAt = new Date(cert.valid_to);
-                }
-              }
-
-              const statusOk = statusCode >= 200 && statusCode < 400;
-              const keywordOk = !expectedKeyword || body.includes(expectedKeyword);
-              const expectedOk = statusCode === expectedStatus || statusOk;
-
-              resolve({
-                ok: expectedOk && keywordOk,
-                statusCode,
-                responseMs,
-                sslValid: isHttps ? true : undefined,
-                sslExpiresAt,
-                error: !expectedOk
-                  ? `Statut attendu ${expectedStatus}, reçu ${statusCode}`
-                  : !keywordOk
-                    ? 'Mot-clé attendu non trouvé'
-                    : undefined,
-              });
-            });
-          },
-        );
-
-        req.on('error', (err) => {
-          resolve({
-            ok: false,
-            responseMs: Date.now() - start,
-            error: err.message,
-          });
-        });
-
-        req.on('timeout', () => {
-          req.destroy();
-          resolve({
-            ok: false,
-            responseMs: Date.now() - start,
-            error: 'Timeout (15s)',
-          });
-        });
-      });
-
-    return follow(url, maxRedirects);
   }
 }
