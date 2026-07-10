@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum ServerStatus {
+  ONLINE
+  OFFLINE
+  DEGRADED
+  UNKNOWN
+}
+
+enum WebsiteStatus {
+  UP
+  DOWN
+  DEGRADED
+  UNKNOWN
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  PENDING_CLOSE
+  CLOSED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  role              Role      @default(VIEWER)
+  totpSecret        String?
+  totpEnabled       Boolean   @default(false)
+  totpBackupCodes   String[]
+  isActive          Boolean   @default(true)
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  alertsAcknowledged Alert[]     @relation("AlertAcknowledgedBy")
+  alertsClosed       Alert[]     @relation("AlertClosedBy")
+  alertEvents        AlertEvent[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+  userAgent String?
+  ipAddress String?
+
+  @@index([userId])
+}
+
+model Server {
+  id            String       @id @default(uuid())
+  name          String
+  hostname      String
+  ipAddress     String?
+  osType        String       @default("linux")
+  osVersion     String?
+  hasPlesk      Boolean      @default(false)
+  pleskUrl      String?
+  pleskApiKey   String?
+  agentKey      String       @unique
+  status        ServerStatus @default(UNKNOWN)
+  lastSeenAt    DateTime?
+  tags          String[]
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  metrics       ServerMetric[]
+  websites      Website[]
+  alerts        Alert[]
+
+  @@index([status])
+}
+
+model ServerMetric {
+  id          String   @id @default(uuid())
+  serverId    String
+  server      Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  cpuPercent  Float
+  memoryPercent Float
+  memoryUsedMb  Float
+  memoryTotalMb Float
+  diskPercent Float
+  diskUsedGb  Float
+  diskTotalGb Float
+  loadAvg1    Float
+  loadAvg5    Float
+  loadAvg15   Float
+  uptimeSeconds Int
+  pleskDomains Int?
+  pleskServices Json?
+  rawData     Json?
+  collectedAt DateTime @default(now())
+
+  @@index([serverId, collectedAt])
+}
+
+model Website {
+  id              String        @id @default(uuid())
+  name            String
+  url             String
+  serverId        String?
+  server          Server?       @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  status          WebsiteStatus @default(UNKNOWN)
+  checkInterval   Int           @default(60)
+  expectedStatus  Int           @default(200)
+  expectedKeyword String?
+  sslEnabled      Boolean       @default(true)
+  sslExpiresAt    DateTime?
+  lastCheckAt     DateTime?
+  lastResponseMs  Int?
+  lastStatusCode  Int?
+  tags            String[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  checks          WebsiteCheck[]
+  alerts          Alert[]
+
+  @@index([status])
+}
+
+model WebsiteCheck {
+  id           String   @id @default(uuid())
+  websiteId    String
+  website      Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  status       WebsiteStatus
+  statusCode   Int?
+  responseMs   Int?
+  sslValid     Boolean?
+  sslExpiresAt DateTime?
+  errorMessage String?
+  checkedAt    DateTime @default(now())
+
+  @@index([websiteId, checkedAt])
+}
+
+model Alert {
+  id                String        @id @default(uuid())
+  title             String
+  message           String
+  severity          AlertSeverity
+  serverId          String?
+  server            Server?       @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  websiteId         String?
+  website           Website?      @relation(fields: [websiteId], references: [id], onDelete: SetNull)
+  status            AlertStatus   @default(ACTIVE)
+  occurrenceCount   Int           @default(1)
+  fingerprint       String
+  acknowledged      Boolean       @default(false)
+  resolved          Boolean       @default(false)
+  acknowledgedById  String?
+  acknowledgedBy    User?         @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  acknowledgedAt    DateTime?
+  snoozedUntil      DateTime?
+  issueResolvedAt   DateTime?
+  origin            String?
+  resolutionMethod  String?
+  closedById        String?
+  closedBy          User?         @relation("AlertClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  closedAt          DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  resolvedAt        DateTime?
+  events            AlertEvent[]
+
+  @@index([status, createdAt])
+  @@index([fingerprint])
+  @@index([resolved, createdAt])
+}
+
+model AlertEvent {
+  id            String   @id @default(uuid())
+  alertId       String?
+  alert         Alert?   @relation(fields: [alertId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String
+  message       String?
+  details       Json?
+  alertTitle    String?
+  alertSeverity String?
+  resourceName  String?
+  resourceType  String?
+  createdAt     DateTime @default(now())
+
+  @@index([alertId, createdAt])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  resource  String?
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
