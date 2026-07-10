@@ -13,21 +13,31 @@ echo "=== Havet Supervision — Déploiement production ==="
 echo ""
 
 if [ ! -f .env ]; then
-  echo "Fichier .env manquant. Copie depuis .env.example..."
   cp .env.example .env
-  echo ""
-  echo "⚠️  Générez les secrets : bash scripts/generate-secrets.sh"
-  echo "    Puis éditez .env (ADMIN_PASSWORD, CERTBOT_EMAIL, etc.)"
+  echo "⚠️  .env créé depuis .env.example — vérifiez DOMAIN et CERTBOT_EMAIL"
+fi
+
+if [ ! -f .env.secrets ]; then
+  cp .env.secrets.example .env.secrets
+  echo "⚠️  .env.secrets créé — remplissez-le : bash scripts/generate-secrets.sh"
   exit 1
 fi
 
 load_env .env
+load_env .env.secrets
 
 DOMAIN="${DOMAIN:-supervision-web-01.havetdigital.app}"
 
-for var in JWT_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY AGENT_API_KEY_SALT POSTGRES_PASSWORD REDIS_PASSWORD ADMIN_PASSWORD DOMAIN CERTBOT_EMAIL; do
+for var in DOMAIN CERTBOT_EMAIL; do
   if [ -z "${!var:-}" ]; then
     echo "❌ Variable $var non définie dans .env"
+    exit 1
+  fi
+done
+
+for var in JWT_SECRET JWT_REFRESH_SECRET ENCRYPTION_KEY AGENT_API_KEY_SALT POSTGRES_PASSWORD REDIS_PASSWORD ADMIN_PASSWORD DATABASE_URL REDIS_URL; do
+  if [ -z "${!var:-}" ]; then
+    echo "❌ Variable $var non définie dans .env.secrets"
     exit 1
   fi
 done
@@ -58,7 +68,7 @@ if [ "$NEED_CERT" = true ]; then
 else
   echo "✅ Certificat SSL existant"
   echo "→ Démarrage des services..."
-  NGINX_TEMPLATE=/etc/nginx/templates/nginx.conf.template $COMPOSE up -d
+  $COMPOSE up -d
 fi
 
 echo ""
@@ -66,9 +76,7 @@ echo "✅ Havet Supervision déployé !"
 echo ""
 echo "   URL   : https://${DOMAIN}"
 echo "   API   : https://${DOMAIN}/api"
-echo "   Admin : ${ADMIN_EMAIL}"
-echo ""
-echo "   Agent : SUPERVISION_API_URL=https://${DOMAIN}/api SUPERVISION_AGENT_KEY=sv_... bash agent/install.sh"
+echo "   Admin : ${ADMIN_EMAIL:-admin@havetdigital.app}"
 echo ""
 echo "Commandes :"
 echo "   Logs    : $COMPOSE logs -f"
