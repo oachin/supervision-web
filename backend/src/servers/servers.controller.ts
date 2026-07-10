@@ -56,7 +56,7 @@ export class ServersController {
   }
 
   @Post(':id/regenerate-key')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'OPERATOR')
   regenerateKey(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.servers.regenerateKey(id, userId);
   }

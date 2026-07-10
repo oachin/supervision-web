@@ -20,6 +20,8 @@ export default function ServerDetailPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [installCommand, setInstallCommand] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -64,8 +66,16 @@ export default function ServerDetailPage() {
 
   async function regenerateInstall() {
     if (!id) return;
-    const result = await api.regenerateServerKey(id);
-    setInstallCommand(result.installCommand);
+    setRegenerating(true);
+    try {
+      const result = await api.regenerateServerKey(id);
+      setInstallCommand(result.installCommand);
+      setShowRegenerateConfirm(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRegenerating(false);
+    }
   }
 
   function copyInstall() {
@@ -120,32 +130,41 @@ export default function ServerDetailPage() {
         </div>
       </div>
 
-      {(server.status === 'UNKNOWN' || installCommand) && (
-        <div className="card border-accent/30 bg-accent/5">
-          <div className="flex items-start gap-3">
-            <Terminal className="h-5 w-5 text-accent mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold">Agent non connecté</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Installez l&apos;agent sur le serveur distant avec wget (en root).
-              </p>
-              {installCommand ? (
-                <>
-                  <pre className="mt-3 rounded-lg bg-muted/50 p-3 text-xs overflow-x-auto">{installCommand}</pre>
-                  <button onClick={copyInstall} className="btn-secondary text-sm mt-2">
+      <div className="card border-white/10">
+        <div className="flex items-start gap-3">
+          <Terminal className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold">Installation / mise à jour agent</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {server.status === 'UNKNOWN'
+                ? 'Installez l\'agent sur le serveur distant avec wget (en root).'
+                : 'Réexécutez la commande pour mettre à jour l\'agent ou le réinstaller. Une nouvelle clé invalide l\'ancienne.'}
+            </p>
+            {installCommand ? (
+              <>
+                <pre className="mt-3 rounded-lg bg-muted/50 p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">{installCommand}</pre>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={copyInstall} className="btn-secondary text-sm">
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     Copier
                   </button>
-                </>
-              ) : (
-                <button onClick={regenerateInstall} className="btn-secondary text-sm mt-3">
-                  Générer une nouvelle commande wget
-                </button>
-              )}
-            </div>
+                  <button type="button" onClick={() => setShowRegenerateConfirm(true)} className="btn-ghost text-sm">
+                    Régénérer une nouvelle clé
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowRegenerateConfirm(true)}
+                className="btn-secondary text-sm mt-3"
+              >
+                Générer la commande wget
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {latest && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -222,6 +241,20 @@ export default function ServerDetailPage() {
         {server.osVersion && <p>OS : {server.osVersion}</p>}
         {server.notes && <p>Notes : {server.notes}</p>}
       </div>
+
+      <ConfirmDialog
+        open={showRegenerateConfirm}
+        title="Générer la commande wget"
+        message={
+          server.status === 'UNKNOWN'
+            ? 'Une nouvelle clé agent sera créée. Copiez la commande et exécutez-la en root sur le serveur distant.'
+            : 'Une nouvelle clé sera générée : l\'agent actuel cessera de fonctionner jusqu\'à réinstallation avec la nouvelle commande. Continuer ?'
+        }
+        confirmLabel="Générer"
+        onConfirm={regenerateInstall}
+        onCancel={() => setShowRegenerateConfirm(false)}
+        loading={regenerating}
+      />
 
       <ConfirmDialog
         open={showDelete}
