@@ -122,49 +122,46 @@ export default function ServerDetailPage() {
             Profil : {server.profile === 'PLESK' ? 'Plesk' : 'Linux'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <StatusBadge status={server.status} />
           <button type="button" onClick={() => setShowDelete(true)} className="btn-danger text-sm">
             <Trash2 className="h-4 w-4" /> Supprimer
           </button>
+          <button
+            type="button"
+            onClick={() => setShowRegenerateConfirm(true)}
+            className="btn-secondary text-sm"
+            disabled={regenerating}
+          >
+            <Terminal className="h-4 w-4" />
+            Générer la commande wget
+          </button>
         </div>
       </div>
 
-      <div className="card border-white/10">
-        <div className="flex items-start gap-3">
-          <Terminal className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold">Installation / mise à jour agent</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {server.status === 'UNKNOWN'
-                ? 'Installez l\'agent sur le serveur distant avec wget (en root).'
-                : 'Réexécutez la commande pour mettre à jour l\'agent ou le réinstaller. Une nouvelle clé invalide l\'ancienne.'}
-            </p>
-            {installCommand ? (
-              <>
-                <pre className="mt-3 rounded-lg bg-muted/50 p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">{installCommand}</pre>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={copyInstall} className="btn-secondary text-sm">
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    Copier
-                  </button>
-                  <button type="button" onClick={() => setShowRegenerateConfirm(true)} className="btn-ghost text-sm">
-                    Régénérer une nouvelle clé
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowRegenerateConfirm(true)}
-                className="btn-secondary text-sm mt-3"
-              >
-                Générer la commande wget
-              </button>
-            )}
+      {installCommand && (
+        <div className="card border-accent/30 bg-accent/5">
+          <div className="flex items-start gap-3">
+            <Terminal className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold">Commande d&apos;installation agent</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Exécutez en root sur le serveur distant. Une nouvelle clé invalide l&apos;ancienne.
+              </p>
+              <pre className="mt-3 rounded-lg bg-muted/50 p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">{installCommand}</pre>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={copyInstall} className="btn-secondary text-sm">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  Copier
+                </button>
+                <button type="button" onClick={() => setShowRegenerateConfirm(true)} className="btn-ghost text-sm">
+                  Régénérer
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {latest && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
