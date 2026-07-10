@@ -135,10 +135,10 @@ class ApiClient {
   getServers() { return this.fetch<Server[]>('/servers'); }
   getServer(id: string) { return this.fetch<ServerDetail>(`/servers/${id}`); }
   getServerMetrics(id: string, hours = 24) { return this.fetch<ServerMetric[]>(`/servers/${id}/metrics?hours=${hours}`); }
-  createServer(data: CreateServerData) { return this.fetch<Server & { agentKeyPlain: string }>('/servers', { method: 'POST', body: JSON.stringify(data) }); }
+  createServer(data: CreateServerData) { return this.fetch<ServerCreateResult>('/servers', { method: 'POST', body: JSON.stringify(data) }); }
   updateServer(id: string, data: Partial<CreateServerData>) { return this.fetch<Server>(`/servers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   deleteServer(id: string) { return this.fetch(`/servers/${id}`, { method: 'DELETE' }); }
-  regenerateServerKey(id: string) { return this.fetch<{ agentKeyPlain: string }>(`/servers/${id}/regenerate-key`, { method: 'POST' }); }
+  regenerateServerKey(id: string) { return this.fetch<{ agentKeyPlain: string; installUrl: string; installCommand: string }>(`/servers/${id}/regenerate-key`, { method: 'POST' }); }
 
   // Websites
   getWebsites() { return this.fetch<Website[]>('/websites'); }
@@ -215,12 +215,19 @@ export interface Server {
   ipAddress?: string;
   osType: string;
   osVersion?: string;
+  profile: 'LINUX' | 'PLESK';
   hasPlesk: boolean;
   status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'UNKNOWN';
   lastSeenAt?: string;
   tags: string[];
   notes?: string;
   _count?: { websites: number; metrics: number };
+}
+
+export interface ServerCreateResult extends Server {
+  agentKeyPlain: string;
+  installUrl: string;
+  installCommand: string;
 }
 
 export interface ServerSummary extends Server {
@@ -335,8 +342,9 @@ export interface ManagedUser {
 }
 
 export interface CreateServerData {
-  name: string;
-  hostname: string;
+  name?: string;
+  hostname?: string;
+  profile?: 'LINUX' | 'PLESK';
   ipAddress?: string;
   hasPlesk?: boolean;
   pleskUrl?: string;

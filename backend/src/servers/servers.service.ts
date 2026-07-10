@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { ServerStatus } from '@prisma/client';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { AgentProfile, ServerStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../common/crypto.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertsService } from '../alerts/alerts.service';
+import { AgentInstallService } from '../agent/agent-install.service';
 import { CreateServerDto, UpdateServerDto } from '../common/dto';
 
 @Injectable()
@@ -13,6 +14,8 @@ export class ServersService {
     private crypto: CryptoService,
     private audit: AuditService,
     private alerts: AlertsService,
+    @Inject(forwardRef(() => AgentInstallService))
+    private agentInstall: AgentInstallService,
   ) {}
 
   private sanitize(server: Record<string, unknown>) {
@@ -51,26 +54,33 @@ export class ServersService {
   async create(dto: CreateServerDto, userId: string) {
     const plainKey = this.crypto.generateAgentKey();
     const hashedKey = this.crypto.hashAgentKey(plainKey);
+    const profile: AgentProfile = dto.profile ?? (dto.hasPlesk ? 'PLESK' : 'LINUX');
 
     const server = await this.prisma.server.create({
       data: {
-        name: dto.name,
-        hostname: dto.hostname,
+        name: dto.name?.trim() || 'Nouveau serveur',
+        hostname: dto.hostname?.trim() || 'en-attente',
         ipAddress: dto.ipAddress,
-        hasPlesk: dto.hasPlesk ?? false,
+        profile,
+        hasPlesk: profile === 'PLESK',
         pleskUrl: dto.pleskUrl,
         pleskApiKey: dto.pleskApiKey ? this.crypto.encrypt(dto.pleskApiKey) : null,
         agentKey: hashedKey,
         tags: dto.tags ?? [],
         notes: dto.notes,
+        status: 'UNKNOWN',
       },
     });
 
-    await this.audit.log(userId, 'SERVER_CREATED', 'servers', { serverId: server.id });
+    await this.audit.log(userId, 'SERVER_CREATED', 'servers', { serverId: server.id, profile });
+
+    const slug = this.agentInstall.profileToSlug(profile);
 
     return {
       ...this.sanitize(server as unknown as Record<string, unknown>),
       agentKeyPlain: plainKey,
+      installUrl: this.agentInstall.buildInstallUrl(slug, plainKey),
+      installCommand: this.agentInstall.buildWgetCommand(slug, plainKey),
     };
   }
 
@@ -102,7 +112,13 @@ export class ServersService {
 
     await this.audit.log(userId, 'SERVER_KEY_REGENERATED', 'servers', { serverId: id });
 
-    return { agentKeyPlain: plainKey };
+    const slug = this.agentInstall.profileToSlug(server.profile);
+
+    return {
+      agentKeyPlain: plainKey,
+      installUrl: this.agentInstall.buildInstallUrl(slug, plainKey),
+      installCommand: this.agentInstall.buildWgetCommand(slug, plainKey),
+    };
   }
 
   async remove(id: string, userId: string) {

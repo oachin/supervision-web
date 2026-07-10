@@ -1,4 +1,5 @@
-import { IsEmail, IsString, MinLength, IsOptional, Length } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class LoginDto {
   @IsEmail()
@@ -71,12 +72,17 @@ export class UpdateUserDto {
 }
 
 export class CreateServerDto {
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  name!: string;
+  name?: string;
 
+  @IsOptional()
   @IsString()
-  hostname!: string;
+  hostname?: string;
+
+  @IsOptional()
+  @IsIn(['LINUX', 'PLESK'])
+  profile?: 'LINUX' | 'PLESK';
 
   @IsOptional()
   @IsString()
@@ -196,10 +202,26 @@ export class UpdateWebsiteDto {
   tags?: string[];
 }
 
+export class AgentPleskWebsiteDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  url!: string;
+}
+
 export class AgentMetricsDto {
   @IsOptional()
   @IsString()
   osVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  hostname?: string;
+
+  @IsOptional()
+  @IsString()
+  profile?: string;
 
   cpuPercent!: number;
   memoryPercent!: number;
@@ -218,4 +240,10 @@ export class AgentMetricsDto {
 
   @IsOptional()
   pleskServices?: Record<string, string>;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgentPleskWebsiteDto)
+  pleskWebsites?: AgentPleskWebsiteDto[];
 }

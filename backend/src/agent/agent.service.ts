@@ -23,6 +23,19 @@ export class AgentService {
     );
 
     const previousStatus = server.status;
+    const serverUpdates: Record<string, unknown> = {
+      status,
+      lastSeenAt: now,
+      osVersion: dto.osVersion ?? server.osVersion,
+    };
+
+    if (dto.hostname?.trim() && (server.hostname === 'en-attente' || !server.hostname)) {
+      serverUpdates.hostname = dto.hostname.trim();
+    }
+
+    if (dto.hostname?.trim() && !server.ipAddress) {
+      // IP optionnelle : laissée vide, hostname suffit pour identification
+    }
 
     await this.prisma.$transaction([
       this.prisma.serverMetric.create({
@@ -45,13 +58,13 @@ export class AgentService {
       }),
       this.prisma.server.update({
         where: { id: server.id },
-        data: {
-          status,
-          lastSeenAt: now,
-          osVersion: dto.osVersion ?? server.osVersion,
-        },
+        data: serverUpdates,
       }),
     ]);
+
+    if (server.profile === 'PLESK' && dto.pleskWebsites?.length) {
+      await this.syncPleskWebsites(server.id, dto.pleskWebsites);
+    }
 
     if (previousStatus !== 'OFFLINE' && status === 'OFFLINE') {
       await this.alerts.create({
@@ -91,6 +104,40 @@ export class AgentService {
     }
 
     return { success: true, status };
+  }
+
+  private async syncPleskWebsites(
+    serverId: string,
+    sites: { name: string; url: string }[],
+  ) {
+    for (const site of sites) {
+      const url = site.url.startsWith('http') ? site.url : `https://${site.url}`;
+      const normalized = url.replace(/\/$/, '') + '/';
+
+      const existing = await this.prisma.website.findFirst({
+        where: { serverId, url: { in: [url, normalized, url.replace(/\/$/, '')] } },
+      });
+
+      if (existing) {
+        if (existing.source === 'agent' && existing.name !== site.name) {
+          await this.prisma.website.update({
+            where: { id: existing.id },
+            data: { name: site.name },
+          });
+        }
+        continue;
+      }
+
+      await this.prisma.website.create({
+        data: {
+          name: site.name,
+          url: normalized,
+          serverId,
+          source: 'agent',
+          sslEnabled: url.startsWith('https'),
+        },
+      });
+    }
   }
 
   async heartbeat(server: Server) {

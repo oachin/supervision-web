@@ -40,6 +40,11 @@ enum AlertStatus {
   CLOSED
 }
 
+enum AgentProfile {
+  LINUX
+  PLESK
+}
+
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
@@ -77,22 +82,23 @@ model RefreshToken {
 }
 
 model Server {
-  id            String       @id @default(uuid())
+  id            String        @id @default(uuid())
   name          String
-  hostname      String
+  hostname      String        @default("en-attente")
   ipAddress     String?
-  osType        String       @default("linux")
+  osType        String        @default("linux")
   osVersion     String?
-  hasPlesk      Boolean      @default(false)
+  profile       AgentProfile  @default(LINUX)
+  hasPlesk      Boolean       @default(false)
   pleskUrl      String?
   pleskApiKey   String?
-  agentKey      String       @unique
-  status        ServerStatus @default(UNKNOWN)
+  agentKey      String        @unique
+  status        ServerStatus  @default(UNKNOWN)
   lastSeenAt    DateTime?
   tags          String[]
   notes         String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   metrics       ServerMetric[]
   websites      Website[]
   alerts        Alert[]
@@ -138,6 +144,7 @@ model Website {
   lastCheckAt     DateTime?
   lastResponseMs  Int?
   lastStatusCode  Int?
+  source          String        @default("manual")
   tags            String[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

@@ -1,22 +1,31 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Copy, Check, Trash2 } from 'lucide-react';
+import { Plus, Copy, Check, Trash2, Terminal } from 'lucide-react';
 import Link from 'next/link';
-import { api, type Server } from '@/lib/api';
+import { api, type Server, type ServerCreateResult } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { formatDate } from '@/lib/utils';
+
+const profileLabels: Record<string, string> = {
+  LINUX: 'Linux',
+  PLESK: 'Plesk',
+};
 
 export default function ServersPage() {
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [agentKey, setAgentKey] = useState<string | null>(null);
+  const [installInfo, setInstallInfo] = useState<ServerCreateResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Server | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [form, setForm] = useState({ name: '', hostname: '', ipAddress: '', hasPlesk: false, notes: '' });
+  const [form, setForm] = useState({
+    name: '',
+    profile: 'LINUX' as 'LINUX' | 'PLESK',
+    notes: '',
+  });
 
   const load = () => api.getServers().then(setServers).finally(() => setLoading(false));
 
@@ -24,16 +33,20 @@ export default function ServersPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const result = await api.createServer(form);
-    setAgentKey(result.agentKeyPlain);
+    const result = await api.createServer({
+      name: form.name.trim() || undefined,
+      profile: form.profile,
+      notes: form.notes || undefined,
+    });
+    setInstallInfo(result);
     setShowForm(false);
-    setForm({ name: '', hostname: '', ipAddress: '', hasPlesk: false, notes: '' });
+    setForm({ name: '', profile: 'LINUX', notes: '' });
     load();
   }
 
-  function copyKey() {
-    if (agentKey) {
-      navigator.clipboard.writeText(agentKey);
+  function copyCommand() {
+    if (installInfo?.installCommand) {
+      navigator.clipboard.writeText(installInfo.installCommand);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -58,31 +71,46 @@ export default function ServersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Serveurs</h1>
-          <p className="text-sm text-muted-foreground">Gérez vos serveurs Linux hébergement</p>
+          <p className="text-sm text-muted-foreground">Installez l&apos;agent via wget depuis chaque serveur distant</p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">
           <Plus className="h-4 w-4" /> Ajouter
         </button>
       </div>
 
-      {agentKey && (
+      {installInfo && (
         <div className="card border-accent/30 bg-accent/5">
-          <h3 className="font-semibold text-accent">Clé agent générée</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Installez l&apos;agent sur le serveur avec cette clé. Elle ne sera plus affichée.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <code className="flex-1 rounded-lg bg-muted/50 p-3 font-mono text-xs break-all">{agentKey}</code>
-            <button onClick={copyKey} className="btn-secondary">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            </button>
+          <div className="flex items-start gap-3">
+            <Terminal className="h-5 w-5 text-accent mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-accent">
+                Installation agent — profil {profileLabels[installInfo.profile] ?? installInfo.profile}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Exécutez cette commande <strong>en root</strong> sur le serveur distant. Il apparaîtra automatiquement
+                dans la console (nom modifiable ensuite).
+              </p>
+              <pre className="mt-3 rounded-lg bg-muted/50 p-3 text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                {installInfo.installCommand}
+              </pre>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Alternative curl :{' '}
+                <code className="text-foreground">curl -fsSL &quot;{installInfo.installUrl}&quot; | sudo bash</code>
+              </p>
+              {installInfo.profile === 'PLESK' && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Le profil Plesk importe automatiquement tous les domaines hébergés comme sites web supervisés.
+                </p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button onClick={copyCommand} className="btn-secondary text-sm">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  Copier la commande
+                </button>
+                <button onClick={() => setInstallInfo(null)} className="btn-ghost text-sm">Fermer</button>
+              </div>
+            </div>
           </div>
-          <pre className="mt-3 rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground overflow-x-auto">
-{`SUPERVISION_API_URL=https://votre-supervision.fr/api \\
-SUPERVISION_AGENT_KEY=${agentKey} \\
-bash install.sh`}
-          </pre>
-          <button onClick={() => setAgentKey(null)} className="btn-ghost mt-3 text-sm">Fermer</button>
         </div>
       )}
 
@@ -90,30 +118,50 @@ bash install.sh`}
         <div className="card">
           <h2 className="mb-4 text-lg font-semibold">Nouveau serveur</h2>
           <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm">Nom</label>
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            <div className="sm:col-span-2">
+              <label className="mb-2 block text-sm font-medium">Profil agent</label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className={`card cursor-pointer border-2 p-4 transition-colors ${form.profile === 'LINUX' ? 'border-primary bg-primary/5' : 'border-white/10 hover:border-white/20'}`}>
+                  <input
+                    type="radio"
+                    name="profile"
+                    value="LINUX"
+                    checked={form.profile === 'LINUX'}
+                    onChange={() => setForm({ ...form, profile: 'LINUX' })}
+                    className="sr-only"
+                  />
+                  <p className="font-medium">Linux (défaut)</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Métriques CPU, RAM, disque, uptime</p>
+                </label>
+                <label className={`card cursor-pointer border-2 p-4 transition-colors ${form.profile === 'PLESK' ? 'border-primary bg-primary/5' : 'border-white/10 hover:border-white/20'}`}>
+                  <input
+                    type="radio"
+                    name="profile"
+                    value="PLESK"
+                    checked={form.profile === 'PLESK'}
+                    onChange={() => setForm({ ...form, profile: 'PLESK' })}
+                    className="sr-only"
+                  />
+                  <p className="font-medium">Serveur Plesk</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Métriques + import auto des sites hébergés</p>
+                </label>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-sm">Hostname</label>
-              <input className="input" value={form.hostname} onChange={(e) => setForm({ ...form, hostname: e.target.value })} required placeholder="srv01.example.com" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm">IP (optionnel)</label>
-              <input className="input" value={form.ipAddress} onChange={(e) => setForm({ ...form, ipAddress: e.target.value })} placeholder="192.168.1.10" />
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.hasPlesk} onChange={(e) => setForm({ ...form, hasPlesk: e.target.checked })} className="rounded" />
-                Serveur Plesk
-              </label>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-sm">Nom d&apos;affichage (optionnel)</label>
+              <input
+                className="input"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Modifiable après connexion de l'agent"
+              />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-sm">Notes</label>
               <textarea className="input" rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
             <div className="flex gap-2 sm:col-span-2">
-              <button type="submit" className="btn-primary">Créer</button>
+              <button type="submit" className="btn-primary">Générer la commande wget</button>
               <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Annuler</button>
             </div>
           </form>
@@ -126,7 +174,7 @@ bash install.sh`}
         </div>
       ) : servers.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-muted-foreground">Aucun serveur. Ajoutez votre premier serveur pour commencer.</p>
+          <p className="text-muted-foreground">Aucun serveur. Ajoutez un serveur et installez l&apos;agent via wget.</p>
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
@@ -135,8 +183,8 @@ bash install.sh`}
               <tr className="border-b border-white/5 text-left text-muted-foreground">
                 <th className="p-4 font-medium">Nom</th>
                 <th className="p-4 font-medium">Hostname</th>
+                <th className="p-4 font-medium">Profil</th>
                 <th className="p-4 font-medium">OS</th>
-                <th className="p-4 font-medium">Plesk</th>
                 <th className="p-4 font-medium">Dernier signal</th>
                 <th className="p-4 font-medium">Statut</th>
                 <th className="p-4 font-medium w-12"></th>
@@ -148,9 +196,11 @@ bash install.sh`}
                   <td className="p-4">
                     <Link href={`/servers/${s.id}`} className="font-medium hover:text-primary">{s.name}</Link>
                   </td>
-                  <td className="p-4 font-mono text-xs">{s.hostname}</td>
-                  <td className="p-4 text-xs">{s.osVersion || 'Linux'}</td>
-                  <td className="p-4">{s.hasPlesk ? '✓' : '—'}</td>
+                  <td className="p-4 font-mono text-xs">{s.hostname === 'en-attente' ? '—' : s.hostname}</td>
+                  <td className="p-4">
+                    <span className="badge-muted">{profileLabels[s.profile] ?? s.profile}</span>
+                  </td>
+                  <td className="p-4 text-xs">{s.osVersion || '—'}</td>
                   <td className="p-4 text-xs text-muted-foreground">{formatDate(s.lastSeenAt)}</td>
                   <td className="p-4"><StatusBadge status={s.status} /></td>
                   <td className="p-4">
@@ -158,7 +208,7 @@ bash install.sh`}
                       type="button"
                       onClick={() => setDeleteTarget(s)}
                       className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      title="Supprimer la supervision"
+                      title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -175,7 +225,7 @@ bash install.sh`}
         title="Supprimer la supervision du serveur"
         message={
           deleteTarget
-            ? `Êtes-vous sûr de vouloir supprimer la supervision de « ${deleteTarget.name} » (${deleteTarget.hostname}) ? L'agent ne pourra plus envoyer de métriques et l'historique sera effacé. Cette action est irréversible.`
+            ? `Supprimer « ${deleteTarget.name} » ? L'agent sera déconnecté et l'historique effacé.`
             : ''
         }
         confirmLabel="Supprimer"
