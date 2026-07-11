@@ -22,6 +22,13 @@ export function StatusBadge({ status }: { status: string }) {
     DISABLED: 'Supervision off',
   }[status] || status;
 
+  const pulseClass =
+    status === 'OFFLINE' || status === 'DOWN'
+      ? 'status-dot-pulse-danger'
+      : status === 'DEGRADED'
+        ? 'status-dot-pulse-warning'
+        : '';
+
   return (
     <span className={cn(variant)}>
       <span className={cn(
@@ -30,6 +37,7 @@ export function StatusBadge({ status }: { status: string }) {
         status === 'OFFLINE' || status === 'DOWN' ? 'bg-destructive' :
         status === 'DEGRADED' ? 'bg-warning' :
         status === 'DISABLED' ? 'bg-muted-foreground' : 'bg-muted-foreground',
+        pulseClass,
       )} />
       {label}
     </span>
