@@ -229,28 +229,67 @@ func readCPUStat() (idle, total uint64) {
 	return idle, total
 }
 
+func systemdProperty(unit, property string) string {
+	out, err := exec.Command("systemctl", "show", "-p", property, "--value", unit).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func findLoadedSystemdUnit(candidates ...string) string {
+	for _, name := range candidates {
+		unit := name
+		if !strings.HasSuffix(unit, ".service") {
+			unit = name + ".service"
+		}
+		switch systemdProperty(unit, "LoadState") {
+		case "loaded", "embedded", "merged":
+			return name
+		}
+	}
+	return ""
+}
+
+func mapSystemdActiveState(active string) string {
+	if active == "active" {
+		return "running"
+	}
+	return active
+}
+
 func collectPleskServices() map[string]string {
 	services := map[string]string{}
-	names := []string{"sw-engine", "sw-cp-server", "nginx", "apache2", "httpd", "mariadb", "mysql", "postfix"}
-	for _, name := range names {
-		status := "absent"
-		if out, err := exec.Command("systemctl", "is-active", name).Output(); err == nil {
-			s := strings.TrimSpace(string(out))
-			if s == "active" {
-				status = "running"
-			} else {
-				status = s
-			}
-		}
-		if status == "absent" || status == "inactive" {
+	groups := []struct {
+		units    []string
+		optional bool
+	}{
+		{[]string{"sw-engine"}, false},
+		{[]string{"sw-cp-server"}, false},
+		{[]string{"nginx"}, false},
+		// httpd (RHEL) et apache2 (Debian) = même rôle Apache sur Plesk
+		{[]string{"apache2", "httpd"}, false},
+		// mariadb et mysql = même moteur selon la distro
+		{[]string{"mariadb", "mysql"}, false},
+		// Postfix optionnel — absent ou désactivé sans mail = pas de faux positif
+		{[]string{"postfix"}, true},
+	}
+
+	for _, group := range groups {
+		unit := findLoadedSystemdUnit(group.units...)
+		if unit == "" {
 			continue
 		}
-		services[name] = status
-	}
-	if services["apache2"] == "running" {
-		delete(services, "httpd")
-	} else if services["httpd"] == "running" {
-		delete(services, "apache2")
+
+		active := systemdProperty(unit, "ActiveState")
+		if group.optional {
+			fileState := systemdProperty(unit, "UnitFileState")
+			if fileState == "disabled" && active != "active" {
+				continue
+			}
+		}
+
+		services[unit] = mapSystemdActiveState(active)
 	}
 	return services
 }

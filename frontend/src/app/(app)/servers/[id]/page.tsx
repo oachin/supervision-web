@@ -15,6 +15,12 @@ import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
 
+function pleskServiceLabel(name: string): string {
+  if (name === 'httpd' || name === 'apache2') return `Apache (${name})`;
+  if (name === 'mysql' || name === 'mariadb') return `MariaDB (${name})`;
+  return name;
+}
+
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -344,7 +350,7 @@ export default function ServerDetailPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(pleskServices).map(([name, state]) => (
               <div key={name} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2">
-                <span className="font-mono text-sm">{name}</span>
+                <span className="font-mono text-sm">{pleskServiceLabel(name)}</span>
                 <StatusBadge status={state === 'running' ? 'ONLINE' : 'OFFLINE'} />
               </div>
             ))}

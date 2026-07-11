@@ -5,7 +5,13 @@ import { ServersService } from '../servers/servers.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AgentMetricsDto } from '../common/dto';
 
-const PLESK_CRITICAL_SERVICES = ['nginx', 'apache2', 'httpd', 'sw-engine', 'mariadb', 'mysql'] as const;
+const PLESK_CRITICAL_SERVICE_GROUPS = [
+  ['sw-engine'],
+  ['sw-cp-server'],
+  ['nginx'],
+  ['apache2', 'httpd'],
+  ['mariadb', 'mysql'],
+] as const;
 
 @Injectable()
 export class AgentService {
@@ -143,15 +149,26 @@ export class AgentService {
     }
   }
 
+  private pleskServiceLabel(serviceName: string): string {
+    if (serviceName === 'httpd' || serviceName === 'apache2') {
+      return `Apache (${serviceName})`;
+    }
+    if (serviceName === 'mysql' || serviceName === 'mariadb') {
+      return `MariaDB (${serviceName})`;
+    }
+    return serviceName;
+  }
+
   private async processPleskServiceAlerts(
     server: Server,
     services: Record<string, string>,
   ) {
-    for (const serviceName of PLESK_CRITICAL_SERVICES) {
-      const state = services[serviceName];
-      if (!state) continue;
+    for (const aliases of PLESK_CRITICAL_SERVICE_GROUPS) {
+      const serviceName = aliases.find((name) => services[name] !== undefined);
+      if (!serviceName) continue;
 
-      const label = serviceName === 'httpd' ? 'Apache (httpd)' : serviceName;
+      const state = services[serviceName];
+      const label = this.pleskServiceLabel(serviceName);
 
       if (state === 'running') {
         await this.alerts.onIssueResolved({
