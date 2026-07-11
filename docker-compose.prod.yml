@@ -11,6 +11,7 @@ services:
       - ./deploy/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./deploy/nginx/nginx-init.conf.template:/etc/nginx/templates/nginx-init.conf.template:ro
       - ./deploy/nginx/docker-entrypoint.sh:/docker-entrypoint.sh:ro
+      - ./logs/nginx:/var/log/nginx
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
     entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]

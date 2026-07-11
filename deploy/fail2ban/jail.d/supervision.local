@@ -1,0 +1,35 @@
+# Fail2ban — Havet Supervision (SSH + Nginx)
+# LOG_PATH est remplacé par scripts/install-fail2ban.sh
+
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1
+bantime = 3600
+findtime = 600
+maxretry = 5
+banaction = ufw
+backend = auto
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 5
+
+[nginx-supervision-login]
+enabled = true
+port = http,https
+filter = nginx-supervision-login
+logpath = __SUPERVISION_LOG_PATH__/access.log
+maxretry = 5
+findtime = 600
+bantime = 3600
+
+[nginx-limit-req]
+enabled = true
+port = http,https
+filter = nginx-limit-req
+logpath = __SUPERVISION_LOG_PATH__/error.log
+maxretry = 10
+findtime = 600
+bantime = 1800
