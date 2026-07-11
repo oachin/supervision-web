@@ -41,15 +41,19 @@ export default function ServerDetailPage() {
       .catch(console.error);
   }, [id]);
 
-  const monitoredWebsiteIds = useMemo(() => {
-    if (!server) return new Set<string>();
-    return new Set(server.websites.filter((w) => w.monitoringEnabled).map((w) => w.id));
-  }, [server]);
-
   const serverOpenAlerts = useMemo(() => {
     if (!server) return [];
-    return openAlertsForServer(server.id, monitoredWebsiteIds, openAlerts);
-  }, [server, monitoredWebsiteIds, openAlerts]);
+    return openAlertsForServer(
+      server.id,
+      server.websites.map((w) => ({
+        id: w.id,
+        status: w.status,
+        lastStatusCode: w.lastStatusCode,
+        monitoringEnabled: w.monitoringEnabled,
+      })),
+      openAlerts,
+    );
+  }, [server, openAlerts]);
 
   if (!server) {
     return <div className="flex h-32 items-center justify-center">

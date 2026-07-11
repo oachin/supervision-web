@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Website } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
-import { availabilityStatus } from '../websites/website-status.util';
+import { availabilityStatus, isMaintenanceStatusCode } from '../websites/website-status.util';
 import { WebsiteProbeService } from './website-probe.service';
 
 const SSL_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -75,6 +75,7 @@ export class MonitoringService {
 
     const status = availabilityStatus(httpResult.ok, httpResult.responseMs, httpResult.statusCode);
     const previousStatus = website.status;
+    const isMaintenance = isMaintenanceStatusCode(httpResult.statusCode);
 
     await this.prisma.websiteCheck.create({
       data: {
@@ -124,7 +125,7 @@ export class MonitoringService {
       data: updateData,
     });
 
-    if (status === 'DOWN') {
+    if (status === 'DOWN' && !isMaintenance) {
       const details = [
         httpResult.error,
         httpResult.dnsOk === false ? 'DNS en échec' : null,
@@ -136,6 +137,11 @@ export class MonitoringService {
         message: `${website.url} — ${details || 'Indisponible'}`,
         severity: 'CRITICAL',
         websiteId: website.id,
+      });
+    } else if (isMaintenance) {
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'hors ligne',
       });
     } else if (status === 'UP' && (previousStatus === 'DOWN' || previousStatus === 'DEGRADED')) {
       await this.alerts.onIssueResolved({

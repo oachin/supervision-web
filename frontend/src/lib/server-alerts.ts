@@ -1,19 +1,39 @@
 import type { Alert, AlertSummary } from '@/lib/api';
+import { isMaintenanceStatus } from '@/lib/utils';
 
 const OPEN_ALERT_STATUSES = new Set(['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE']);
+
+export interface ServerWebsiteAlertContext {
+  id: string;
+  status: string;
+  lastStatusCode?: number | null;
+  monitoringEnabled: boolean;
+}
 
 export function flattenOpenAlerts(summary: AlertSummary): Alert[] {
   return [...summary.active, ...summary.acknowledged, ...summary.pendingClose];
 }
 
+function isFalseOfflineAlert(alert: Alert, websites: ServerWebsiteAlertContext[]): boolean {
+  if (!alert.websiteId || !alert.title.toLowerCase().includes('hors ligne')) return false;
+  const site = websites.find((w) => w.id === alert.websiteId);
+  if (!site?.monitoringEnabled) return false;
+  return isMaintenanceStatus(site.status, site.lastStatusCode);
+}
+
 export function openAlertsForServer(
   serverId: string,
-  monitoredWebsiteIds: Set<string>,
+  websites: ServerWebsiteAlertContext[],
   alerts: Alert[],
 ): Alert[] {
+  const monitoredWebsiteIds = new Set(
+    websites.filter((w) => w.monitoringEnabled).map((w) => w.id),
+  );
+
   return alerts.filter(
     (a) =>
       OPEN_ALERT_STATUSES.has(a.status) &&
+      !isFalseOfflineAlert(a, websites) &&
       (a.serverId === serverId || (a.websiteId != null && monitoredWebsiteIds.has(a.websiteId))),
   );
 }

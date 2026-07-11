@@ -44,7 +44,8 @@ export function probeResultToStatus(
   return availabilityStatus(ok, responseMs, statusCode);
 }
 
-export function isWebsiteInAlert(status: WebsiteStatus): boolean {
+export function isWebsiteInAlert(status: WebsiteStatus, statusCode?: number | null): boolean {
+  if (isMaintenanceStatusCode(statusCode)) return false;
   return status === 'DOWN' || status === 'DEGRADED';
 }
 

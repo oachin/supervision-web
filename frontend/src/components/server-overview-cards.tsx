@@ -70,8 +70,16 @@ export function buildServerOverview(
   const allServerSites = websites.filter((w) => w.server?.id === server.id);
   const serverSites = allServerSites.filter((w) => w.monitoringEnabled);
   const sitesUnsupervised = allServerSites.length - serverSites.length;
-  const websiteIds = new Set(serverSites.map((w) => w.id));
-  const serverAlerts = openAlertsForServer(server.id, websiteIds, alerts);
+  const serverAlerts = openAlertsForServer(
+    server.id,
+    allServerSites.map((w) => ({
+      id: w.id,
+      status: w.status,
+      lastStatusCode: w.lastStatusCode,
+      monitoringEnabled: w.monitoringEnabled,
+    })),
+    alerts,
+  );
 
   const sitesDown = serverSites.filter((w) => w.status === 'DOWN').length;
   const sitesMaintenance = serverSites.filter((w) =>
