@@ -68,15 +68,19 @@ export function WebsiteStatusBadge({
   status,
   monitoringEnabled = true,
   lastStatusCode,
+  size = 'sm',
+  className,
 }: {
   status: string;
   monitoringEnabled?: boolean;
   lastStatusCode?: number | null;
+  size?: 'sm' | 'lg';
+  className?: string;
 }) {
   if (!monitoringEnabled) {
-    return <StatusBadge status="DISABLED" />;
+    return <StatusBadge status="DISABLED" size={size} className={className} />;
   }
-  return <StatusBadge status={status} statusCode={lastStatusCode} />;
+  return <StatusBadge status={status} statusCode={lastStatusCode} size={size} className={className} />;
 }
 
 function badgeDotClass(variant: 'success' | 'warning' | 'danger' | 'muted' | 'maintenance') {

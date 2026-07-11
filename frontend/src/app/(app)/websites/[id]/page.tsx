@@ -53,33 +53,40 @@ export default function WebsiteDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{website.name}</h1>
           <p className="font-mono text-sm text-muted-foreground">{website.url}</p>
           <p className="text-xs text-muted-foreground mt-1">Supervision externe HTTP/SSL</p>
         </div>
-        <div className="flex items-center gap-3">
-          <WebsiteStatusBadge status={website.status} monitoringEnabled={website.monitoringEnabled} lastStatusCode={website.lastStatusCode} />
-          <button
-            type="button"
-            onClick={handleToggleMonitoring}
-            disabled={toggling}
-            className="btn-secondary text-sm"
-          >
-            {website.monitoringEnabled ? (
-              <><Pause className="h-4 w-4" /> Désactiver</>
-            ) : (
-              <><Play className="h-4 w-4" /> Réactiver</>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowDelete(true)}
-            className="btn-danger text-sm"
-          >
-            <Trash2 className="h-4 w-4" /> Supprimer
-          </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <WebsiteStatusBadge
+            status={website.status}
+            monitoringEnabled={website.monitoringEnabled}
+            lastStatusCode={website.lastStatusCode}
+            size="lg"
+          />
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleToggleMonitoring}
+              disabled={toggling}
+              className="btn-secondary text-sm"
+            >
+              {website.monitoringEnabled ? (
+                <><Pause className="h-4 w-4" /> Désactiver</>
+              ) : (
+                <><Play className="h-4 w-4" /> Réactiver</>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDelete(true)}
+              className="btn-danger text-sm"
+            >
+              <Trash2 className="h-4 w-4" /> Supprimer
+            </button>
+          </div>
         </div>
       </div>
 

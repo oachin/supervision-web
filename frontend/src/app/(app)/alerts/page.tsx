@@ -16,6 +16,7 @@ export default function AlertsPage() {
   const [tab, setTab] = useState<'active' | 'acknowledged' | 'pendingClose' | 'closed'>('active');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -42,6 +43,17 @@ export default function AlertsPage() {
   }, [tab]);
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
+
+  async function handleAcknowledge(e: React.MouseEvent, alertId: string) {
+    e.stopPropagation();
+    setAcknowledgingId(alertId);
+    try {
+      await api.acknowledgeAlert(alertId);
+      await refresh();
+    } finally {
+      setAcknowledgingId(null);
+    }
+  }
 
   if (loading && !summary) {
     return (
@@ -115,46 +127,67 @@ export default function AlertsPage() {
                   isExpanded && 'ring-1 ring-primary/30',
                 )}
               >
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                  className="flex w-full items-start justify-between gap-4 text-left"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <SeverityBadge severity={a.severity} />
-                      <h3 className="font-semibold">{a.title}</h3>
-                      {a.occurrenceCount > 1 && (
-                        <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
-                      )}
+                <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SeverityBadge severity={a.severity} />
+                        <h3 className="font-semibold">{a.title}</h3>
+                        {a.occurrenceCount > 1 && (
+                          <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{a.message}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>{formatDate(a.createdAt)}</span>
+                        {hostingServer && (
+                          <span className="font-medium text-primary">
+                            Serveur : {hostingServer.name}
+                            {hostingServer.hostname && (
+                              <span className="font-mono font-normal text-muted-foreground">
+                                {' '}({hostingServer.hostname})
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        {a.acknowledgedBy && (
+                          <span>
+                            Acquittée par {a.acknowledgedBy.name} le {formatDate(a.acknowledgedAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{a.message}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>{formatDate(a.createdAt)}</span>
-                      {hostingServer && (
-                        <span className="font-medium text-primary">
-                          Serveur : {hostingServer.name}
-                          {hostingServer.hostname && (
-                            <span className="font-mono font-normal text-muted-foreground">
-                              {' '}({hostingServer.hostname})
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      {a.acknowledgedBy && (
-                        <span>
-                          Acquittée par {a.acknowledgedBy.name} le {formatDate(a.acknowledgedAt)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronDown
-                    className={cn(
-                      'mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform',
-                      isExpanded && 'rotate-180',
+                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {canEdit && a.status === 'ACTIVE' && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleAcknowledge(e, a.id)}
+                        disabled={acknowledgingId === a.id}
+                        className="btn-primary shrink-0 text-sm"
+                      >
+                        {acknowledgingId === a.id ? 'Acquittement…' : 'Acquitter'}
+                      </button>
                     )}
-                  />
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary/50"
+                      aria-label={isExpanded ? 'Replier' : 'Déplier'}
+                    >
+                      <ChevronDown
+                        className={cn(
+                          'h-5 w-5 transition-transform',
+                          isExpanded && 'rotate-180',
+                        )}
+                      />
+                    </button>
+                  </div>
+                </div>
 
                 {isExpanded && (
                   <AlertDetailPanel

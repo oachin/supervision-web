@@ -31,7 +31,7 @@ export function AlertDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState<'note' | 'ack' | 'close' | null>(null);
+  const [submitting, setSubmitting] = useState<'note' | 'close' | null>(null);
   const [closeForm, setCloseForm] = useState({ origin: '', resolutionMethod: '' });
   const [showCloseForm, setShowCloseForm] = useState(false);
 
@@ -47,20 +47,7 @@ export function AlertDetailPanel({
 
   useEffect(() => {
     load();
-  }, [load]);
-
-  async function handleAcknowledge() {
-    setSubmitting('ack');
-    try {
-      await api.acknowledgeAlert(alertId);
-      onUpdated();
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    } finally {
-      setSubmitting(null);
-    }
-  }
+  }, [load, summary.status, summary.acknowledgedAt]);
 
   async function handleNote(e: React.FormEvent) {
     e.preventDefault();
@@ -173,27 +160,15 @@ export function AlertDetailPanel({
         </p>
       )}
 
-      {canEdit && alert.status !== 'CLOSED' && (
+      {canEdit && alert.status !== 'CLOSED' && alert.status === 'PENDING_CLOSE' && !showCloseForm && (
         <div className="flex flex-wrap gap-2">
-          {alert.status === 'ACTIVE' && (
-            <button
-              type="button"
-              onClick={handleAcknowledge}
-              disabled={submitting !== null}
-              className="btn-primary text-sm"
-            >
-              {submitting === 'ack' ? 'Acquittement…' : 'Acquitter'}
-            </button>
-          )}
-          {alert.status === 'PENDING_CLOSE' && !showCloseForm && (
-            <button
-              type="button"
-              onClick={() => setShowCloseForm(true)}
-              className="btn-primary text-sm"
-            >
-              Clôturer
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowCloseForm(true)}
+            className="btn-primary text-sm"
+          >
+            Clôturer
+          </button>
         </div>
       )}
 
