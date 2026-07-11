@@ -164,6 +164,11 @@ export class MonitoringService {
       sslResult.sslValid !== false &&
       sslResult.sslChainValid !== false;
 
+    const sslAutoResolution =
+      sslCheckHostname !== httpResult.hostname
+        ? `Redirection vers ${sslCheckHostname} — certificat valide sur la cible`
+        : 'Certificat SSL vérifié OK par la supervision';
+
     if (sslResult?.sslChainValid === false) {
       await this.alerts.create({
         title: `Chaîne SSL incomplète: ${website.name}`,
@@ -172,9 +177,11 @@ export class MonitoringService {
         websiteId: website.id,
       });
     } else if (sslHealthy) {
-      await this.alerts.onIssueResolved({
+      await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Chaîne SSL',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
       });
     }
 
@@ -186,9 +193,11 @@ export class MonitoringService {
         websiteId: website.id,
       });
     } else if (sslHealthy) {
-      await this.alerts.onIssueResolved({
+      await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Certificat SSL invalide',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
       });
     }
 
@@ -203,9 +212,11 @@ export class MonitoringService {
         websiteId: website.id,
       });
     } else if (sslResult && (sslDays == null || sslDays >= alertDays)) {
-      await this.alerts.onIssueResolved({
+      await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Certificat SSL expire bientôt',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
       });
     }
   }

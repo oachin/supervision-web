@@ -1,7 +1,7 @@
 import type { Alert, AlertSummary } from '@/lib/api';
 import { isMaintenanceStatus } from '@/lib/utils';
 
-const OPEN_ALERT_STATUSES = new Set(['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE']);
+const OPEN_ALERT_STATUSES = new Set(['ACTIVE', 'ACKNOWLEDGED']);
 
 export interface ServerWebsiteAlertContext {
   id: string;

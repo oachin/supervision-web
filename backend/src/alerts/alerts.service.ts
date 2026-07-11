@@ -263,6 +263,45 @@ export class AlertsService {
     }
   }
 
+  /** Clôture automatique sans intervention (ex. faux positif SSL résolu). */
+  async autoCloseResolvedByTitle(params: {
+    websiteId?: string;
+    serverId?: string;
+    titleContains: string;
+    origin: string;
+    resolutionMethod: string;
+  }) {
+    const where: Prisma.AlertWhereInput = {
+      status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE'] },
+      title: { contains: params.titleContains },
+    };
+    if (params.websiteId) where.websiteId = params.websiteId;
+    if (params.serverId) where.serverId = params.serverId;
+
+    const alerts = await this.prisma.alert.findMany({ where });
+
+    for (const alert of alerts) {
+      await this.prisma.alert.update({
+        where: { id: alert.id },
+        data: {
+          status: 'CLOSED',
+          resolved: true,
+          resolvedAt: new Date(),
+          closedAt: new Date(),
+          origin: params.origin.trim(),
+          resolutionMethod: params.resolutionMethod.trim(),
+        },
+      });
+      await this.logEvent(
+        alert.id,
+        'CLOSED',
+        `Clôture automatique — ${params.origin}`,
+        undefined,
+        { auto: true, resolutionMethod: params.resolutionMethod },
+      );
+    }
+  }
+
   async getPendingPopup() {
     return this.prisma.alert.findMany({
       where: { status: 'ACTIVE' },
