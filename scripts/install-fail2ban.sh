@@ -20,6 +20,8 @@ apt-get install -y fail2ban
 
 mkdir -p "$LOG_DIR"
 chmod 755 "$LOG_DIR"
+touch "${LOG_DIR}/access.log" "${LOG_DIR}/error.log"
+chmod 644 "${LOG_DIR}/access.log" "${LOG_DIR}/error.log"
 
 cp "${PROJECT_DIR}/deploy/fail2ban/filter.d/nginx-supervision-login.conf" "$FILTER_DEST"
 
