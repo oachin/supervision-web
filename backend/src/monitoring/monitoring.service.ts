@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Website } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
-import { availabilityStatus, isMaintenanceStatusCode } from '../websites/website-status.util';
+import { availabilityStatus, isMaintenanceStatusCode, sslHostnameForProbe } from '../websites/website-status.util';
 import { WebsiteProbeService } from './website-probe.service';
 
 const SSL_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -64,10 +64,19 @@ export class MonitoringService {
       website.expectedKeyword,
     );
     const includeSsl = httpResult.isHttps && this.needsSslCheck(website, now);
+    const sslCheckHostname = sslHostnameForProbe({
+      urlHostname: httpResult.hostname,
+      finalHostname: httpResult.finalHostname,
+      httpOk: httpResult.ok,
+    });
+    const redirectSslCheck =
+      httpResult.isHttps &&
+      sslCheckHostname !== httpResult.hostname &&
+      httpResult.ok;
     let sslResult = null;
-    if (includeSsl) {
+    if (includeSsl || redirectSslCheck) {
       try {
-        sslResult = await this.probe.probeSslCertificate(httpResult.hostname);
+        sslResult = await this.probe.probeSslCertificate(sslCheckHostname);
       } catch (err) {
         this.logger.warn(`SSL probe failed for ${website.url}: ${err}`);
       }
@@ -150,21 +159,36 @@ export class MonitoringService {
       });
     }
 
+    const sslHealthy =
+      sslResult != null &&
+      sslResult.sslValid !== false &&
+      sslResult.sslChainValid !== false;
+
     if (sslResult?.sslChainValid === false) {
       await this.alerts.create({
         title: `Chaîne SSL incomplète: ${website.name}`,
-        message: `${website.url} — certificats intermédiaires manquants ou invalides`,
+        message: `${website.url} — certificats intermédiaires manquants ou invalides${sslCheckHostname !== httpResult.hostname ? ` (cible ${sslCheckHostname})` : ''}`,
         severity: 'WARNING',
         websiteId: website.id,
+      });
+    } else if (sslHealthy) {
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'Chaîne SSL',
       });
     }
 
     if (sslResult?.sslValid === false) {
       await this.alerts.create({
         title: `Certificat SSL invalide: ${website.name}`,
-        message: `${website.url} — ${sslResult.sslError ?? 'Certificat invalide'}`,
+        message: `${website.url} — ${sslResult.sslError ?? 'Certificat invalide'}${sslCheckHostname !== httpResult.hostname ? ` (cible ${sslCheckHostname})` : ''}`,
         severity: 'WARNING',
         websiteId: website.id,
+      });
+    } else if (sslHealthy) {
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'Certificat SSL invalide',
       });
     }
 
@@ -177,6 +201,11 @@ export class MonitoringService {
         message: `Expire le ${sslExpires?.toISOString().split('T')[0]} (${sslDays} jours, seuil ${alertDays}j)`,
         severity: sslDays < 7 ? 'CRITICAL' : 'WARNING',
         websiteId: website.id,
+      });
+    } else if (sslResult && (sslDays == null || sslDays >= alertDays)) {
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'Certificat SSL expire bientôt',
       });
     }
   }

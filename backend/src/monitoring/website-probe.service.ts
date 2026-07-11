@@ -18,6 +18,8 @@ export interface WebsiteHttpProbeResult {
   port443Open?: boolean;
   port443Error?: string;
   hostname: string;
+  /** Hôte atteint après redirections HTTP/HTML (si différent de hostname). */
+  finalHostname?: string;
   isHttps: boolean;
 }
 
@@ -107,6 +109,7 @@ export class WebsiteProbeService {
       port443Open,
       port443Error,
       hostname,
+      finalHostname: httpResult.finalHostname,
       isHttps,
     };
   }
@@ -215,16 +218,16 @@ export class WebsiteProbeService {
     expectedStatus: number,
     expectedKeyword?: string | null,
     maxRedirects = 5,
-  ): Promise<{ ok: boolean; statusCode?: number; responseMs: number; error?: string }> {
+  ): Promise<{ ok: boolean; statusCode?: number; responseMs: number; error?: string; finalHostname: string }> {
     const start = Date.now();
 
     const follow = (targetUrl: string, redirectsLeft: number) =>
-      new Promise<{ ok: boolean; statusCode?: number; responseMs: number; error?: string }>((resolve) => {
+      new Promise<{ ok: boolean; statusCode?: number; responseMs: number; error?: string; finalHostname: string }>((resolve) => {
         let parsed: URL;
         try {
           parsed = new URL(targetUrl);
         } catch {
-          resolve({ ok: false, responseMs: Date.now() - start, error: 'URL invalide' });
+          resolve({ ok: false, responseMs: Date.now() - start, error: 'URL invalide', finalHostname: '' });
           return;
         }
 
@@ -276,6 +279,7 @@ export class WebsiteProbeService {
                 ok: reachable && keywordOk,
                 statusCode,
                 responseMs,
+                finalHostname: parsed.hostname,
                 error: maintenance
                   ? 'HTTP 503 (maintenance)'
                   : !reachable
@@ -291,12 +295,12 @@ export class WebsiteProbeService {
         );
 
         req.on('error', (err) => {
-          resolve({ ok: false, responseMs: Date.now() - start, error: err.message });
+          resolve({ ok: false, responseMs: Date.now() - start, error: err.message, finalHostname: parsed.hostname });
         });
 
         req.on('timeout', () => {
           req.destroy();
-          resolve({ ok: false, responseMs: Date.now() - start, error: 'Timeout HTTP (15s)' });
+          resolve({ ok: false, responseMs: Date.now() - start, error: 'Timeout HTTP (15s)', finalHostname: parsed.hostname });
         });
       });
 

@@ -83,6 +83,18 @@ export function isWebsiteInAlert(status: WebsiteStatus, statusCode?: number | nu
   return status === 'DOWN' || status === 'DEGRADED';
 }
 
+/** Pour les alias/redirections : vérifier le certificat sur la cible si le site redirige ailleurs. */
+export function sslHostnameForProbe(params: {
+  urlHostname: string;
+  finalHostname?: string;
+  httpOk: boolean;
+}): string {
+  if (params.finalHostname && params.finalHostname !== params.urlHostname && params.httpOk) {
+    return params.finalHostname;
+  }
+  return params.urlHostname;
+}
+
 export function isServerInAlert(status: string): boolean {
   return status === 'OFFLINE' || status === 'DEGRADED';
 }
