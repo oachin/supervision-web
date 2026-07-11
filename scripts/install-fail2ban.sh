@@ -39,6 +39,7 @@ echo "IP ignorées (ignoreip) : ${IGNORE_IPS}"
 
 systemctl enable fail2ban
 systemctl restart fail2ban
+sleep 2
 
 echo ""
 echo "✅ fail2ban actif"
