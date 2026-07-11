@@ -1,13 +1,13 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Plus, Copy, Check, Trash2, Terminal, X } from 'lucide-react';
+import { Plus, Copy, Check, Trash2, Terminal, X, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, type Server, type ServerCreateResult } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
 
 const profileLabels: Record<string, string> = {
   LINUX: 'Linux',
@@ -25,6 +25,7 @@ function ServersPageContent() {
   const filter = searchParams.get('filter');
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [installInfo, setInstallInfo] = useState<ServerCreateResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -37,6 +38,18 @@ function ServersPageContent() {
   });
 
   const load = () => api.getServers().then(setServers).finally(() => setLoading(false));
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await api.getServers().then(setServers);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }
 
   useEffect(() => { load(); }, []);
 
@@ -95,9 +108,20 @@ function ServersPageContent() {
               : 'Installez l\'agent via wget depuis chaque serveur distant'}
           </p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
-          <Plus className="h-4 w-4" /> Ajouter
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="btn-secondary"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+            Rafraîchir
+          </button>
+          <button onClick={() => setShowForm(true)} className="btn-primary">
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
       </div>
 
       {filter && (

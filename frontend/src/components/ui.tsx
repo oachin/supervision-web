@@ -1,7 +1,30 @@
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
+import { cn, isMaintenanceStatus } from '@/lib/utils';
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({
+  status,
+  statusCode,
+  size = 'sm',
+  className,
+}: {
+  status: string;
+  statusCode?: number | null;
+  size?: 'sm' | 'lg';
+  className?: string;
+}) {
+  if (isMaintenanceStatus(status, statusCode)) {
+    return (
+      <span className={cn(
+        'badge-maintenance',
+        size === 'lg' && 'gap-2 px-4 py-1.5 text-sm font-semibold',
+        className,
+      )}>
+        <span className={cn('rounded-full bg-emerald-400', size === 'lg' ? 'h-2.5 w-2.5' : 'h-1.5 w-1.5')} />
+        En maintenance
+      </span>
+    );
+  }
+
   const variant = {
     ONLINE: 'badge-success',
     UP: 'badge-success',
@@ -19,13 +42,18 @@ export function StatusBadge({ status }: { status: string }) {
     DOWN: 'Hors ligne',
     DEGRADED: 'Dégradé',
     UNKNOWN: 'Inconnu',
-    DISABLED: 'Supervision off',
+    DISABLED: 'Non supervisé',
   }[status] || status;
 
   return (
-    <span className={cn(variant)}>
+    <span className={cn(
+      variant,
+      size === 'lg' && 'gap-2 px-4 py-1.5 text-sm font-semibold',
+      className,
+    )}>
       <span className={cn(
-        'h-1.5 w-1.5 rounded-full',
+        'rounded-full',
+        size === 'lg' ? 'h-2.5 w-2.5' : 'h-1.5 w-1.5',
         status === 'ONLINE' || status === 'UP' ? 'bg-accent' :
         status === 'OFFLINE' || status === 'DOWN' ? 'bg-destructive' :
         status === 'DEGRADED' ? 'bg-warning' :
@@ -39,31 +67,35 @@ export function StatusBadge({ status }: { status: string }) {
 export function WebsiteStatusBadge({
   status,
   monitoringEnabled = true,
+  lastStatusCode,
 }: {
   status: string;
   monitoringEnabled?: boolean;
+  lastStatusCode?: number | null;
 }) {
   if (!monitoringEnabled) {
     return <StatusBadge status="DISABLED" />;
   }
-  return <StatusBadge status={status} />;
+  return <StatusBadge status={status} statusCode={lastStatusCode} />;
 }
 
-function badgeDotClass(variant: 'success' | 'warning' | 'danger' | 'muted') {
+function badgeDotClass(variant: 'success' | 'warning' | 'danger' | 'muted' | 'maintenance') {
   return {
     success: 'bg-accent',
     warning: 'bg-warning',
     danger: 'bg-destructive',
     muted: 'bg-muted-foreground',
+    maintenance: 'bg-emerald-400',
   }[variant];
 }
 
-function badgeVariantClass(variant: 'success' | 'warning' | 'danger' | 'muted') {
+function badgeVariantClass(variant: 'success' | 'warning' | 'danger' | 'muted' | 'maintenance') {
   return {
     success: 'badge-success',
     warning: 'badge-warning',
     danger: 'badge-danger',
     muted: 'badge-muted',
+    maintenance: 'badge-maintenance',
   }[variant];
 }
 
@@ -73,6 +105,7 @@ export function HttpCodeBadge({ code }: { code?: number | null }) {
   }
 
   const variant =
+    code === 503 ? 'maintenance' :
     code >= 200 && code < 400 ? 'success' :
     code >= 400 && code < 500 ? 'warning' : 'danger';
 

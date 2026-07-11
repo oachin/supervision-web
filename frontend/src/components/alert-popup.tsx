@@ -8,9 +8,11 @@ import { formatDate } from '@/lib/utils';
 export function AlertPopup({
   alert,
   onAcknowledge,
+  onSnooze,
 }: {
   alert: Alert;
   onAcknowledge: () => void;
+  onSnooze: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
@@ -42,7 +44,7 @@ export function AlertPopup({
           <p className="text-center text-xs text-red-300/60">{formatDate(alert.createdAt)}</p>
         </div>
 
-        <div className="border-t border-red-500/30 px-6 py-5">
+        <div className="border-t border-red-500/30 px-6 py-5 space-y-3">
           <button
             type="button"
             onClick={onAcknowledge}
@@ -50,8 +52,15 @@ export function AlertPopup({
           >
             Acquitter
           </button>
-          <p className="mt-3 text-center text-xs text-red-200/60">
-            Snooze 30 min — réaffichage si le problème persiste
+          <button
+            type="button"
+            onClick={onSnooze}
+            className="w-full rounded-xl border border-red-400/40 bg-red-950/50 px-6 py-3 text-sm font-medium text-red-100 transition-all hover:bg-red-900/60 active:scale-[0.98]"
+          >
+            Snooze 30 min
+          </button>
+          <p className="text-center text-xs text-red-200/60">
+            Acquitter enregistre l&apos;alerte · Snooze masque toutes les popups pendant 30 min
           </p>
         </div>
       </div>

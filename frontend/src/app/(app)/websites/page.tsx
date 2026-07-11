@@ -1,13 +1,13 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X, Pause, Play, Search } from 'lucide-react';
+import { Plus, Trash2, X, Pause, Play, Search, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
 import { WebsiteStatusBadge, HttpCodeBadge, DnsBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn, isSiteDegraded } from '@/lib/utils';
 
 const filterLabels: Record<string, string> = {
   alert: 'sites en alerte',
@@ -21,6 +21,7 @@ function WebsitesPageContent() {
   const filter = searchParams.get('filter');
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Website | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -29,6 +30,19 @@ function WebsitesPageContent() {
   const [form, setForm] = useState({ name: '', url: '', checkInterval: 60 });
 
   const load = () => api.getWebsites().then(setWebsites).finally(() => setLoading(false));
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await api.getWebsites().then(setWebsites);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -70,11 +84,17 @@ function WebsitesPageContent() {
     if (filter === 'disabled') {
       list = list.filter((w) => !w.monitoringEnabled);
     } else if (filter === 'alert') {
-      list = list.filter((w) => w.monitoringEnabled && (w.status === 'DOWN' || w.status === 'DEGRADED'));
+      list = list.filter(
+        (w) =>
+          w.monitoringEnabled &&
+          (w.status === 'DOWN' || isSiteDegraded(w.status, w.lastStatusCode)),
+      );
     } else if (filter === 'down') {
       list = list.filter((w) => w.monitoringEnabled && w.status === 'DOWN');
     } else if (filter === 'degraded') {
-      list = list.filter((w) => w.monitoringEnabled && w.status === 'DEGRADED');
+      list = list.filter(
+        (w) => w.monitoringEnabled && isSiteDegraded(w.status, w.lastStatusCode),
+      );
     }
 
     const q = searchQuery.trim().toLowerCase();
@@ -106,9 +126,20 @@ function WebsitesPageContent() {
               : 'Surveillance externe HTTP/SSL depuis la plateforme (DNS, port 443, certificat, redirections)'}
           </p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
-          <Plus className="h-4 w-4" /> Ajouter
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="btn-secondary"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+            Rafraîchir
+          </button>
+          <button onClick={() => setShowForm(true)} className="btn-primary">
+            <Plus className="h-4 w-4" /> Ajouter
+          </button>
+        </div>
       </div>
 
       {filter && (
@@ -233,7 +264,7 @@ function WebsitesPageContent() {
                     {!w.monitoringEnabled ? '—' : w.sslDaysRemaining != null ? `${w.sslDaysRemaining}j` : formatDate(w.sslExpiresAt)}
                   </td>
                   <td className="p-4 text-xs text-muted-foreground">{formatDate(w.lastCheckAt)}</td>
-                  <td className="p-4"><WebsiteStatusBadge status={w.status} monitoringEnabled={w.monitoringEnabled} /></td>
+                  <td className="p-4"><WebsiteStatusBadge status={w.status} monitoringEnabled={w.monitoringEnabled} lastStatusCode={w.lastStatusCode} /></td>
                   <td className="p-4">
                     <div className="flex items-center gap-1">
                       <button

@@ -88,4 +88,37 @@
   .badge-muted {
     @apply badge bg-muted text-muted-foreground;
   }
+
+  .badge-maintenance {
+    @apply badge border border-emerald-400/30 bg-emerald-400/15 text-emerald-300;
+  }
+
+  .hive-hex {
+    width: calc(var(--hex-size, 11px) * 2);
+    height: calc(var(--hex-size, 11px) * 1.85);
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  }
+
+  .hive-hex-legend {
+    width: 18px;
+    height: 16px;
+  }
+
+  .hive-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--hex-gap, 2px) - 1px);
+    padding: 4px 0;
+  }
+
+  .hive-row {
+    display: flex;
+    justify-content: center;
+    gap: var(--hex-gap, 2px);
+  }
+
+  .hive-row-offset {
+    transform: translateX(calc(var(--hex-size, 11px) + var(--hex-gap, 2px) / 2));
+  }
 }

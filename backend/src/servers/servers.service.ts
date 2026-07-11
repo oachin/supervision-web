@@ -40,7 +40,16 @@ export class ServersService {
     const server = await this.prisma.server.findUnique({
       where: { id },
       include: {
-        websites: { select: { id: true, name: true, url: true, status: true } },
+        websites: {
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            status: true,
+            lastStatusCode: true,
+            monitoringEnabled: true,
+          },
+        },
         metrics: {
           take: 60,
           orderBy: { collectedAt: 'desc' },

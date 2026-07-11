@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff } from 'lucide-react';
+import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
 import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { StatusGrid, type StatusTileData } from '@/components/status-grid';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
 import { EventTicker } from '@/components/event-ticker';
-import { formatDate, formatCpuPercent } from '@/lib/utils';
+import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { Alert } from '@/lib/api';
 
@@ -28,12 +28,18 @@ function serverToTile(s: ServerWithHistory): StatusTileData {
 
 function websiteToTile(w: WebsiteWithHistory): StatusTileData {
   const history = w.checks ? [...w.checks].reverse().map((c) => c.responseMs ?? 0) : [];
+  const serverHref = w.server?.id ? `/servers/${w.server.id}` : `/websites/${w.id}`;
+  const displayStatus = !w.monitoringEnabled
+    ? 'DISABLED'
+    : w.status === 'DEGRADED' && w.lastStatusCode === 503
+      ? 'MAINTENANCE'
+      : w.status;
   return {
     id: w.id,
     name: w.name,
     subtitle: w.url,
-    status: w.monitoringEnabled ? w.status : 'DISABLED',
-    href: `/websites/${w.id}`,
+    status: displayStatus,
+    href: serverHref,
     metricLabel: w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—',
     secondaryLabel: w.sslDaysRemaining != null ? `SSL ${w.sslDaysRemaining}j` : undefined,
     sparklineData: history,
@@ -46,29 +52,41 @@ export default function DashboardPage() {
   const [websites, setWebsites] = useState<WebsiteWithHistory[]>([]);
   const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function loadAll() {
+    const [dashboard, serversData, websitesData, summary] = await Promise.all([
+      api.getDashboard(),
+      api.getServers(),
+      api.getWebsites(),
+      api.getAlertsSummary(),
+    ]);
+    setData(dashboard);
+    setServers(serversData);
+    setWebsites(websitesData);
+    setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await loadAll();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    api.getDashboard()
-      .then(setData)
+    loadAll()
       .catch(console.error)
       .finally(() => setLoading(false));
 
     const interval = setInterval(() => {
-      api.getDashboard().then(setData).catch(console.error);
+      loadAll().catch(console.error);
     }, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const load = () => {
-      api.getServers().then(setServers).catch(console.error);
-      api.getWebsites().then(setWebsites).catch(console.error);
-      api.getAlertsSummary().then((summary) => {
-        setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
-      }).catch(console.error);
-    };
-    load();
-    const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -94,9 +112,20 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Tableau de bord</h1>
-        <p className="text-sm text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Tableau de bord</h1>
+          <p className="text-sm text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="btn-secondary"
+        >
+          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+          Rafraîchir
+        </button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">

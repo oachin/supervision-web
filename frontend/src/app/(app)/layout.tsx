@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/sidebar';
 import { UserMenu } from '@/components/user-menu';
 import { AlertProvider } from '@/components/alert-provider';
 import { AlertBanner } from '@/components/alert-banner';
+import { PopupSnoozeButton } from '@/components/popup-snooze-button';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,7 +18,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <AlertBanner />
               </div>
-              <div className="flex shrink-0 items-center border-l border-white/5 px-6">
+              <div className="flex shrink-0 items-center gap-3 border-l border-white/5 px-6">
+                <PopupSnoozeButton />
                 <UserMenu />
               </div>
             </div>

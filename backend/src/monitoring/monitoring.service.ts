@@ -73,7 +73,7 @@ export class MonitoringService {
       }
     }
 
-    const status = availabilityStatus(httpResult.ok, httpResult.responseMs);
+    const status = availabilityStatus(httpResult.ok, httpResult.responseMs, httpResult.statusCode);
     const previousStatus = website.status;
 
     await this.prisma.websiteCheck.create({

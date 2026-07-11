@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Trash2, Pencil, Check, Copy, Terminal } from 'lucide-react';
+import { Trash2, Pencil, Check, Copy, Terminal, Bell } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { api, type ServerDetail, type ServerMetric } from '@/lib/api';
+import { api, type ServerDetail, type ServerMetric, type Alert } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { TagEditor } from '@/components/tag-editor';
+import { HostedWebsitesPanel } from '@/components/hosted-websites-panel';
+import { ServerAlertsBySitePanel } from '@/components/server-alerts-panel';
+import { flattenOpenAlerts, openAlertsForServer } from '@/lib/server-alerts';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
@@ -26,18 +29,36 @@ export default function ServerDetailPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [chartFilter, setChartFilter] = useState<ChartMetric | null>(null);
+  const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
+  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     api.getServer(id).then(setServer);
     api.getServerMetrics(id, 24).then(setMetrics);
+    api.getAlertsSummary()
+      .then((summary) => setOpenAlerts(flattenOpenAlerts(summary)))
+      .catch(console.error);
   }, [id]);
+
+  const monitoredWebsiteIds = useMemo(() => {
+    if (!server) return new Set<string>();
+    return new Set(server.websites.filter((w) => w.monitoringEnabled).map((w) => w.id));
+  }, [server]);
+
+  const serverOpenAlerts = useMemo(() => {
+    if (!server) return [];
+    return openAlertsForServer(server.id, monitoredWebsiteIds, openAlerts);
+  }, [server, monitoredWebsiteIds, openAlerts]);
 
   if (!server) {
     return <div className="flex h-32 items-center justify-center">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
     </div>;
   }
+
+  const alertCount = serverOpenAlerts.length;
+  const hasCriticalAlerts = serverOpenAlerts.some((a) => a.severity === 'CRITICAL');
 
   const latest = metrics[0] ?? server.metrics?.[0];
   const pleskServices = latest?.pleskServices;
@@ -119,33 +140,36 @@ export default function ServerDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          {editingName ? (
-            <div className="flex items-center gap-2">
-              <input
-                className="input text-xl font-bold"
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                autoFocus
-              />
-              <button type="button" onClick={saveName} className="btn-primary p-2">
-                <Check className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">{server.name}</h1>
-              <button
-                type="button"
-                onClick={() => { setNameDraft(server.name); setEditingName(true); }}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50"
-                title="Renommer"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-            </div>
-          )}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-4">
+            {editingName ? (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <input
+                  className="input text-xl font-bold"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  autoFocus
+                />
+                <button type="button" onClick={saveName} className="btn-primary p-2">
+                  <Check className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <h1 className="truncate text-2xl font-bold">{server.name}</h1>
+                <button
+                  type="button"
+                  onClick={() => { setNameDraft(server.name); setEditingName(true); }}
+                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50"
+                  title="Renommer"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            <StatusBadge status={server.status} size="lg" className="shrink-0" />
+          </div>
           <p className="font-mono text-sm text-muted-foreground">
             {server.hostname === 'en-attente' ? 'Hostname détecté à la connexion' : server.hostname}
           </p>
@@ -159,8 +183,7 @@ export default function ServerDetailPage() {
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <StatusBadge status={server.status} />
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
           <button type="button" onClick={() => setShowDelete(true)} className="btn-danger text-sm">
             <Trash2 className="h-4 w-4" /> Supprimer
           </button>
@@ -200,9 +223,8 @@ export default function ServerDetailPage() {
         </div>
       )}
 
-      {latest && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {([
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          {latest && ([
             { key: 'cpu' as const, label: 'CPU', value: formatCpuPercent(latest.cpuPercent) },
             {
               key: 'memory' as const,
@@ -233,7 +255,36 @@ export default function ServerDetailPage() {
               {'sub' in m && m.sub && <p className="mt-1 text-xs text-muted-foreground">{m.sub}</p>}
             </button>
           ))}
-        </div>
+          <button
+            type="button"
+            onClick={() => setShowAlertsPanel((open) => !open)}
+            className={cn(
+              'card text-center transition-colors hover:border-primary/30',
+              showAlertsPanel && 'border-primary/50 ring-1 ring-primary/30 bg-primary/5',
+              alertCount > 0 && hasCriticalAlerts && !showAlertsPanel && 'border-destructive/40 bg-destructive/[0.04]',
+              alertCount > 0 && !hasCriticalAlerts && !showAlertsPanel && 'border-warning/40 bg-warning/[0.04]',
+            )}
+            title={showAlertsPanel ? 'Masquer les alertes' : 'Afficher les alertes par site'}
+          >
+            <p className="inline-flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
+              <Bell className="h-3.5 w-3.5" />
+              Alertes en cours
+            </p>
+            <p className={cn(
+              'mt-1 text-2xl font-bold',
+              alertCount > 0 && hasCriticalAlerts && 'text-destructive',
+              alertCount > 0 && !hasCriticalAlerts && 'text-warning',
+            )}>
+              {alertCount}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {showAlertsPanel ? 'Masquer le détail' : 'Voir par site'}
+            </p>
+          </button>
+      </div>
+
+      {showAlertsPanel && (
+        <ServerAlertsBySitePanel alerts={serverOpenAlerts} serverName={server.name} />
       )}
 
       {chartData.length > 0 && (
@@ -296,20 +347,7 @@ export default function ServerDetailPage() {
       )}
 
       {server.websites.length > 0 && (
-        <div className="card">
-          <h2 className="mb-4 text-lg font-semibold">Sites hébergés</h2>
-          <div className="space-y-2">
-            {server.websites.map((w) => (
-              <div key={w.id} className="flex items-center justify-between rounded-lg border border-white/5 p-3">
-                <div>
-                  <p className="font-medium">{w.name}</p>
-                  <p className="text-xs text-muted-foreground">{w.url}</p>
-                </div>
-                <StatusBadge status={w.status} />
-              </div>
-            ))}
-          </div>
-        </div>
+        <HostedWebsitesPanel websites={server.websites} />
       )}
 
       <div className="card text-sm text-muted-foreground">

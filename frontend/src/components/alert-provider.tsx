@@ -3,13 +3,25 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api, type Alert, type AlertSummary } from '@/lib/api';
 import { AlertPopup } from './alert-popup';
+import { usePopupSnooze } from '@/hooks/use-popup-snooze';
 
 interface AlertContextValue {
   summary: AlertSummary | null;
   refresh: () => Promise<void>;
+  popupSnoozed: boolean;
+  popupSnoozeRemainingMin: number;
+  snoozePopups: () => void;
+  cancelPopupSnooze: () => void;
 }
 
-const AlertContext = createContext<AlertContextValue>({ summary: null, refresh: async () => {} });
+const AlertContext = createContext<AlertContextValue>({
+  summary: null,
+  refresh: async () => {},
+  popupSnoozed: false,
+  popupSnoozeRemainingMin: 0,
+  snoozePopups: () => {},
+  cancelPopupSnooze: () => {},
+});
 
 export function useAlerts() {
   return useContext(AlertContext);
@@ -19,6 +31,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   const [popupAlerts, setPopupAlerts] = useState<Alert[]>([]);
   const [currentPopup, setCurrentPopup] = useState<Alert | null>(null);
   const [summary, setSummary] = useState<AlertSummary | null>(null);
+  const { isSnoozed, snooze, cancelSnooze, remainingMin } = usePopupSnooze();
 
   const refresh = useCallback(async () => {
     const [summaryData, popupData] = await Promise.all([
@@ -27,11 +40,18 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     ]);
     setSummary(summaryData);
     setPopupAlerts(popupData);
-    setCurrentPopup((prev) => {
-      if (prev && popupData.some((a) => a.id === prev.id)) return prev;
-      return popupData[0] ?? null;
-    });
   }, []);
+
+  useEffect(() => {
+    if (isSnoozed) {
+      setCurrentPopup(null);
+      return;
+    }
+    setCurrentPopup((prev) => {
+      if (prev && popupAlerts.some((a) => a.id === prev.id)) return prev;
+      return popupAlerts[0] ?? null;
+    });
+  }, [isSnoozed, popupAlerts]);
 
   useEffect(() => {
     refresh().catch(console.error);
@@ -50,11 +70,28 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }
 
+  function handleSnoozePopups() {
+    snooze();
+  }
+
   return (
-    <AlertContext.Provider value={{ summary, refresh }}>
+    <AlertContext.Provider
+      value={{
+        summary,
+        refresh,
+        popupSnoozed: isSnoozed,
+        popupSnoozeRemainingMin: remainingMin,
+        snoozePopups: handleSnoozePopups,
+        cancelPopupSnooze: cancelSnooze,
+      }}
+    >
       {children}
-      {currentPopup && (
-        <AlertPopup alert={currentPopup} onAcknowledge={handleAcknowledge} />
+      {currentPopup && !isSnoozed && (
+        <AlertPopup
+          alert={currentPopup}
+          onAcknowledge={handleAcknowledge}
+          onSnooze={handleSnoozePopups}
+        />
       )}
     </AlertContext.Provider>
   );

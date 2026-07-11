@@ -5,6 +5,7 @@ import * as https from 'https';
 import * as net from 'net';
 import * as tls from 'tls';
 import { URL } from 'url';
+import { isMaintenanceStatusCode } from '../websites/website-status.util';
 
 export interface WebsiteHttpProbeResult {
   ok: boolean;
@@ -110,7 +111,9 @@ export class WebsiteProbeService {
     };
   }
 
-  /** Vérification certificat SSL/TLS (chaîne, expiration) — à exécuter une fois par jour. */
+  /** Vérification certificat SSL/TLS (chaîne, expiration) — à exécuter une fois par jour.
+   *  CA-agnostique : Let's Encrypt (Plesk), DigiCert, GeoTrust, Sectigo, etc.
+   *  via le magasin de confiance système (rejectUnauthorized). */
   async probeSslCertificate(hostname: string): Promise<WebsiteSslProbeResult> {
     return this.probeSsl(hostname);
   }
@@ -164,27 +167,12 @@ export class WebsiteProbeService {
           timeout: 10000,
         },
         () => {
-          const cert = socket.getPeerCertificate(true) as tls.PeerCertificate & {
-            issuerCertificate?: tls.PeerCertificate;
-          };
+          const cert = socket.getPeerCertificate(false);
           const protocol = socket.getProtocol() ?? undefined;
           const authError = (socket as tls.TLSSocket & { authorizationError?: Error }).authorizationError;
-
-          let sslChainValid = !authError;
-          if (cert?.issuerCertificate) {
-            let depth = 0;
-            let current: (tls.PeerCertificate & { issuerCertificate?: tls.PeerCertificate }) | undefined = cert;
-            while (current?.issuerCertificate && depth < 10) {
-              if (current.fingerprint === current.issuerCertificate.fingerprint) break;
-              current = current.issuerCertificate;
-              depth++;
-            }
-            if (depth === 0 && cert.subject !== cert.issuer) {
-              sslChainValid = false;
-            }
-          } else if (cert && cert.subject !== cert.issuer) {
-            sslChainValid = false;
-          }
+          // Si Node.js valide la chaîne (CA publique externe ou Let's Encrypt), on fait confiance.
+          const sslValid = !authError;
+          const sslChainValid = !authError;
 
           const sslExpiresAt = cert?.valid_to ? new Date(cert.valid_to) : undefined;
           const sslDaysRemaining = sslExpiresAt
@@ -193,14 +181,16 @@ export class WebsiteProbeService {
 
           socket.end();
           resolve({
-            sslValid: true,
+            sslValid,
             sslChainValid,
             sslExpiresAt,
             sslDaysRemaining,
-            sslIssuer: this.certFieldToString(cert?.issuer),
+            sslIssuer: this.formatCertIssuer(cert?.issuer),
             sslSubject: this.certFieldToString(cert?.subject),
             tlsVersion: protocol ?? undefined,
-            sslError: sslChainValid ? undefined : 'Chaîne de certificats intermédiaires incomplète',
+            sslError: authError
+              ? (authError instanceof Error ? authError.message : String(authError))
+              : undefined,
           });
         },
       );
@@ -244,7 +234,8 @@ export class WebsiteProbeService {
           {
             timeout: 15000,
             headers: { 'User-Agent': 'HavetSupervision/1.0' },
-            rejectUnauthorized: true,
+            // Disponibilité HTTP : ne pas bloquer sur un certificat expiré (contrôle SSL séparé).
+            rejectUnauthorized: false,
           },
           (res) => {
             const statusCode = res.statusCode ?? 0;
@@ -260,19 +251,24 @@ export class WebsiteProbeService {
             res.on('data', (chunk) => { body += chunk; });
             res.on('end', () => {
               const responseMs = Date.now() - start;
-              const statusOk = statusCode >= 200 && statusCode < 400;
               const keywordOk = !expectedKeyword || body.includes(expectedKeyword);
-              const expectedOk = statusCode === expectedStatus || statusOk;
+              const maintenance = isMaintenanceStatusCode(statusCode);
+              const reachable = (statusCode >= 200 && statusCode < 500) || maintenance;
+              const healthy = statusCode === expectedStatus || (statusCode >= 200 && statusCode < 400);
 
               resolve({
-                ok: expectedOk && keywordOk,
+                ok: reachable && keywordOk,
                 statusCode,
                 responseMs,
-                error: !expectedOk
-                  ? `HTTP ${statusCode} (attendu ${expectedStatus} ou 2xx/3xx)`
-                  : !keywordOk
-                    ? 'Mot-clé attendu non trouvé'
-                    : undefined,
+                error: maintenance
+                  ? 'HTTP 503 (maintenance)'
+                  : !reachable
+                    ? `HTTP ${statusCode} (erreur serveur)`
+                    : !healthy
+                      ? `HTTP ${statusCode} (attendu ${expectedStatus})`
+                      : !keywordOk
+                        ? 'Mot-clé attendu non trouvé'
+                        : undefined,
               });
             });
           },
@@ -289,6 +285,19 @@ export class WebsiteProbeService {
       });
 
     return follow(url, maxRedirects);
+  }
+
+  private formatCertIssuer(issuer: unknown): string | undefined {
+    if (issuer == null) return undefined;
+    if (typeof issuer === 'string') return issuer;
+    if (typeof issuer === 'object') {
+      const fields = issuer as Record<string, unknown>;
+      const org = fields.O ?? fields.o;
+      const cn = fields.CN ?? fields.cn;
+      const parts = [org, cn].filter(Boolean).map(String);
+      if (parts.length > 0) return parts.join(' · ');
+    }
+    return this.certFieldToString(issuer);
   }
 
   private certFieldToString(value: unknown): string | undefined {

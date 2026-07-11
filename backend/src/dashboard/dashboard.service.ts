@@ -17,6 +17,7 @@ export class DashboardService {
       websitesUp,
       websitesDown,
       websitesDegraded,
+      websitesMaintenance,
       websitesDisabled,
       activeAlerts,
       recentAlerts,
@@ -31,7 +32,12 @@ export class DashboardService {
       this.prisma.website.count({ where: monitoredWebsite }),
       this.prisma.website.count({ where: { ...monitoredWebsite, status: 'UP' } }),
       this.prisma.website.count({ where: { ...monitoredWebsite, status: 'DOWN' } }),
-      this.prisma.website.count({ where: { ...monitoredWebsite, status: 'DEGRADED' } }),
+      this.prisma.website.count({
+        where: { ...monitoredWebsite, status: 'DEGRADED', NOT: { lastStatusCode: 503 } },
+      }),
+      this.prisma.website.count({
+        where: { ...monitoredWebsite, status: 'DEGRADED', lastStatusCode: 503 },
+      }),
       this.prisma.website.count({ where: { monitoringEnabled: false } }),
       this.prisma.alert.count({ where: { status: { in: ['ACTIVE', 'ACKNOWLEDGED'] } } }),
       this.prisma.alert.findMany({
@@ -67,12 +73,19 @@ export class DashboardService {
         orderBy: { name: 'asc' },
       }),
       this.prisma.website.findMany({
-        where: { ...monitoredWebsite, status: { in: ['DOWN', 'DEGRADED'] } },
+        where: {
+          ...monitoredWebsite,
+          OR: [
+            { status: 'DOWN' },
+            { status: 'DEGRADED', NOT: { lastStatusCode: 503 } },
+          ],
+        },
         select: {
           id: true,
           name: true,
           url: true,
           status: true,
+          lastStatusCode: true,
           monitoringEnabled: true,
           checkMode: true,
           lastCheckAt: true,
@@ -105,6 +118,7 @@ export class DashboardService {
           up: websitesUp,
           down: websitesDown,
           degraded: websitesDegraded,
+          maintenance: websitesMaintenance,
           disabled: websitesDisabled,
         },
         activeAlerts,

@@ -60,7 +60,7 @@ export default function WebsiteDetailPage() {
           <p className="text-xs text-muted-foreground mt-1">Supervision externe HTTP/SSL</p>
         </div>
         <div className="flex items-center gap-3">
-          <WebsiteStatusBadge status={website.status} monitoringEnabled={website.monitoringEnabled} />
+          <WebsiteStatusBadge status={website.status} monitoringEnabled={website.monitoringEnabled} lastStatusCode={website.lastStatusCode} />
           <button
             type="button"
             onClick={handleToggleMonitoring}
@@ -130,7 +130,7 @@ export default function WebsiteDetailPage() {
               <span className="text-xs">{c.dnsOk === false ? 'DNS FAIL' : c.dnsOk ? 'DNS OK' : ''}</span>
               <span className="text-xs">{c.tlsVersion ?? ''}</span>
               <span className="text-xs">{c.sslDaysRemaining != null ? `SSL ${c.sslDaysRemaining}j` : ''}</span>
-              <WebsiteStatusBadge status={c.status} />
+              <WebsiteStatusBadge status={c.status} lastStatusCode={c.statusCode} />
               {c.errorMessage && <span className="text-xs text-destructive">{c.errorMessage}</span>}
             </div>
           ))}

@@ -192,7 +192,7 @@ export const api = new ApiClient();
 export interface DashboardData {
   summary: {
     servers: { total: number; online: number; offline: number; degraded: number };
-    websites: { total: number; up: number; down: number; degraded: number; disabled: number };
+    websites: { total: number; up: number; down: number; degraded: number; maintenance: number; disabled: number };
     activeAlerts: number;
   };
   recentAlerts: Alert[];
@@ -254,7 +254,14 @@ export interface ServerSummary extends Server {
 }
 
 export interface ServerDetail extends Server {
-  websites: { id: string; name: string; url: string; status: string }[];
+  websites: {
+    id: string;
+    name: string;
+    url: string;
+    status: string;
+    lastStatusCode?: number | null;
+    monitoringEnabled: boolean;
+  }[];
   metrics: ServerMetric[];
 }
 

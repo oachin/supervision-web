@@ -25,7 +25,16 @@ export function formatCpuPercent(value: number) {
   return `${value.toFixed(value < 10 ? 2 : 1)}%`;
 }
 
-export function statusColor(status: string) {
+export function isMaintenanceStatus(status: string, statusCode?: number | null) {
+  return status === 'DEGRADED' && statusCode === 503;
+}
+
+export function isSiteDegraded(status: string, statusCode?: number | null) {
+  return status === 'DEGRADED' && !isMaintenanceStatus(status, statusCode);
+}
+
+export function statusColor(status: string, statusCode?: number | null) {
+  if (isMaintenanceStatus(status, statusCode)) return 'maintenance';
   switch (status) {
     case 'ONLINE':
     case 'UP':
@@ -40,7 +49,8 @@ export function statusColor(status: string) {
   }
 }
 
-export function statusLabel(status: string) {
+export function statusLabel(status: string, statusCode?: number | null) {
+  if (isMaintenanceStatus(status, statusCode)) return 'En maintenance';
   const labels: Record<string, string> = {
     ONLINE: 'En ligne',
     OFFLINE: 'Hors ligne',

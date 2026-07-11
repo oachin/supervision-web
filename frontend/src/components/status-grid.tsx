@@ -19,15 +19,17 @@ const severityRank: Record<string, number> = {
   OFFLINE: 0,
   DOWN: 0,
   DEGRADED: 1,
-  UNKNOWN: 2,
-  ONLINE: 3,
-  UP: 3,
-  DISABLED: 4,
+  MAINTENANCE: 2,
+  UNKNOWN: 3,
+  ONLINE: 4,
+  UP: 4,
+  DISABLED: 5,
 };
 
 function statusDotClass(status: string) {
   if (status === 'ONLINE' || status === 'UP') return 'bg-accent';
   if (status === 'OFFLINE' || status === 'DOWN') return 'bg-destructive';
+  if (status === 'MAINTENANCE') return 'bg-emerald-400';
   if (status === 'DEGRADED') return 'bg-warning';
   return 'bg-muted-foreground';
 }
@@ -41,6 +43,7 @@ function statusPulseClass(status: string) {
 function statusGlowColor(status: string) {
   if (status === 'ONLINE' || status === 'UP') return 'hsl(142 76% 45%)';
   if (status === 'OFFLINE' || status === 'DOWN') return 'hsl(0 84% 60%)';
+  if (status === 'MAINTENANCE') return 'hsl(152 69% 58%)';
   if (status === 'DEGRADED') return 'hsl(38 92% 50%)';
   return 'hsl(215 20% 55%)';
 }
