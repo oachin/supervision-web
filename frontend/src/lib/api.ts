@@ -139,7 +139,7 @@ class ApiClient {
   getSystemHealth() { return this.fetch<SystemHealth>('/system/health'); }
 
   // Servers
-  getServers() { return this.fetch<Server[]>('/servers'); }
+  getServers() { return this.fetch<ServerWithHistory[]>('/servers'); }
   getServer(id: string) { return this.fetch<ServerDetail>(`/servers/${id}`); }
   getServerMetrics(id: string, hours = 24) { return this.fetch<ServerMetric[]>(`/servers/${id}/metrics?hours=${hours}`); }
   createServer(data: CreateServerData) { return this.fetch<ServerCreateResult>('/servers', { method: 'POST', body: JSON.stringify(data) }); }
@@ -148,7 +148,7 @@ class ApiClient {
   regenerateServerKey(id: string) { return this.fetch<{ agentKeyPlain: string; installUrl: string; installCommand: string }>(`/servers/${id}/regenerate-key`, { method: 'POST' }); }
 
   // Websites
-  getWebsites() { return this.fetch<Website[]>('/websites'); }
+  getWebsites() { return this.fetch<WebsiteWithHistory[]>('/websites'); }
   getWebsite(id: string) { return this.fetch<WebsiteDetail>(`/websites/${id}`); }
   createWebsite(data: CreateWebsiteData) { return this.fetch<Website>('/websites', { method: 'POST', body: JSON.stringify(data) }); }
   updateWebsite(id: string, data: Partial<CreateWebsiteData>) { return this.fetch<Website>(`/websites/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
@@ -232,6 +232,17 @@ export interface Server {
   _count?: { websites: number; metrics: number };
 }
 
+export interface ServerMetricPoint {
+  cpuPercent: number;
+  memoryPercent: number;
+  diskPercent: number;
+  collectedAt: string;
+}
+
+export interface ServerWithHistory extends Server {
+  metrics: ServerMetricPoint[];
+}
+
 export interface ServerCreateResult extends Server {
   agentKeyPlain: string;
   installUrl: string;
@@ -280,6 +291,16 @@ export interface Website {
   lastPort443Open?: boolean;
   lastTlsVersion?: string;
   server?: { id: string; name: string; hostname: string };
+}
+
+export interface WebsiteCheckPoint {
+  status: string;
+  responseMs?: number;
+  checkedAt: string;
+}
+
+export interface WebsiteWithHistory extends Website {
+  checks: WebsiteCheckPoint[];
 }
 
 export interface WebsiteCheck {
