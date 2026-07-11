@@ -5,7 +5,7 @@ import * as https from 'https';
 import * as net from 'net';
 import * as tls from 'tls';
 import { URL } from 'url';
-import { isMaintenanceStatusCode } from '../websites/website-status.util';
+import { isMaintenanceStatusCode, extractHtmlRedirectUrl, shouldFollowHtmlRedirect } from '../websites/website-status.util';
 
 export interface WebsiteHttpProbeResult {
   ok: boolean;
@@ -250,6 +250,22 @@ export class WebsiteProbeService {
             let body = '';
             res.on('data', (chunk) => { body += chunk; });
             res.on('end', () => {
+              if (
+                redirectsLeft > 0 &&
+                shouldFollowHtmlRedirect(statusCode)
+              ) {
+                const htmlRedirect = extractHtmlRedirectUrl(body);
+                if (htmlRedirect) {
+                  try {
+                    const nextUrl = new URL(htmlRedirect, targetUrl).href;
+                    follow(nextUrl, redirectsLeft - 1).then(resolve);
+                    return;
+                  } catch {
+                    // URL HTML invalide — évaluer la réponse telle quelle
+                  }
+                }
+              }
+
               const responseMs = Date.now() - start;
               const keywordOk = !expectedKeyword || body.includes(expectedKeyword);
               const maintenance = isMaintenanceStatusCode(statusCode);
