@@ -17,6 +17,15 @@ export class WebsitesService {
       orderBy: { name: 'asc' },
       include: {
         server: { select: { id: true, name: true, hostname: true } },
+        checks: {
+          take: 20,
+          orderBy: { checkedAt: 'desc' },
+          select: {
+            status: true,
+            responseMs: true,
+            checkedAt: true,
+          },
+        },
       },
     });
   }
