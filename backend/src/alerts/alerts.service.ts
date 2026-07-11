@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const SNOOZE_MS = 30 * 60 * 1000;
 
 const alertInclude = {
-  server: { select: { id: true, name: true } },
+  server: { select: { id: true, name: true, hostname: true } },
   website: { select: { id: true, name: true, url: true } },
   acknowledgedBy: { select: { id: true, name: true, email: true } },
   closedBy: { select: { id: true, name: true, email: true } },
@@ -153,6 +153,8 @@ export class AlertsService {
         alert.id,
         'SNOOZE_EXPIRED',
         `Snooze expiré — réaffichage popup (occurrence ${updated.occurrenceCount})`,
+        undefined,
+        { occurrenceCount: updated.occurrenceCount },
       );
     }
   }
@@ -297,6 +299,36 @@ export class AlertsService {
       include: alertInclude,
       take: 100,
     });
+  }
+
+  async findOne(id: string) {
+    const alert = await this.prisma.alert.findUnique({
+      where: { id },
+      include: {
+        ...alertInclude,
+        events: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+    if (!alert) throw new NotFoundException('Alerte introuvable');
+    return alert;
+  }
+
+  async addNote(id: string, userId: string, message: string) {
+    const alert = await this.prisma.alert.findUnique({ where: { id } });
+    if (!alert) throw new NotFoundException('Alerte introuvable');
+    if (alert.status === 'CLOSED') {
+      throw new BadRequestException('Impossible d\'ajouter une note à une alerte clôturée');
+    }
+    const trimmed = message?.trim();
+    if (!trimmed) throw new BadRequestException('La note ne peut pas être vide');
+
+    await this.logEvent(id, 'NOTE', trimmed, userId);
+    return this.findOne(id);
   }
 
   async getEvents(limit = 200) {

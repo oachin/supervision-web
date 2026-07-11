@@ -34,6 +34,21 @@ export class AlertsController {
     return this.alerts.findAll(status);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.alerts.findOne(id);
+  }
+
+  @Post(':id/notes')
+  @Roles('ADMIN', 'OPERATOR')
+  addNote(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { message: string },
+  ) {
+    return this.alerts.addNote(id, userId, body.message);
+  }
+
   @Patch(':id/acknowledge')
   acknowledge(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.alerts.acknowledge(id, userId);

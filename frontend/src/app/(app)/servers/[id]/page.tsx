@@ -146,7 +146,7 @@ export default function ServerDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
             {editingName ? (
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <input
@@ -160,7 +160,7 @@ export default function ServerDetailPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <h1 className="truncate text-2xl font-bold">{server.name}</h1>
                 <button
                   type="button"
@@ -172,7 +172,6 @@ export default function ServerDetailPage() {
                 </button>
               </div>
             )}
-            <StatusBadge status={server.status} size="lg" className="shrink-0" />
           </div>
           <p className="font-mono text-sm text-muted-foreground">
             {server.hostname === 'en-attente' ? 'Hostname détecté à la connexion' : server.hostname}
@@ -187,19 +186,22 @@ export default function ServerDetailPage() {
             />
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-          <button type="button" onClick={() => setShowDelete(true)} className="btn-danger text-sm">
-            <Trash2 className="h-4 w-4" /> Supprimer
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowRegenerateConfirm(true)}
-            className="btn-secondary text-sm"
-            disabled={regenerating}
-          >
-            <Terminal className="h-4 w-4" />
-            Générer la commande wget
-          </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <StatusBadge status={server.status} size="lg" />
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <button type="button" onClick={() => setShowDelete(true)} className="btn-danger text-sm">
+              <Trash2 className="h-4 w-4" /> Supprimer
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRegenerateConfirm(true)}
+              className="btn-secondary text-sm"
+              disabled={regenerating}
+            >
+              <Terminal className="h-4 w-4" />
+              Générer la commande wget
+            </button>
+          </div>
         </div>
       </div>
 

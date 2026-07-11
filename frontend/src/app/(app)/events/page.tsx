@@ -5,16 +5,7 @@ import { api, type AlertEvent } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
 import { formatDate } from '@/lib/utils';
 
-const actionLabels: Record<string, string> = {
-  CREATED: 'Création',
-  ACKNOWLEDGED: 'Acquittement',
-  SNOOZE_EXPIRED: 'Snooze expiré',
-  OCCURRENCE: 'Occurrence',
-  ISSUE_RESOLVED: 'Problème résolu',
-  REOPENED: 'Réouverture',
-  CLOSED: 'Clôture',
-  RESOURCE_DELETED: 'Ressource supprimée',
-};
+import { alertActionLabels } from '@/lib/alert-event-labels';
 
 export default function EventsPage() {
   const [events, setEvents] = useState<AlertEvent[]>([]);
@@ -63,7 +54,7 @@ export default function EventsPage() {
                 <tr key={e.id} className="border-b border-white/5 hover:bg-secondary/20">
                   <td className="p-4 text-xs text-muted-foreground whitespace-nowrap">{formatDate(e.createdAt)}</td>
                   <td className="p-4">
-                    <span className="badge-muted">{actionLabels[e.action] ?? e.action}</span>
+                    <span className="badge-muted">{alertActionLabels[e.action] ?? e.action}</span>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">

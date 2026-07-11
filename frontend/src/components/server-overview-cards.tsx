@@ -10,7 +10,7 @@ import {
   GripVertical,
   Maximize2,
 } from 'lucide-react';
-import { cn, formatCpuPercent, isMaintenanceStatus, isSiteDegraded } from '@/lib/utils';
+import { cn, isMaintenanceStatus, isSiteDegraded } from '@/lib/utils';
 import { TagList } from '@/components/tag-editor';
 import { useServerTileOrder } from '@/hooks/use-server-tile-order';
 import type { Alert, ServerWithHistory, WebsiteWithHistory } from '@/lib/api';
@@ -157,7 +157,6 @@ function ServerOverviewCard({
 }) {
   const { server, level, summaryLines, alertCount, sitesTotal } = data;
   const styles = levelStyles[level];
-  const latest = server.metrics?.[0];
   const hostname = server.hostname === 'en-attente' ? 'Hostname en attente' : server.hostname;
 
   const maxSummaryLines = nocMode ? 4 : 3;
@@ -179,7 +178,7 @@ function ServerOverviewCard({
       <Link
         href={`/servers/${server.id}`}
         className={cn(
-          'group relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-xl border transition-all duration-300',
+          'group relative flex h-full min-h-[240px] flex-col overflow-hidden rounded-xl border transition-all duration-300',
           'hover:-translate-y-0.5 hover:shadow-lg',
           nocMode ? 'min-h-[300px] gap-5 p-6' : 'gap-4 p-5',
           styles.border,
@@ -282,22 +281,6 @@ function ServerOverviewCard({
             );
             })}
           </ul>
-        </div>
-
-        <div className={cn('mt-auto flex flex-wrap gap-3 border-t border-white/5 pt-3 pl-2 font-mono text-muted-foreground', nocMode ? 'text-sm' : 'text-xs')}>
-          {latest ? (
-            <>
-              <span>CPU {formatCpuPercent(latest.cpuPercent)}</span>
-              <span>RAM {latest.memoryPercent.toFixed(0)}%</span>
-              <span>Disque {latest.diskPercent.toFixed(0)}%</span>
-            </>
-          ) : (
-            <>
-              <span className="invisible">CPU —</span>
-              <span className="invisible">RAM —</span>
-              <span className="invisible">Disque —</span>
-            </>
-          )}
         </div>
       </Link>
     </div>
