@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { Alert } from '@/lib/api';
 import { SeverityBadge } from './ui';
 import { formatDate } from '@/lib/utils';
+import { getAlertHostingServer } from '@/lib/alert-hosting';
 
 export function AlertPopup({
   alert,
@@ -35,9 +36,15 @@ export function AlertPopup({
           </div>
           <h3 className="text-center text-lg font-semibold text-white">{alert.title}</h3>
           <p className="text-center text-sm text-red-100/90">{alert.message}</p>
-          {alert.server && (
-            <p className="text-center text-xs text-red-200/70">Serveur : {alert.server.name}</p>
-          )}
+          {(() => {
+            const server = getAlertHostingServer(alert);
+            return server ? (
+              <p className="text-center text-xs text-red-200/70">
+                Serveur : {server.name}
+                {server.hostname ? ` (${server.hostname})` : ''}
+              </p>
+            ) : null;
+          })()}
           {alert.website && (
             <p className="text-center text-xs text-red-200/70">Site : {alert.website.name}</p>
           )}

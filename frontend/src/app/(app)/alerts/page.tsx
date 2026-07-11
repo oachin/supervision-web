@@ -7,6 +7,7 @@ import { SeverityBadge } from '@/components/ui';
 import { formatDate, cn } from '@/lib/utils';
 import { useAlerts } from '@/components/alert-provider';
 import { AlertDetailPanel } from '@/components/alert-detail-panel';
+import { getAlertHostingServer } from '@/lib/alert-hosting';
 
 export default function AlertsPage() {
   const { summary, refresh } = useAlerts();
@@ -105,6 +106,7 @@ export default function AlertsPage() {
         <div className="space-y-3">
           {alerts.map((a) => {
             const isExpanded = expandedId === a.id;
+            const hostingServer = getAlertHostingServer(a);
             return (
               <div
                 key={a.id}
@@ -129,8 +131,15 @@ export default function AlertsPage() {
                     <p className="mt-1 text-sm text-muted-foreground">{a.message}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       <span>{formatDate(a.createdAt)}</span>
-                      {a.server && (
-                        <span className="font-medium text-primary">{a.server.name}</span>
+                      {hostingServer && (
+                        <span className="font-medium text-primary">
+                          Serveur : {hostingServer.name}
+                          {hostingServer.hostname && (
+                            <span className="font-mono font-normal text-muted-foreground">
+                              {' '}({hostingServer.hostname})
+                            </span>
+                          )}
+                        </span>
                       )}
                       {a.acknowledgedBy && (
                         <span>

@@ -355,7 +355,13 @@ export interface Alert {
   closedAt?: string;
   createdAt: string;
   server?: { id?: string; name: string; hostname?: string };
-  website?: { id?: string; name: string; url: string };
+  website?: {
+    id?: string;
+    name: string;
+    url: string;
+    serverId?: string;
+    server?: { id: string; name: string; hostname?: string };
+  };
   serverId?: string;
   websiteId?: string;
   acknowledgedBy?: { id: string; name: string; email: string };

@@ -7,6 +7,7 @@ import { api, type Alert, type AlertDetail } from '@/lib/api';
 import { alertActionLabels, occurrenceActions } from '@/lib/alert-event-labels';
 import { SeverityBadge } from '@/components/ui';
 import { cn, formatDate } from '@/lib/utils';
+import { getAlertHostingServer } from '@/lib/alert-hosting';
 
 const statusLabels: Record<string, string> = {
   ACTIVE: 'En cours',
@@ -93,7 +94,7 @@ export function AlertDetailPanel({
   }
 
   const alert = detail ?? summary;
-  const server = alert.server;
+  const server = getAlertHostingServer(alert);
   const website = alert.website;
   const events = detail?.events ?? [];
 

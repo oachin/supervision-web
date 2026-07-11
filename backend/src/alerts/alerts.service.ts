@@ -8,7 +8,15 @@ const SNOOZE_MS = 30 * 60 * 1000;
 
 const alertInclude = {
   server: { select: { id: true, name: true, hostname: true } },
-  website: { select: { id: true, name: true, url: true } },
+  website: {
+    select: {
+      id: true,
+      name: true,
+      url: true,
+      serverId: true,
+      server: { select: { id: true, name: true, hostname: true } },
+    },
+  },
   acknowledgedBy: { select: { id: true, name: true, email: true } },
   closedBy: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.AlertInclude;
@@ -166,7 +174,16 @@ export class AlertsService {
     serverId?: string;
     websiteId?: string;
   }) {
-    const fp = this.fingerprint(data);
+    let serverId = data.serverId;
+    if (data.websiteId && !serverId) {
+      const website = await this.prisma.website.findUnique({
+        where: { id: data.websiteId },
+        select: { serverId: true },
+      });
+      if (website?.serverId) serverId = website.serverId;
+    }
+
+    const fp = this.fingerprint({ ...data, serverId });
 
     const existing = await this.prisma.alert.findFirst({
       where: {
@@ -211,6 +228,7 @@ export class AlertsService {
     const alert = await this.prisma.alert.create({
       data: {
         ...data,
+        serverId,
         fingerprint: fp,
         status: 'ACTIVE',
         occurrenceCount: 1,
