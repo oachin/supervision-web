@@ -28,14 +28,14 @@ cp "${PROJECT_DIR}/deploy/fail2ban/filter.d/nginx-supervision-login.conf" "$FILT
 sed "s|__SUPERVISION_LOG_PATH__|${LOG_DIR}|g" \
   "${PROJECT_DIR}/deploy/fail2ban/jail.d/supervision.local" > "$JAIL_DEST"
 
-# IP SSH autorisée dans UFW — ne pas bannir (évite lockout admin)
+# IP de confiance — ne pas bannir (admin SSH + IP publique du serveur pour health checks locaux)
 TRUSTED_SSH_IP="${TRUSTED_SSH_IP:-78.196.77.190}"
-if [ -n "$TRUSTED_SSH_IP" ]; then
-  if ! grep -q "ignoreip.*${TRUSTED_SSH_IP}" "$JAIL_DEST"; then
-    sed -i "s|^ignoreip = 127.0.0.1/8 ::1|ignoreip = 127.0.0.1/8 ::1 ${TRUSTED_SSH_IP}|" "$JAIL_DEST"
-  fi
-  echo "IP de confiance (ignoreip) : ${TRUSTED_SSH_IP}"
-fi
+SERVER_PUBLIC_IP="${SERVER_PUBLIC_IP:-$(curl -sf --max-time 3 ifconfig.me 2>/dev/null || true)}"
+IGNORE_IPS="127.0.0.1/8 ::1"
+[ -n "$TRUSTED_SSH_IP" ] && IGNORE_IPS="${IGNORE_IPS} ${TRUSTED_SSH_IP}"
+[ -n "$SERVER_PUBLIC_IP" ] && IGNORE_IPS="${IGNORE_IPS} ${SERVER_PUBLIC_IP}"
+sed -i "s|^ignoreip = 127.0.0.1/8 ::1|ignoreip = ${IGNORE_IPS}|" "$JAIL_DEST"
+echo "IP ignorées (ignoreip) : ${IGNORE_IPS}"
 
 systemctl enable fail2ban
 systemctl restart fail2ban
