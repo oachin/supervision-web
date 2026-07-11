@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Shield, KeyRound, X } from 'lucide-react';
 import { api, type User } from '@/lib/api';
 
@@ -11,6 +12,11 @@ export function AccountSettingsPanel({ open, onClose }: { open: boolean; onClose
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [passwords, setPasswords] = useState({ current: '', new: '' });
   const [message, setMessage] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -22,7 +28,16 @@ export function AccountSettingsPanel({ open, onClose }: { open: boolean; onClose
     }
   }, [open]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  if (!open || !mounted) return null;
 
   async function setup2FA() {
     const result = await api.setupTotp();
@@ -53,10 +68,10 @@ export function AccountSettingsPanel({ open, onClose }: { open: boolean; onClose
     setMessage('Mot de passe modifié');
   }
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
-      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-card shadow-2xl">
+      <div className="fixed inset-0 z-[100] bg-black/50" onClick={onClose} />
+      <aside className="fixed right-0 top-0 z-[100] flex h-full w-full max-w-md flex-col border-l border-white/10 bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold">Mon compte</h2>
@@ -141,6 +156,7 @@ export function AccountSettingsPanel({ open, onClose }: { open: boolean; onClose
           </div>
         </div>
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
