@@ -31,6 +31,16 @@ export class ServersService {
       orderBy: { name: 'asc' },
       include: {
         _count: { select: { websites: true, metrics: true } },
+        metrics: {
+          take: 20,
+          orderBy: { collectedAt: 'desc' },
+          select: {
+            cpuPercent: true,
+            memoryPercent: true,
+            diskPercent: true,
+            collectedAt: true,
+          },
+        },
       },
     });
     return servers.map((s) => this.sanitize(s as unknown as Record<string, unknown>));
