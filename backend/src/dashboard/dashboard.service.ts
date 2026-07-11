@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+const monitoredWebsite = { monitoringEnabled: true } as const;
+
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
@@ -15,19 +17,22 @@ export class DashboardService {
       websitesUp,
       websitesDown,
       websitesDegraded,
+      websitesDisabled,
       activeAlerts,
       recentAlerts,
       serversInAlert,
       websitesInAlert,
+      disabledWebsites,
     ] = await Promise.all([
       this.prisma.server.count(),
       this.prisma.server.count({ where: { status: 'ONLINE' } }),
       this.prisma.server.count({ where: { status: 'OFFLINE' } }),
       this.prisma.server.count({ where: { status: 'DEGRADED' } }),
-      this.prisma.website.count(),
-      this.prisma.website.count({ where: { status: 'UP' } }),
-      this.prisma.website.count({ where: { status: 'DOWN' } }),
-      this.prisma.website.count({ where: { status: 'DEGRADED' } }),
+      this.prisma.website.count({ where: monitoredWebsite }),
+      this.prisma.website.count({ where: { ...monitoredWebsite, status: 'UP' } }),
+      this.prisma.website.count({ where: { ...monitoredWebsite, status: 'DOWN' } }),
+      this.prisma.website.count({ where: { ...monitoredWebsite, status: 'DEGRADED' } }),
+      this.prisma.website.count({ where: { monitoringEnabled: false } }),
       this.prisma.alert.count({ where: { status: { in: ['ACTIVE', 'ACKNOWLEDGED'] } } }),
       this.prisma.alert.findMany({
         where: { status: { not: 'CLOSED' } },
@@ -62,12 +67,13 @@ export class DashboardService {
         orderBy: { name: 'asc' },
       }),
       this.prisma.website.findMany({
-        where: { status: { in: ['DOWN', 'DEGRADED'] } },
+        where: { ...monitoredWebsite, status: { in: ['DOWN', 'DEGRADED'] } },
         select: {
           id: true,
           name: true,
           url: true,
           status: true,
+          monitoringEnabled: true,
           checkMode: true,
           lastCheckAt: true,
           lastResponseMs: true,
@@ -78,17 +84,35 @@ export class DashboardService {
         orderBy: { name: 'asc' },
         take: 20,
       }),
+      this.prisma.website.findMany({
+        where: { monitoringEnabled: false },
+        select: {
+          id: true,
+          name: true,
+          url: true,
+          lastCheckAt: true,
+        },
+        orderBy: { name: 'asc' },
+        take: 10,
+      }),
     ]);
 
     return {
       summary: {
         servers: { total: serversTotal, online: serversOnline, offline: serversOffline, degraded: serversDegraded },
-        websites: { total: websitesTotal, up: websitesUp, down: websitesDown, degraded: websitesDegraded },
+        websites: {
+          total: websitesTotal,
+          up: websitesUp,
+          down: websitesDown,
+          degraded: websitesDegraded,
+          disabled: websitesDisabled,
+        },
         activeAlerts,
       },
       recentAlerts,
       servers: serversInAlert,
       websites: websitesInAlert,
+      disabledWebsites,
     };
   }
 }

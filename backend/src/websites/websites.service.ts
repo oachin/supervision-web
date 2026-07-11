@@ -64,7 +64,16 @@ export class WebsitesService {
     }
 
     const updated = await this.prisma.website.update({ where: { id }, data });
-    await this.audit.log(userId, 'WEBSITE_UPDATED', 'websites', { websiteId: id });
+
+    if (dto.monitoringEnabled === false && website.monitoringEnabled) {
+      await this.alerts.onIssueResolved({ websiteId: id });
+      await this.audit.log(userId, 'WEBSITE_MONITORING_DISABLED', 'websites', { websiteId: id });
+    } else if (dto.monitoringEnabled === true && !website.monitoringEnabled) {
+      await this.audit.log(userId, 'WEBSITE_MONITORING_ENABLED', 'websites', { websiteId: id });
+    } else {
+      await this.audit.log(userId, 'WEBSITE_UPDATED', 'websites', { websiteId: id });
+    }
+
     return updated;
   }
 

@@ -192,12 +192,13 @@ export const api = new ApiClient();
 export interface DashboardData {
   summary: {
     servers: { total: number; online: number; offline: number; degraded: number };
-    websites: { total: number; up: number; down: number; degraded: number };
+    websites: { total: number; up: number; down: number; degraded: number; disabled: number };
     activeAlerts: number;
   };
   recentAlerts: Alert[];
   servers: ServerSummary[];
   websites: WebsiteSummary[];
+  disabledWebsites: { id: string; name: string; url: string; lastCheckAt?: string }[];
 }
 
 export interface SystemHealth {
@@ -265,6 +266,7 @@ export interface Website {
   name: string;
   url: string;
   status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
+  monitoringEnabled: boolean;
   checkInterval: number;
   sslAlertDays?: number;
   lastCheckAt?: string;
@@ -385,4 +387,5 @@ export interface CreateWebsiteData {
   checkInterval?: number;
   expectedStatus?: number;
   expectedKeyword?: string;
+  monitoringEnabled?: boolean;
 }

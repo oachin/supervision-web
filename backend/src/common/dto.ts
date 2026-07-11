@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested, IsNumber, IsInt, IsObject } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, Length, IsIn, IsArray, ValidateNested, IsNumber, IsInt, IsObject, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class LoginDto {
@@ -167,6 +167,10 @@ export class CreateWebsiteDto {
   sslEnabled?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  monitoringEnabled?: boolean;
+
+  @IsOptional()
   @IsInt()
   sslAlertDays?: number;
 
@@ -200,6 +204,10 @@ export class UpdateWebsiteDto {
 
   @IsOptional()
   sslEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  monitoringEnabled?: boolean;
 
   @IsOptional()
   @IsString({ each: true })

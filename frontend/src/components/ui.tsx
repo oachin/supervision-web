@@ -9,6 +9,7 @@ export function StatusBadge({ status }: { status: string }) {
     DOWN: 'badge-danger',
     DEGRADED: 'badge-warning',
     UNKNOWN: 'badge-muted',
+    DISABLED: 'badge-muted',
   }[status] || 'badge-muted';
 
   const label = {
@@ -18,6 +19,7 @@ export function StatusBadge({ status }: { status: string }) {
     DOWN: 'Hors ligne',
     DEGRADED: 'Dégradé',
     UNKNOWN: 'Inconnu',
+    DISABLED: 'Supervision off',
   }[status] || status;
 
   return (
@@ -26,11 +28,25 @@ export function StatusBadge({ status }: { status: string }) {
         'h-1.5 w-1.5 rounded-full',
         status === 'ONLINE' || status === 'UP' ? 'bg-accent' :
         status === 'OFFLINE' || status === 'DOWN' ? 'bg-destructive' :
-        status === 'DEGRADED' ? 'bg-warning' : 'bg-muted-foreground',
+        status === 'DEGRADED' ? 'bg-warning' :
+        status === 'DISABLED' ? 'bg-muted-foreground' : 'bg-muted-foreground',
       )} />
       {label}
     </span>
   );
+}
+
+export function WebsiteStatusBadge({
+  status,
+  monitoringEnabled = true,
+}: {
+  status: string;
+  monitoringEnabled?: boolean;
+}) {
+  if (!monitoringEnabled) {
+    return <StatusBadge status="DISABLED" />;
+  }
+  return <StatusBadge status={status} />;
 }
 
 export function MetricCard({

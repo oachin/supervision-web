@@ -13,10 +13,15 @@ export function worstWebsiteStatus(...statuses: WebsiteStatus[]): WebsiteStatus 
   'UP' as WebsiteStatus);
 }
 
-export function probeResultToStatus(ok: boolean, responseMs: number): WebsiteStatus {
-  if (!ok) return 'DOWN';
+/** Disponibilité HTTP (DNS + port 443 + réponse HTTP). Les problèmes SSL n'affectent pas ce statut. */
+export function availabilityStatus(httpOk: boolean, responseMs: number): WebsiteStatus {
+  if (!httpOk) return 'DOWN';
   if (responseMs > 3000) return 'DEGRADED';
   return 'UP';
+}
+
+export function probeResultToStatus(ok: boolean, responseMs: number): WebsiteStatus {
+  return availabilityStatus(ok, responseMs);
 }
 
 export function isWebsiteInAlert(status: WebsiteStatus): boolean {

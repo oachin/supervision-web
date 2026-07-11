@@ -7,13 +7,9 @@ import {
   Server,
   Globe,
   Bell,
-  Users,
-  Settings,
-  LogOut,
   Shield,
   ScrollText,
 } from 'lucide-react';
-import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { SystemStatus } from '@/components/system-status';
 
@@ -23,8 +19,6 @@ const navItems = [
   { href: '/websites', label: 'Sites web', icon: Globe },
   { href: '/alerts', label: 'Alertes', icon: Bell },
   { href: '/events', label: 'Évènements', icon: ScrollText },
-  { href: '/users', label: 'Utilisateurs', icon: Users, adminOnly: true },
-  { href: '/settings', label: 'Paramètres', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -64,16 +58,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="border-t border-white/5 p-4">
-        <button
-          onClick={() => api.logout()}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
-        >
-          <LogOut className="h-4 w-4" />
-          Déconnexion
-        </button>
-      </div>
     </aside>
   );
 }

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pause, Play } from 'lucide-react';
 import { api, type WebsiteDetail } from '@/lib/api';
-import { StatusBadge } from '@/components/ui';
+import { WebsiteStatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { formatDate } from '@/lib/utils';
 
@@ -14,10 +14,24 @@ export default function WebsiteDetailPage() {
   const [website, setWebsite] = useState<WebsiteDetail | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (id) api.getWebsite(id).then(setWebsite);
   }, [id]);
+
+  async function handleToggleMonitoring() {
+    if (!website) return;
+    setToggling(true);
+    try {
+      const updated = await api.updateWebsite(website.id, { monitoringEnabled: !website.monitoringEnabled });
+      setWebsite({ ...website, ...updated });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setToggling(false);
+    }
+  }
 
   async function handleDelete() {
     if (!id) return;
@@ -46,7 +60,19 @@ export default function WebsiteDetailPage() {
           <p className="text-xs text-muted-foreground mt-1">Supervision externe HTTP/SSL</p>
         </div>
         <div className="flex items-center gap-3">
-          <StatusBadge status={website.status} />
+          <WebsiteStatusBadge status={website.status} monitoringEnabled={website.monitoringEnabled} />
+          <button
+            type="button"
+            onClick={handleToggleMonitoring}
+            disabled={toggling}
+            className="btn-secondary text-sm"
+          >
+            {website.monitoringEnabled ? (
+              <><Pause className="h-4 w-4" /> Désactiver</>
+            ) : (
+              <><Play className="h-4 w-4" /> Réactiver</>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setShowDelete(true)}
@@ -104,7 +130,7 @@ export default function WebsiteDetailPage() {
               <span className="text-xs">{c.dnsOk === false ? 'DNS FAIL' : c.dnsOk ? 'DNS OK' : ''}</span>
               <span className="text-xs">{c.tlsVersion ?? ''}</span>
               <span className="text-xs">{c.sslDaysRemaining != null ? `SSL ${c.sslDaysRemaining}j` : ''}</span>
-              <StatusBadge status={c.status} />
+              <WebsiteStatusBadge status={c.status} />
               {c.errorMessage && <span className="text-xs text-destructive">{c.errorMessage}</span>}
             </div>
           ))}

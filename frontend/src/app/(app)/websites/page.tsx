@@ -1,11 +1,11 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
-import { StatusBadge } from '@/components/ui';
+import { WebsiteStatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { formatDate } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ const filterLabels: Record<string, string> = {
   alert: 'sites en alerte',
   down: 'sites hors ligne',
   degraded: 'sites dégradés',
+  disabled: 'supervision désactivée',
 };
 
 function WebsitesPageContent() {
@@ -23,6 +24,7 @@ function WebsitesPageContent() {
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Website | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', url: '', checkInterval: 60 });
 
   const load = () => api.getWebsites().then(setWebsites).finally(() => setLoading(false));
@@ -50,12 +52,27 @@ function WebsitesPageContent() {
     }
   }
 
-  const filteredWebsites = useMemo(() => {
-    if (filter === 'alert') {
-      return websites.filter((w) => w.status === 'DOWN' || w.status === 'DEGRADED');
+  async function handleToggleMonitoring(website: Website) {
+    setTogglingId(website.id);
+    try {
+      await api.updateWebsite(website.id, { monitoringEnabled: !website.monitoringEnabled });
+      load();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTogglingId(null);
     }
-    if (filter === 'down') return websites.filter((w) => w.status === 'DOWN');
-    if (filter === 'degraded') return websites.filter((w) => w.status === 'DEGRADED');
+  }
+
+  const filteredWebsites = useMemo(() => {
+    if (filter === 'disabled') {
+      return websites.filter((w) => !w.monitoringEnabled);
+    }
+    if (filter === 'alert') {
+      return websites.filter((w) => w.monitoringEnabled && (w.status === 'DOWN' || w.status === 'DEGRADED'));
+    }
+    if (filter === 'down') return websites.filter((w) => w.monitoringEnabled && w.status === 'DOWN');
+    if (filter === 'degraded') return websites.filter((w) => w.monitoringEnabled && w.status === 'DEGRADED');
     return websites;
   }, [websites, filter]);
 
@@ -133,36 +150,47 @@ function WebsitesPageContent() {
                 <th className="p-4 font-medium">SSL (jours)</th>
                 <th className="p-4 font-medium">Dernier check</th>
                 <th className="p-4 font-medium">Statut</th>
-                <th className="p-4 font-medium w-12"></th>
+                <th className="p-4 font-medium w-24">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredWebsites.map((w) => (
-                <tr key={w.id} className="border-b border-white/5 hover:bg-secondary/20">
+                <tr key={w.id} className={`border-b border-white/5 hover:bg-secondary/20 ${!w.monitoringEnabled ? 'opacity-60' : ''}`}>
                   <td className="p-4">
                     <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">{w.name}</Link>
                   </td>
                   <td className="p-4 font-mono text-xs">{w.url}</td>
                   <td className="p-4 font-mono text-xs">
-                    {w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—'}
+                    {!w.monitoringEnabled ? '—' : w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—'}
                   </td>
                   <td className="p-4">
-                    {w.lastDnsOk == null ? '—' : w.lastDnsOk ? 'OK' : 'FAIL'}
+                    {!w.monitoringEnabled ? '—' : w.lastDnsOk == null ? '—' : w.lastDnsOk ? 'OK' : 'FAIL'}
                   </td>
                   <td className="p-4 text-xs">
-                    {w.sslDaysRemaining != null ? `${w.sslDaysRemaining}j` : formatDate(w.sslExpiresAt)}
+                    {!w.monitoringEnabled ? '—' : w.sslDaysRemaining != null ? `${w.sslDaysRemaining}j` : formatDate(w.sslExpiresAt)}
                   </td>
                   <td className="p-4 text-xs text-muted-foreground">{formatDate(w.lastCheckAt)}</td>
-                  <td className="p-4"><StatusBadge status={w.status} /></td>
+                  <td className="p-4"><WebsiteStatusBadge status={w.status} monitoringEnabled={w.monitoringEnabled} /></td>
                   <td className="p-4">
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(w)}
-                      className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      title="Supprimer la supervision"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMonitoring(w)}
+                        disabled={togglingId === w.id}
+                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                        title={w.monitoringEnabled ? 'Désactiver la supervision' : 'Réactiver la supervision'}
+                      >
+                        {w.monitoringEnabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(w)}
+                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        title="Supprimer la supervision"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

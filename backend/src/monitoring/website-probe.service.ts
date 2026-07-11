@@ -6,7 +6,7 @@ import * as net from 'net';
 import * as tls from 'tls';
 import { URL } from 'url';
 
-export interface WebsiteProbeResult {
+export interface WebsiteHttpProbeResult {
   ok: boolean;
   statusCode?: number;
   responseMs: number;
@@ -16,6 +16,11 @@ export interface WebsiteProbeResult {
   dnsError?: string;
   port443Open?: boolean;
   port443Error?: string;
+  hostname: string;
+  isHttps: boolean;
+}
+
+export interface WebsiteSslProbeResult {
   sslValid?: boolean;
   sslChainValid?: boolean;
   sslExpiresAt?: Date;
@@ -28,11 +33,12 @@ export interface WebsiteProbeResult {
 
 @Injectable()
 export class WebsiteProbeService {
-  async probe(
+  /** Vérification légère : DNS, port 443, HTTP (sans analyse certificat complète). */
+  async probeHttp(
     url: string,
     expectedStatus = 200,
     expectedKeyword?: string | null,
-  ): Promise<WebsiteProbeResult> {
+  ): Promise<WebsiteHttpProbeResult> {
     const start = Date.now();
     let hostname: string;
     let isHttps = true;
@@ -42,16 +48,29 @@ export class WebsiteProbeService {
       hostname = parsed.hostname;
       isHttps = parsed.protocol === 'https:';
     } catch {
-      return this.fail(start, 'URL invalide', { dnsOk: false, dnsAddresses: [] });
+      return {
+        ok: false,
+        responseMs: Date.now() - start,
+        error: 'URL invalide',
+        dnsOk: false,
+        dnsAddresses: [],
+        hostname: '',
+        isHttps: true,
+      };
     }
 
     const dnsResult = await this.checkDns(hostname);
     if (!dnsResult.ok) {
-      return this.fail(start, `DNS: ${dnsResult.error}`, {
+      return {
+        ok: false,
+        responseMs: Date.now() - start,
+        error: `DNS: ${dnsResult.error}`,
         dnsOk: false,
         dnsAddresses: [],
         dnsError: dnsResult.error,
-      });
+        hostname,
+        isHttps,
+      };
     }
 
     let port443Open: boolean | undefined;
@@ -61,63 +80,39 @@ export class WebsiteProbeService {
       port443Open = portResult.open;
       port443Error = portResult.error;
       if (!port443Open) {
-        return this.fail(start, `Port 443 fermé: ${port443Error ?? 'injoignable'}`, {
+        return {
+          ok: false,
+          responseMs: Date.now() - start,
+          error: `Port 443 fermé: ${port443Error ?? 'injoignable'}`,
           dnsOk: true,
           dnsAddresses: dnsResult.addresses,
           port443Open: false,
           port443Error,
-        });
-      }
-    }
-
-    let sslResult: Partial<WebsiteProbeResult> = {};
-    if (isHttps) {
-      const ssl = await this.probeSsl(hostname);
-      sslResult = ssl;
-      if (!ssl.sslValid) {
-        return {
-          ok: false,
-          responseMs: Date.now() - start,
-          error: ssl.sslError ?? 'Certificat SSL invalide',
-          dnsOk: true,
-          dnsAddresses: dnsResult.addresses,
-          port443Open: true,
-          ...sslResult,
+          hostname,
+          isHttps,
         };
       }
     }
 
-    const httpResult = await this.probeHttp(url, expectedStatus, expectedKeyword);
-    const responseMs = Date.now() - start;
-
-    const issues: string[] = [];
-    if (!httpResult.ok && httpResult.error) issues.push(httpResult.error);
-    if (sslResult.sslChainValid === false) issues.push('Chaîne de certificats intermédiaires incomplète');
+    const httpResult = await this.probeHttpRequest(url, expectedStatus, expectedKeyword);
 
     return {
-      ok: httpResult.ok && sslResult.sslValid !== false && sslResult.sslChainValid !== false,
+      ok: httpResult.ok,
       statusCode: httpResult.statusCode,
-      responseMs: httpResult.responseMs || responseMs,
-      error: issues.length ? issues.join(' · ') : httpResult.error,
+      responseMs: httpResult.responseMs || Date.now() - start,
+      error: httpResult.error,
       dnsOk: true,
       dnsAddresses: dnsResult.addresses,
       port443Open,
       port443Error,
-      ...sslResult,
+      hostname,
+      isHttps,
     };
   }
 
-  private fail(
-    start: number,
-    error: string,
-    partial: Pick<WebsiteProbeResult, 'dnsOk' | 'dnsAddresses'> & Partial<WebsiteProbeResult>,
-  ): WebsiteProbeResult {
-    return {
-      ok: false,
-      responseMs: Date.now() - start,
-      error,
-      ...partial,
-    };
+  /** Vérification certificat SSL/TLS (chaîne, expiration) — à exécuter une fois par jour. */
+  async probeSslCertificate(hostname: string): Promise<WebsiteSslProbeResult> {
+    return this.probeSsl(hostname);
   }
 
   private async checkDns(hostname: string): Promise<{ ok: boolean; addresses: string[]; error?: string }> {
@@ -158,7 +153,7 @@ export class WebsiteProbeService {
     });
   }
 
-  private probeSsl(hostname: string): Promise<Partial<WebsiteProbeResult>> {
+  private probeSsl(hostname: string): Promise<WebsiteSslProbeResult> {
     return new Promise((resolve) => {
       const socket = tls.connect(
         {
@@ -202,8 +197,8 @@ export class WebsiteProbeService {
             sslChainValid,
             sslExpiresAt,
             sslDaysRemaining,
-            sslIssuer: cert?.issuer ? String(cert.issuer) : undefined,
-            sslSubject: cert?.subject ? String(cert.subject) : undefined,
+            sslIssuer: this.certFieldToString(cert?.issuer),
+            sslSubject: this.certFieldToString(cert?.subject),
             tlsVersion: protocol ?? undefined,
             sslError: sslChainValid ? undefined : 'Chaîne de certificats intermédiaires incomplète',
           });
@@ -225,7 +220,7 @@ export class WebsiteProbeService {
     });
   }
 
-  private probeHttp(
+  private probeHttpRequest(
     url: string,
     expectedStatus: number,
     expectedKeyword?: string | null,
@@ -294,5 +289,16 @@ export class WebsiteProbeService {
       });
 
     return follow(url, maxRedirects);
+  }
+
+  private certFieldToString(value: unknown): string | undefined {
+    if (value == null) return undefined;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      return Object.entries(value as Record<string, unknown>)
+        .map(([key, part]) => `${key}=${part}`)
+        .join(', ');
+    }
+    return undefined;
   }
 }

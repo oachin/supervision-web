@@ -154,6 +154,7 @@ model Website {
   expectedStatus  Int               @default(200)
   expectedKeyword String?
   sslEnabled      Boolean           @default(true)
+  monitoringEnabled Boolean         @default(true)
   sslAlertDays    Int               @default(15)
   sslExpiresAt    DateTime?
   sslIssuer       String?
@@ -162,6 +163,7 @@ model Website {
   lastDnsOk       Boolean?
   lastPort443Open Boolean?
   lastTlsVersion  String?
+  lastSslCheckAt  DateTime?
   lastCheckAt     DateTime?
   lastResponseMs  Int?
   lastStatusCode  Int?

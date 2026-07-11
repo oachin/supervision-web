@@ -41,11 +41,11 @@ export function AlertBanner() {
 
   return (
     <>
-      <div className="sticky top-0 z-30 border-b border-destructive/30 bg-destructive/10 backdrop-blur-md">
+      <div className="border-b border-destructive/30 bg-destructive/10">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-3 px-8 py-3 text-left text-sm"
+          className="flex w-full items-center gap-3 px-6 py-3 text-left text-sm"
         >
           <Bell className="h-4 w-4 shrink-0 text-destructive" />
           <span className="font-medium">
@@ -64,7 +64,7 @@ export function AlertBanner() {
         </button>
 
         {expanded && (
-          <div className="border-t border-white/5 bg-card/95 px-8 pb-4">
+          <div className="border-t border-white/5 bg-card/95 px-6 pb-4">
             <div className="flex gap-2 py-3">
               {tabs.map((t) => (
                 <button
