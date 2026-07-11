@@ -70,7 +70,10 @@ export default function ServerDetailPage() {
   const alertCount = serverOpenAlerts.length;
   const hasCriticalAlerts = serverOpenAlerts.some((a) => a.severity === 'CRITICAL');
 
-  const latest = metrics[0] ?? server.metrics?.[0];
+  const latest =
+    metrics.length > 0
+      ? metrics[metrics.length - 1]
+      : server.metrics?.[0];
   const pleskServices = latest?.pleskServices;
   const chartData = metrics.map((m) => ({
     time: new Date(m.collectedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
