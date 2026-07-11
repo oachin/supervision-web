@@ -623,71 +623,91 @@ git commit -m "feat: include recent check history in GET /websites"
 ## Task 8: Dashboard — live status grid + event ticker + 10s polling
 
 **Files:**
-- Modify: `frontend/src/lib/api.ts` (add two lightweight point types, extend `Server`
-  and `Website` interfaces)
+- Modify: `frontend/src/lib/api.ts` (add `ServerMetricPoint`, `ServerWithHistory`,
+  `WebsiteCheckPoint`, `WebsiteWithHistory` types; change `getServers()`/
+  `getWebsites()` return types — base `Server`/`Website` interfaces stay untouched)
 - Modify: `frontend/src/app/(app)/dashboard/page.tsx:1-214` (full rewrite)
 
 **Interfaces:**
 - Consumes: `StatusGrid`/`StatusTileData` (Task 4), `EventTicker` (Task 5), the
-  extended `metrics`/`checks` fields from Tasks 6-7.
-- Produces: no new exports (page component), but establishes the `serverToTile`/
-  `websiteToTile` mapping pattern that the follow-up plan's Servers/Websites grid view
-  will reuse verbatim.
+  `metrics`/`checks` fields added to the `findAll()` response shape by Tasks 6-7.
+- Produces: `ServerWithHistory`/`WebsiteWithHistory` (exported from `api.ts`) and the
+  `serverToTile`/`websiteToTile` mapping pattern — both consumed by the follow-up
+  plan's Servers/Websites grid view.
 
-- [ ] **Step 1: Add lightweight history types and extend `Server`/`Website`**
+- [ ] **Step 1: Add dedicated history types — do NOT modify the base `Server`/`Website` interfaces**
 
-In `frontend/src/lib/api.ts`, find the `Server` interface (currently ending with
-`_count?: { websites: number; metrics: number };`) and add a `metrics` field. Find the
-`Website` interface (currently ending with `server?: { id: string; name: string;
-hostname: string };`) and add a `checks` field. Apply this diff:
+> **Correction (post-implementation, during Task 8's first attempt):** the original
+> version of this step added `metrics?`/`checks?` directly to the base `Server`/
+> `Website` interfaces. That breaks type-checking in two files outside this task's
+> scope: `frontend/src/app/(app)/servers/[id]/page.tsx:130`
+> (`setServer({ ...server!, ...updated })`, `server: ServerDetail`, `updated:
+> Server`) and `frontend/src/app/(app)/websites/[id]/page.tsx:28`
+> (`setWebsite({ ...website, ...updated })`, `website: WebsiteDetail`, `updated:
+> Website`) — spreading a `Server`/`Website` with a newly-optional `metrics`/`checks`
+> field into state typed `ServerDetail`/`WebsiteDetail` (which require that field)
+> makes TypeScript infer an incompatible merged type. The corrected approach below
+> avoids touching the base interfaces at all, so those two files are unaffected.
+
+In `frontend/src/lib/api.ts`, do not edit the existing `Server` or `Website`
+interfaces. Instead, immediately after the `Server` interface's closing `}` (right
+before the `export interface ServerCreateResult extends Server {` line), insert:
 
 ```ts
-export interface Server {
-  id: string;
-  name: string;
-  hostname: string;
-  ipAddress?: string;
-  osType: string;
-  osVersion?: string;
-  profile: 'LINUX' | 'PLESK';
-  hasPlesk: boolean;
-  status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'UNKNOWN';
-  lastSeenAt?: string;
-  tags: string[];
-  notes?: string;
-  _count?: { websites: number; metrics: number };
-  metrics?: { cpuPercent: number; memoryPercent: number; diskPercent: number; collectedAt: string }[];
+export interface ServerMetricPoint {
+  cpuPercent: number;
+  memoryPercent: number;
+  diskPercent: number;
+  collectedAt: string;
+}
+
+export interface ServerWithHistory extends Server {
+  metrics: ServerMetricPoint[];
 }
 ```
 
+Immediately after the `Website` interface's closing `}` (right before the `export
+interface WebsiteCheck {` line), insert:
+
 ```ts
-export interface Website {
-  id: string;
-  name: string;
-  url: string;
-  status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNKNOWN';
-  monitoringEnabled: boolean;
-  checkInterval: number;
-  sslAlertDays?: number;
-  lastCheckAt?: string;
-  lastResponseMs?: number;
-  lastStatusCode?: number;
-  sslExpiresAt?: string;
-  sslDaysRemaining?: number;
-  sslIssuer?: string;
-  sslSubject?: string;
-  lastDnsOk?: boolean;
-  lastPort443Open?: boolean;
-  lastTlsVersion?: string;
-  server?: { id: string; name: string; hostname: string };
-  checks?: { status: string; responseMs?: number; checkedAt: string }[];
+export interface WebsiteCheckPoint {
+  status: string;
+  responseMs?: number;
+  checkedAt: string;
+}
+
+export interface WebsiteWithHistory extends Website {
+  checks: WebsiteCheckPoint[];
 }
 ```
 
-(`ServerDetail`/`ServerSummary`/`WebsiteDetail` further down the file already declare
-narrower/wider versions of `metrics`/`checks` that override these optional fields —
-this is structurally valid TypeScript since their element types are supersets of the
-new optional ones; the build step below confirms no conflict.)
+Then change the two API methods that now return this richer shape (find these two
+lines in the `ApiClient` class and replace them):
+
+```ts
+  getServers() { return this.fetch<Server[]>('/servers'); }
+```
+becomes:
+```ts
+  getServers() { return this.fetch<ServerWithHistory[]>('/servers'); }
+```
+
+```ts
+  getWebsites() { return this.fetch<Website[]>('/websites'); }
+```
+becomes:
+```ts
+  getWebsites() { return this.fetch<WebsiteWithHistory[]>('/websites'); }
+```
+
+This is safe for every existing caller: `frontend/src/app/(app)/servers/page.tsx:39`
+and `frontend/src/app/(app)/websites/page.tsx:30` hold their results in
+`useState<Server[]>`/`useState<Website[]>`, and `ServerWithHistory[]`/
+`WebsiteWithHistory[]` are structurally assignable to `Server[]`/`Website[]` (a
+required extra field only narrows the type, it doesn't break assignability to the
+wider one) — the build step below confirms this. `updateServer`/`updateWebsite`
+still return plain `Server`/`Website` (unchanged), so the two detail-page spreads
+that caused the original conflict are completely untouched by this step.
 
 - [ ] **Step 2: Rewrite the Dashboard page**
 
@@ -698,14 +718,14 @@ Replace the entire contents of `frontend/src/app/(app)/dashboard/page.tsx` with:
 
 import { useEffect, useState } from 'react';
 import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff } from 'lucide-react';
-import { api, type DashboardData, type Server, type Website } from '@/lib/api';
+import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { StatusGrid, type StatusTileData } from '@/components/status-grid';
 import { EventTicker } from '@/components/event-ticker';
 import { formatDate, formatCpuPercent } from '@/lib/utils';
 import Link from 'next/link';
 
-function serverToTile(s: Server): StatusTileData {
+function serverToTile(s: ServerWithHistory): StatusTileData {
   const latest = s.metrics?.[0];
   const history = s.metrics ? [...s.metrics].reverse().map((m) => m.cpuPercent) : [];
   return {
@@ -720,7 +740,7 @@ function serverToTile(s: Server): StatusTileData {
   };
 }
 
-function websiteToTile(w: Website): StatusTileData {
+function websiteToTile(w: WebsiteWithHistory): StatusTileData {
   const history = w.checks ? [...w.checks].reverse().map((c) => c.responseMs ?? 0) : [];
   return {
     id: w.id,
@@ -736,8 +756,8 @@ function websiteToTile(w: Website): StatusTileData {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [servers, setServers] = useState<Server[]>([]);
-  const [websites, setWebsites] = useState<Website[]>([]);
+  const [servers, setServers] = useState<ServerWithHistory[]>([]);
+  const [websites, setWebsites] = useState<WebsiteWithHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -896,15 +916,23 @@ export default function DashboardPage() {
 }
 ```
 
-Note the `Server` icon import is renamed to `ServerIcon` to avoid colliding with the
-`Server` type imported from `@/lib/api` in the same file.
+Note the `Server` icon import is renamed to `ServerIcon` — a defensive habit for
+files that import both a lucide icon and an API type that could plausibly share a
+name; harmless here since this file only imports `ServerWithHistory`, not `Server`,
+from `@/lib/api`.
 
 - [ ] **Step 3: Verify the frontend builds**
 
 Run: `cd frontend && npm run build`
-Expected: exit code 0, no type errors (this is the step that confirms the `metrics`/
-`checks` optional-field additions from Step 1 don't conflict with `ServerDetail`/
-`ServerSummary`/`WebsiteDetail`).
+Expected: exit code 0, no type errors. This confirms two things: (a) the new
+`ServerWithHistory`/`WebsiteWithHistory` types and the updated `getServers()`/
+`getWebsites()` return types from Step 1 don't conflict with anything, and (b) the
+existing `setServer({ ...server!, ...updated })` in
+`frontend/src/app/(app)/servers/[id]/page.tsx` and `setWebsite({ ...website,
+...updated })` in `frontend/src/app/(app)/websites/[id]/page.tsx` still type-check —
+neither file is touched by this task, and Step 1's corrected approach (dedicated
+types, base `Server`/`Website` interfaces untouched) is specifically designed to
+leave them unaffected.
 
 - [ ] **Step 4: Commit**
 
