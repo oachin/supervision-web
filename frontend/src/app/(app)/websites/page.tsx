@@ -1,11 +1,11 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, X, Pause, Play } from 'lucide-react';
+import { Plus, Trash2, X, Pause, Play, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
-import { WebsiteStatusBadge } from '@/components/ui';
+import { WebsiteStatusBadge, HttpCodeBadge, DnsBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { formatDate } from '@/lib/utils';
 
@@ -25,6 +25,7 @@ function WebsitesPageContent() {
   const [deleteTarget, setDeleteTarget] = useState<Website | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [form, setForm] = useState({ name: '', url: '', checkInterval: 60 });
 
   const load = () => api.getWebsites().then(setWebsites).finally(() => setLoading(false));
@@ -65,16 +66,34 @@ function WebsitesPageContent() {
   }
 
   const filteredWebsites = useMemo(() => {
+    let list = websites;
     if (filter === 'disabled') {
-      return websites.filter((w) => !w.monitoringEnabled);
+      list = list.filter((w) => !w.monitoringEnabled);
+    } else if (filter === 'alert') {
+      list = list.filter((w) => w.monitoringEnabled && (w.status === 'DOWN' || w.status === 'DEGRADED'));
+    } else if (filter === 'down') {
+      list = list.filter((w) => w.monitoringEnabled && w.status === 'DOWN');
+    } else if (filter === 'degraded') {
+      list = list.filter((w) => w.monitoringEnabled && w.status === 'DEGRADED');
     }
-    if (filter === 'alert') {
-      return websites.filter((w) => w.monitoringEnabled && (w.status === 'DOWN' || w.status === 'DEGRADED'));
-    }
-    if (filter === 'down') return websites.filter((w) => w.monitoringEnabled && w.status === 'DOWN');
-    if (filter === 'degraded') return websites.filter((w) => w.monitoringEnabled && w.status === 'DEGRADED');
-    return websites;
-  }, [websites, filter]);
+
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return list;
+
+    return list.filter((w) => {
+      const haystack = [
+        w.name,
+        w.url,
+        w.server?.name,
+        w.server?.hostname,
+        w.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [websites, filter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -99,6 +118,33 @@ function WebsitesPageContent() {
             <X className="h-4 w-4" /> Tout afficher
           </Link>
         </div>
+      )}
+
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="search"
+          className="input pl-10 pr-10"
+          placeholder="Rechercher un site (nom, URL, serveur…)"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+            title="Effacer la recherche"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {!loading && searchQuery.trim() && (
+        <p className="text-sm text-muted-foreground">
+          {filteredWebsites.length} résultat{filteredWebsites.length !== 1 ? 's' : ''} pour « {searchQuery.trim()} »
+        </p>
       )}
 
       {showForm && (
@@ -132,7 +178,11 @@ function WebsitesPageContent() {
       ) : filteredWebsites.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-muted-foreground">
-            {filter ? 'Aucun site ne correspond à ce filtre.' : 'Aucun site surveillé.'}
+            {searchQuery.trim()
+              ? 'Aucun site ne correspond à votre recherche.'
+              : filter
+                ? 'Aucun site ne correspond à ce filtre.'
+                : 'Aucun site surveillé.'}
           </p>
           {filter && (
             <Link href="/websites" className="btn-secondary mt-4 inline-flex">Voir tous les sites</Link>
@@ -160,11 +210,24 @@ function WebsitesPageContent() {
                     <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">{w.name}</Link>
                   </td>
                   <td className="p-4 font-mono text-xs">{w.url}</td>
-                  <td className="p-4 font-mono text-xs">
-                    {!w.monitoringEnabled ? '—' : w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—'}
+                  <td className="p-4">
+                    {!w.monitoringEnabled ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : w.lastStatusCode != null ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <HttpCodeBadge code={w.lastStatusCode} />
+                        <span className="font-mono text-xs text-muted-foreground">{w.lastResponseMs ?? '—'}ms</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="p-4">
-                    {!w.monitoringEnabled ? '—' : w.lastDnsOk == null ? '—' : w.lastDnsOk ? 'OK' : 'FAIL'}
+                    {!w.monitoringEnabled ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <DnsBadge ok={w.lastDnsOk} />
+                    )}
                   </td>
                   <td className="p-4 text-xs">
                     {!w.monitoringEnabled ? '—' : w.sslDaysRemaining != null ? `${w.sslDaysRemaining}j` : formatDate(w.sslExpiresAt)}

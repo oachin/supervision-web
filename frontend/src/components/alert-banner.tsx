@@ -1,167 +1,100 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bell, ChevronRight, X } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import { useAlerts } from './alert-provider';
-import { api, type Alert } from '@/lib/api';
-import { SeverityBadge } from './ui';
-import { cn, formatDate } from '@/lib/utils';
+import { api, type DashboardData } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
-type Tab = 'active' | 'acknowledged' | 'pendingClose';
+type GlobalLevel = 'ok' | 'warning' | 'critical';
 
-const tabs: { id: Tab; label: string; color: string }[] = [
-  { id: 'active', label: 'En cours', color: 'text-destructive' },
-  { id: 'acknowledged', label: 'Acquittées (en cours)', color: 'text-warning' },
-  { id: 'pendingClose', label: 'En attente de clôture', color: 'text-primary' },
-];
+const levelStyles: Record<
+  GlobalLevel,
+  { bar: string; icon: string; label: string }
+> = {
+  ok: {
+    bar: 'bg-emerald-400/15 border-emerald-400/30 text-emerald-100',
+    icon: 'text-emerald-400',
+    label: 'nominal',
+  },
+  warning: {
+    bar: 'border-amber-400/35 bg-[#fde6b1] text-[#713f12] dark:bg-amber-400/20 dark:text-amber-100',
+    icon: 'text-[#713f12] dark:text-amber-300',
+    label: 'sous surveillance',
+  },
+  critical: {
+    bar: 'bg-red-500/15 border-red-500/35 text-red-100',
+    icon: 'text-red-400',
+    label: 'incident en cours',
+  },
+};
 
 export function AlertBanner() {
-  const { summary, refresh } = useAlerts();
-  const [expanded, setExpanded] = useState(false);
-  const [tab, setTab] = useState<Tab>('active');
-  const [closingAlert, setClosingAlert] = useState<Alert | null>(null);
-  const [closeForm, setCloseForm] = useState({ origin: '', resolutionMethod: '' });
+  const { summary } = useAlerts();
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
-  if (!summary) return null;
+  useEffect(() => {
+    api.getDashboard().then(setDashboard).catch(console.error);
+    const interval = setInterval(() => {
+      api.getDashboard().then(setDashboard).catch(console.error);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const totalOpen = summary.counts.active + summary.counts.acknowledged + summary.counts.pendingClose;
-  if (totalOpen === 0) return null;
+  const state = useMemo(() => {
+    const counts = summary?.counts ?? { active: 0, acknowledged: 0, pendingClose: 0, closed: 0 };
+    const unresolvedAlerts = counts.active + counts.acknowledged + counts.pendingClose;
+    const hasCriticalActive = summary?.active.some((a) => a.severity === 'CRITICAL') ?? false;
 
-  const alerts = summary[tab];
+    const serversOffline = dashboard?.summary.servers.offline ?? 0;
+    const sitesDown = dashboard?.summary.websites.down ?? 0;
+    const serversDegraded = dashboard?.summary.servers.degraded ?? 0;
+    const sitesDegraded = dashboard?.summary.websites.degraded ?? 0;
+    const sitesDisabled = dashboard?.summary.websites.disabled ?? 0;
 
-  async function handleClose(e: React.FormEvent) {
-    e.preventDefault();
-    if (!closingAlert) return;
-    await api.closeAlert(closingAlert.id, closeForm.origin, closeForm.resolutionMethod);
-    setClosingAlert(null);
-    setCloseForm({ origin: '', resolutionMethod: '' });
-    refresh();
-  }
+    let level: GlobalLevel = 'ok';
+    if (serversOffline > 0 || sitesDown > 0 || hasCriticalActive) {
+      level = 'critical';
+    } else if (
+      unresolvedAlerts > 0 ||
+      serversDegraded > 0 ||
+      sitesDegraded > 0 ||
+      sitesDisabled > 0
+    ) {
+      level = 'warning';
+    }
+
+    const details: string[] = [];
+    if (unresolvedAlerts > 0) {
+      details.push(`${unresolvedAlerts} alerte${unresolvedAlerts > 1 ? 's' : ''} non résolue${unresolvedAlerts > 1 ? 's' : ''}`);
+    } else {
+      details.push('Aucune alerte active');
+    }
+    if (sitesDisabled > 0) {
+      details.push(`${sitesDisabled} site${sitesDisabled > 1 ? 's' : ''} hors supervision`);
+    }
+
+    return { level, unresolvedAlerts, sitesDisabled, details: details.join(' · ') };
+  }, [summary, dashboard]);
+
+  const styles = levelStyles[state.level];
 
   return (
-    <>
-      <div className="border-b border-destructive/30 bg-destructive/10">
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center gap-3 px-6 py-3 text-left text-sm"
-        >
-          <Bell className="h-4 w-4 shrink-0 text-destructive" />
-          <span className="font-medium">
-            {summary.counts.active > 0 && (
-              <span className="text-destructive">{summary.counts.active} alerte(s) en cours</span>
-            )}
-            {summary.counts.active > 0 && summary.counts.pendingClose > 0 && ' · '}
-            {summary.counts.pendingClose > 0 && (
-              <span className="text-primary">{summary.counts.pendingClose} en attente de clôture</span>
-            )}
-            {summary.counts.active === 0 && summary.counts.pendingClose === 0 && summary.counts.acknowledged > 0 && (
-              <span className="text-warning">{summary.counts.acknowledged} acquittée(s) en cours</span>
-            )}
-          </span>
-          <ChevronRight className={cn('ml-auto h-4 w-4 transition-transform', expanded && 'rotate-90')} />
-        </button>
-
-        {expanded && (
-          <div className="border-t border-white/5 bg-card/95 px-6 pb-4">
-            <div className="flex gap-2 py-3">
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                    tab === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  <span className={t.color}>{summary.counts[t.id]}</span> {t.label}
-                </button>
-              ))}
-              <Link href="/events" className="ml-auto text-xs text-primary hover:underline self-center">
-                Voir les évènements →
-              </Link>
-            </div>
-
-            <div className="max-h-48 space-y-2 overflow-y-auto">
-              {alerts.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">Aucune alerte dans cette catégorie</p>
-              ) : (
-                alerts.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-muted/30 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <SeverityBadge severity={a.severity} />
-                        <span className="truncate text-sm font-medium">{a.title}</span>
-                        {a.occurrenceCount > 1 && (
-                          <span className="text-xs text-muted-foreground">×{a.occurrenceCount}</span>
-                        )}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">{a.message}</p>
-                      {a.acknowledgedBy && (
-                        <p className="text-xs text-muted-foreground">
-                          Acquittée par {a.acknowledgedBy.name} — {formatDate(a.acknowledgedAt)}
-                        </p>
-                      )}
-                    </div>
-                    {a.status === 'PENDING_CLOSE' && (
-                      <button
-                        type="button"
-                        onClick={() => setClosingAlert(a)}
-                        className="btn-primary ml-2 shrink-0 py-1.5 text-xs"
-                      >
-                        Clôturer
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {closingAlert && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
-          <div className="card w-full max-w-md">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Clôturer l&apos;alerte</h3>
-              <button type="button" onClick={() => setClosingAlert(null)} className="btn-ghost p-1">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mb-4 text-sm text-muted-foreground">{closingAlert.title}</p>
-            <form onSubmit={handleClose} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm">Origine du problème</label>
-                <input
-                  className="input"
-                  value={closeForm.origin}
-                  onChange={(e) => setCloseForm({ ...closeForm, origin: e.target.value })}
-                  placeholder="Ex: Expiration certificat SSL, surcharge CPU..."
-                  required
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm">Méthode de résolution</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  value={closeForm.resolutionMethod}
-                  onChange={(e) => setCloseForm({ ...closeForm, resolutionMethod: e.target.value })}
-                  placeholder="Ex: Renouvellement du certificat via Certbot..."
-                  required
-                />
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" className="btn-primary flex-1">Clôturer l&apos;alerte</button>
-                <button type="button" onClick={() => setClosingAlert(null)} className="btn-secondary">Annuler</button>
-              </div>
-            </form>
-          </div>
-        </div>
+    <Link
+      href="/alerts"
+      className={cn(
+        'mx-4 my-2 flex min-h-[44px] items-center gap-3 rounded-xl border px-4 py-2.5 transition-opacity hover:opacity-95',
+        styles.bar,
       )}
-    </>
+    >
+      <Activity className={cn('h-4 w-4 shrink-0', styles.icon)} />
+      <span className="text-sm">
+        <span className="font-semibold">État global : {styles.label}</span>
+      </span>
+      <span className={cn('ml-auto text-sm font-normal opacity-90', state.level === 'warning' && 'dark:opacity-100')}>
+        {state.details}
+      </span>
+    </Link>
   );
 }

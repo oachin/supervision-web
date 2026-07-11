@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 222 47% 4%;
+    --background: 222 47% 6%;
     --foreground: 210 40% 98%;
     --card: 222 47% 9%;
     --card-foreground: 210 40% 98%;
@@ -20,7 +20,7 @@
     --warning: 38 92% 50%;
     --border: 217 33% 17%;
     --ring: 217 91% 60%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
   }
 
   * {
@@ -88,31 +88,4 @@
   .badge-muted {
     @apply badge bg-muted text-muted-foreground;
   }
-}
-
-@keyframes pulse-glow-danger {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.6); }
-  50% { box-shadow: 0 0 8px 3px hsl(var(--destructive) / 0.6); }
-}
-
-@keyframes pulse-glow-warning {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--warning) / 0.6); }
-  50% { box-shadow: 0 0 8px 3px hsl(var(--warning) / 0.6); }
-}
-
-@keyframes ticker-row-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.status-dot-pulse-danger {
-  animation: pulse-glow-danger 1.8s ease-in-out infinite;
-}
-
-.status-dot-pulse-warning {
-  animation: pulse-glow-warning 1.8s ease-in-out infinite;
-}
-
-.event-ticker-row {
-  animation: ticker-row-in 0.3s ease-out;
 }

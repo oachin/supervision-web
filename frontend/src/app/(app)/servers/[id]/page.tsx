@@ -7,39 +7,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { api, type ServerDetail, type ServerMetric } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { TagEditor } from '@/components/tag-editor';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
-
-const METRIC_RANGES = [
-  { id: '1h', label: '1h', hours: 1 },
-  { id: '24h', label: '24h', hours: 24 },
-  { id: '1w', label: '1 sem.', hours: 24 * 7 },
-  { id: '1m', label: '1 mois', hours: 24 * 30 },
-] as const;
-
-type MetricRangeId = (typeof METRIC_RANGES)[number]['id'];
-
-function downsampleMetrics(metrics: ServerMetric[], maxPoints = 120): ServerMetric[] {
-  if (metrics.length <= maxPoints) return metrics;
-  const step = Math.ceil(metrics.length / maxPoints);
-  const sampled: ServerMetric[] = [];
-  for (let i = 0; i < metrics.length; i += step) {
-    sampled.push(metrics[i]);
-  }
-  const last = metrics[metrics.length - 1];
-  if (sampled[sampled.length - 1]?.id !== last.id) {
-    sampled.push(last);
-  }
-  return sampled;
-}
-
-function formatChartTime(date: Date, range: MetricRangeId): string {
-  if (range === '1h' || range === '24h') {
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  }
-  return date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
 
 export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,25 +26,12 @@ export default function ServerDetailPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
   const [chartFilter, setChartFilter] = useState<ChartMetric | null>(null);
-  const [metricRange, setMetricRange] = useState<MetricRangeId>('24h');
-  const [metricsLoading, setMetricsLoading] = useState(false);
-
-  const rangeHours = METRIC_RANGES.find((r) => r.id === metricRange)?.hours ?? 24;
-  const rangeLabel = METRIC_RANGES.find((r) => r.id === metricRange)?.label ?? '24h';
 
   useEffect(() => {
     if (!id) return;
     api.getServer(id).then(setServer);
+    api.getServerMetrics(id, 24).then(setMetrics);
   }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-    setMetricsLoading(true);
-    api.getServerMetrics(id, rangeHours)
-      .then(setMetrics)
-      .catch(console.error)
-      .finally(() => setMetricsLoading(false));
-  }, [id, rangeHours]);
 
   if (!server) {
     return <div className="flex h-32 items-center justify-center">
@@ -81,10 +39,10 @@ export default function ServerDetailPage() {
     </div>;
   }
 
-  const latest = metrics[metrics.length - 1] ?? metrics[0] ?? server.metrics?.[0];
+  const latest = metrics[0] ?? server.metrics?.[0];
   const pleskServices = latest?.pleskServices;
-  const chartData = downsampleMetrics(metrics).map((m) => ({
-    time: formatChartTime(new Date(m.collectedAt), metricRange),
+  const chartData = metrics.map((m) => ({
+    time: new Date(m.collectedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     cpu: m.cpuPercent,
     memory: m.memoryPercent,
     disk: m.diskPercent,
@@ -129,6 +87,12 @@ export default function ServerDetailPage() {
     const updated = await api.updateServer(id, { name: nameDraft.trim() });
     setServer({ ...server!, ...updated });
     setEditingName(false);
+  }
+
+  async function saveTags(tags: string[]) {
+    if (!id || !server) return;
+    const updated = await api.updateServer(id, { tags });
+    setServer({ ...server, ...updated });
   }
 
   async function regenerateInstall() {
@@ -188,6 +152,12 @@ export default function ServerDetailPage() {
           <p className="text-xs text-muted-foreground mt-1">
             Profil : {server.profile === 'PLESK' ? 'Plesk' : 'Linux'}
           </p>
+          <div className="mt-4 max-w-lg">
+            <TagEditor
+              tags={server.tags ?? []}
+              onSave={saveTags}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <StatusBadge status={server.status} />
@@ -266,80 +236,50 @@ export default function ServerDetailPage() {
         </div>
       )}
 
-      <div className="card">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">
-            Métriques ({rangeLabel})
+      {chartData.length > 0 && (
+        <div className="card">
+          <h2 className="mb-4 text-lg font-semibold">
+            Métriques (24h)
             {chartFilter && (
               <span className="ml-2 text-sm font-normal text-primary">
                 — filtre actif
               </span>
             )}
           </h2>
-          <div className="flex rounded-lg border border-white/10 p-0.5">
-            {METRIC_RANGES.map((range) => (
-              <button
-                key={range.id}
-                type="button"
-                onClick={() => setMetricRange(range.id)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                  metricRange === range.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {range.label}
-              </button>
-            ))}
-          </div>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+              <XAxis dataKey="time" stroke="hsl(215 20% 55%)" fontSize={12} />
+              <YAxis
+                stroke="hsl(215 20% 55%)"
+                fontSize={12}
+                domain={yDomain}
+                tickFormatter={(v) => (showLoad ? v.toFixed(2) : `${v}%`)}
+              />
+              <Tooltip
+                contentStyle={{ background: 'hsl(222 47% 9%)', border: '1px solid hsl(217 33% 17%)', borderRadius: 8 }}
+                formatter={(value: number, name: string) => {
+                  if (name === 'Charge') return [value.toFixed(2), name];
+                  return [`${value.toFixed(2)}%`, name];
+                }}
+              />
+              {showCpu && (
+                <Line type="monotone" dataKey="cpu" stroke="hsl(217 91% 60%)" strokeWidth={2} dot={false} name="CPU %" />
+              )}
+              {showMemory && (
+                <Line type="monotone" dataKey="memory" stroke="hsl(142 76% 45%)" strokeWidth={2} dot={false} name="RAM %" />
+              )}
+              {showDisk && (
+                <Line type="monotone" dataKey="disk" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} name="Disque %" />
+              )}
+              {showLoad && (
+                <Line type="monotone" dataKey="load" stroke="hsl(280 70% 60%)" strokeWidth={2} dot={false} name="Charge" />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-xs text-muted-foreground">{chartCaption}</p>
         </div>
-
-        {metricsLoading ? (
-          <div className="flex h-[300px] items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        ) : chartData.length === 0 ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">
-            Aucune métrique sur cette période
-          </p>
-        ) : (
-          <>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                <XAxis dataKey="time" stroke="hsl(215 20% 55%)" fontSize={12} minTickGap={32} />
-                <YAxis
-                  stroke="hsl(215 20% 55%)"
-                  fontSize={12}
-                  domain={yDomain}
-                  tickFormatter={(v) => (showLoad ? v.toFixed(2) : `${v}%`)}
-                />
-                <Tooltip
-                  contentStyle={{ background: 'hsl(222 47% 9%)', border: '1px solid hsl(217 33% 17%)', borderRadius: 8 }}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'Charge') return [value.toFixed(2), name];
-                    return [`${value.toFixed(2)}%`, name];
-                  }}
-                />
-                {showCpu && (
-                  <Line type="monotone" dataKey="cpu" stroke="hsl(217 91% 60%)" strokeWidth={2} dot={false} name="CPU %" />
-                )}
-                {showMemory && (
-                  <Line type="monotone" dataKey="memory" stroke="hsl(142 76% 45%)" strokeWidth={2} dot={false} name="RAM %" />
-                )}
-                {showDisk && (
-                  <Line type="monotone" dataKey="disk" stroke="hsl(38 92% 50%)" strokeWidth={2} dot={false} name="Disque %" />
-                )}
-                {showLoad && (
-                  <Line type="monotone" dataKey="load" stroke="hsl(280 70% 60%)" strokeWidth={2} dot={false} name="Charge" />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-            <p className="mt-2 text-xs text-muted-foreground">{chartCaption}</p>
-          </>
-        )}
-      </div>
+      )}
 
       {server.profile === 'PLESK' && pleskServices && Object.keys(pleskServices).length > 0 && (
         <div className="card">

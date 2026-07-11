@@ -22,13 +22,6 @@ export function StatusBadge({ status }: { status: string }) {
     DISABLED: 'Supervision off',
   }[status] || status;
 
-  const pulseClass =
-    status === 'OFFLINE' || status === 'DOWN'
-      ? 'status-dot-pulse-danger'
-      : status === 'DEGRADED'
-        ? 'status-dot-pulse-warning'
-        : '';
-
   return (
     <span className={cn(variant)}>
       <span className={cn(
@@ -37,7 +30,6 @@ export function StatusBadge({ status }: { status: string }) {
         status === 'OFFLINE' || status === 'DOWN' ? 'bg-destructive' :
         status === 'DEGRADED' ? 'bg-warning' :
         status === 'DISABLED' ? 'bg-muted-foreground' : 'bg-muted-foreground',
-        pulseClass,
       )} />
       {label}
     </span>
@@ -55,6 +47,56 @@ export function WebsiteStatusBadge({
     return <StatusBadge status="DISABLED" />;
   }
   return <StatusBadge status={status} />;
+}
+
+function badgeDotClass(variant: 'success' | 'warning' | 'danger' | 'muted') {
+  return {
+    success: 'bg-accent',
+    warning: 'bg-warning',
+    danger: 'bg-destructive',
+    muted: 'bg-muted-foreground',
+  }[variant];
+}
+
+function badgeVariantClass(variant: 'success' | 'warning' | 'danger' | 'muted') {
+  return {
+    success: 'badge-success',
+    warning: 'badge-warning',
+    danger: 'badge-danger',
+    muted: 'badge-muted',
+  }[variant];
+}
+
+export function HttpCodeBadge({ code }: { code?: number | null }) {
+  if (code == null) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const variant =
+    code >= 200 && code < 400 ? 'success' :
+    code >= 400 && code < 500 ? 'warning' : 'danger';
+
+  return (
+    <span className={badgeVariantClass(variant)}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', badgeDotClass(variant))} />
+      {code}
+    </span>
+  );
+}
+
+export function DnsBadge({ ok }: { ok?: boolean | null }) {
+  if (ok == null) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const variant = ok ? 'success' : 'danger';
+
+  return (
+    <span className={badgeVariantClass(variant)}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', badgeDotClass(variant))} />
+      {ok ? 'OK' : 'FAIL'}
+    </span>
+  );
 }
 
 export function MetricCard({

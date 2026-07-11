@@ -5,9 +5,11 @@ import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff } from 'lucide
 import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { StatusGrid, type StatusTileData } from '@/components/status-grid';
+import { ServerOverviewCards } from '@/components/server-overview-cards';
 import { EventTicker } from '@/components/event-ticker';
 import { formatDate, formatCpuPercent } from '@/lib/utils';
 import Link from 'next/link';
+import type { Alert } from '@/lib/api';
 
 function serverToTile(s: ServerWithHistory): StatusTileData {
   const latest = s.metrics?.[0];
@@ -42,6 +44,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [servers, setServers] = useState<ServerWithHistory[]>([]);
   const [websites, setWebsites] = useState<WebsiteWithHistory[]>([]);
+  const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,6 +63,9 @@ export default function DashboardPage() {
     const load = () => {
       api.getServers().then(setServers).catch(console.error);
       api.getWebsites().then(setWebsites).catch(console.error);
+      api.getAlertsSummary().then((summary) => {
+        setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
+      }).catch(console.error);
     };
     load();
     const interval = setInterval(load, 10000);
@@ -92,8 +98,6 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight">Tableau de bord</h1>
         <p className="text-sm text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
       </div>
-
-      <EventTicker />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard
@@ -137,6 +141,10 @@ export default function DashboardPage() {
           href={websitesDisabled > 0 ? '/websites?filter=disabled' : '/websites'}
         />
       </div>
+
+      <ServerOverviewCards servers={servers} websites={websites} alerts={openAlerts} />
+
+      <EventTicker />
 
       {websitesDisabled > 0 && (
         <div className="card border-white/10">

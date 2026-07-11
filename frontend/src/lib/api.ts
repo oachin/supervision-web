@@ -342,6 +342,8 @@ export interface Alert {
   createdAt: string;
   server?: { id?: string; name: string };
   website?: { id?: string; name: string; url: string };
+  serverId?: string;
+  websiteId?: string;
   acknowledgedBy?: { id: string; name: string; email: string };
   closedBy?: { id: string; name: string; email: string };
 }
