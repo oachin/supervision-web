@@ -1,13 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
-import { api, type User } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Search, X } from 'lucide-react';
+import { api, type Alert, type User } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
 import { formatDate, cn } from '@/lib/utils';
 import { useAlerts } from '@/components/alert-provider';
 import { AlertDetailPanel } from '@/components/alert-detail-panel';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
+import { filterAlerts } from '@/lib/alert-search';
 
 export default function AlertsPage() {
   const { summary, refresh } = useAlerts();
@@ -17,6 +18,8 @@ export default function AlertsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<Alert['severity'] | ''>('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -40,7 +43,14 @@ export default function AlertsPage() {
 
   useEffect(() => {
     setExpandedId(null);
-  }, [tab]);
+  }, [tab, searchQuery, severityFilter]);
+
+  const tabAlerts = summary?.[tab] ?? [];
+  const filteredAlerts = useMemo(
+    () => filterAlerts(tabAlerts, searchQuery, severityFilter),
+    [tabAlerts, searchQuery, severityFilter],
+  );
+  const hasSearch = searchQuery.trim().length > 0 || severityFilter !== '';
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
 
@@ -86,8 +96,6 @@ export default function AlertsPage() {
     { id: 'closed' as const, label: 'Acquittées (clôturées)', count: data.counts.closed },
   ];
 
-  const alerts = data[tab];
-
   return (
     <div className="space-y-6">
       <div>
@@ -110,13 +118,71 @@ export default function AlertsPage() {
         ))}
       </div>
 
-      {alerts.length === 0 ? (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            className="input pl-10 pr-10"
+            placeholder="Rechercher (titre, site, serveur, sévérité, statut…)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+              title="Effacer la recherche"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <select
+          className="input w-full sm:w-44"
+          value={severityFilter}
+          onChange={(e) => setSeverityFilter(e.target.value as Alert['severity'] | '')}
+          aria-label="Filtrer par sévérité"
+        >
+          <option value="">Toutes sévérités</option>
+          <option value="CRITICAL">Critique</option>
+          <option value="WARNING">Avertissement</option>
+          <option value="INFO">Info</option>
+        </select>
+      </div>
+
+      {hasSearch && (
+        <p className="text-sm text-muted-foreground">
+          {filteredAlerts.length} résultat{filteredAlerts.length !== 1 ? 's' : ''}
+          {searchQuery.trim() ? ` pour « ${searchQuery.trim()} »` : ''}
+          {severityFilter ? ` · sévérité ${severityFilter === 'CRITICAL' ? 'critique' : severityFilter === 'WARNING' ? 'avertissement' : 'info'}` : ''}
+        </p>
+      )}
+
+      {filteredAlerts.length === 0 ? (
         <div className="card py-12 text-center">
-          <p className="text-muted-foreground">Aucune alerte dans cette catégorie</p>
+          <p className="text-muted-foreground">
+            {hasSearch
+              ? 'Aucune alerte ne correspond à votre recherche.'
+              : 'Aucune alerte dans cette catégorie'}
+          </p>
+          {hasSearch && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('');
+                setSeverityFilter('');
+              }}
+              className="btn-secondary mt-4"
+            >
+              Effacer les filtres
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
-          {alerts.map((a) => {
+          {filteredAlerts.map((a) => {
             const isExpanded = expandedId === a.id;
             const hostingServer = getAlertHostingServer(a);
             return (
