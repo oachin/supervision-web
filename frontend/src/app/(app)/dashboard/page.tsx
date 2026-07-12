@@ -4,47 +4,11 @@ import { useEffect, useState } from 'react';
 import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
 import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
-import { StatusGrid, type StatusTileData } from '@/components/status-grid';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
 import { EventTicker } from '@/components/event-ticker';
-import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { Alert } from '@/lib/api';
-
-function serverToTile(s: ServerWithHistory): StatusTileData {
-  const latest = s.metrics?.[0];
-  const history = s.metrics ? [...s.metrics].reverse().map((m) => m.cpuPercent) : [];
-  return {
-    id: s.id,
-    name: s.name,
-    subtitle: s.hostname === 'en-attente' ? '—' : s.hostname,
-    status: s.status,
-    href: `/servers/${s.id}`,
-    metricLabel: latest ? `CPU ${formatCpuPercent(latest.cpuPercent)}` : '—',
-    secondaryLabel: latest ? `RAM ${latest.memoryPercent.toFixed(0)}%` : undefined,
-    sparklineData: history,
-  };
-}
-
-function websiteToTile(w: WebsiteWithHistory): StatusTileData {
-  const history = w.checks ? [...w.checks].reverse().map((c) => c.responseMs ?? 0) : [];
-  const serverHref = w.server?.id ? `/servers/${w.server.id}` : `/websites/${w.id}`;
-  const displayStatus = !w.monitoringEnabled
-    ? 'DISABLED'
-    : w.status === 'DEGRADED' && w.lastStatusCode === 503
-      ? 'MAINTENANCE'
-      : w.status;
-  return {
-    id: w.id,
-    name: w.name,
-    subtitle: w.url,
-    status: displayStatus,
-    href: serverHref,
-    metricLabel: w.lastStatusCode != null ? `${w.lastStatusCode} · ${w.lastResponseMs ?? '—'}ms` : '—',
-    secondaryLabel: w.sslDaysRemaining != null ? `SSL ${w.sslDaysRemaining}j` : undefined,
-    sparklineData: history,
-  };
-}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -104,11 +68,6 @@ export default function DashboardPage() {
   const serversInAlert = summary.servers.offline + summary.servers.degraded;
   const websitesInAlert = summary.websites.down + summary.websites.degraded;
   const websitesDisabled = summary.websites.disabled ?? 0;
-
-  const tiles: StatusTileData[] = [
-    ...servers.map(serverToTile),
-    ...websites.map(websiteToTile),
-  ];
 
   return (
     <div className="space-y-8">
@@ -199,16 +158,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      <div className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Vue d&apos;ensemble</h2>
-          <span className="font-mono text-xs text-muted-foreground">
-            {tiles.length} élément{tiles.length > 1 ? 's' : ''}
-          </span>
-        </div>
-        <StatusGrid tiles={tiles} />
-      </div>
 
       {recentAlerts.length > 0 && (
         <div className="card">
