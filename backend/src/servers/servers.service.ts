@@ -148,10 +148,16 @@ export class ServersService {
 
   async getMetrics(id: string, hours = 24) {
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
-    return this.prisma.serverMetric.findMany({
+    const metrics = await this.prisma.serverMetric.findMany({
       where: { serverId: id, collectedAt: { gte: since } },
       orderBy: { collectedAt: 'asc' },
     });
+
+    const maxPoints = 500;
+    if (metrics.length <= maxPoints) return metrics;
+
+    const step = Math.ceil(metrics.length / maxPoints);
+    return metrics.filter((_, index) => index % step === 0 || index === metrics.length - 1);
   }
 
   determineStatus(cpu: number, memory: number, disk: number, lastSeen: Date | null): ServerStatus {
