@@ -7,22 +7,42 @@ type BrandLogoProps = {
 };
 
 const sizes = {
-  sm: { width: 140, height: 36, className: 'h-9 w-auto' },
-  md: { width: 200, height: 52, className: 'h-12 w-auto' },
-  lg: { width: 280, height: 72, className: 'h-[4.5rem] w-auto' },
+  sm: { icon: 34, text: 'text-[1.05rem]', gap: 'gap-2.5' },
+  md: { icon: 44, text: 'text-[1.35rem]', gap: 'gap-3' },
+  lg: { icon: 58, text: 'text-[1.85rem]', gap: 'gap-4' },
 };
 
 export function BrandLogo({ className, size = 'md' }: BrandLogoProps) {
-  const { width, height, className: sizeClass } = sizes[size];
+  const { icon, text, gap } = sizes[size];
 
   return (
-    <Image
-      src="/logo-havet-digital.png"
-      alt="Havet Digital"
-      width={width}
-      height={height}
-      priority={size === 'lg'}
-      className={cn(sizeClass, className)}
-    />
+    <div className={cn('flex items-center', gap, className)}>
+      <Image
+        src="/logo-havet-icon.png"
+        alt=""
+        width={icon}
+        height={icon}
+        priority={size === 'lg'}
+        aria-hidden
+        className="shrink-0"
+        style={{ width: icon, height: 'auto' }}
+      />
+      <span
+        className={cn(
+          'whitespace-nowrap font-serif leading-none tracking-tight text-white',
+          text,
+        )}
+      >
+        Havet{' '}
+        <span className="inline-flex items-baseline">
+          Di
+          <span className="bg-gradient-to-br from-[#5ce1e6] to-[#7b5cbf] bg-clip-text font-serif text-transparent">
+            g
+          </span>
+          ital
+          <sup className="ml-0.5 text-[0.45em] font-normal text-violet-400">®</sup>
+        </span>
+      </span>
+    </div>
   );
 }

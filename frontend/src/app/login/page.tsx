@@ -58,7 +58,7 @@ export default function LoginPage() {
         <div className="mb-8 text-center">
           <BrandLogo size="lg" className="mx-auto mb-5" />
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Console de Supervision - Connectez-vous
+            Console de Supervision
           </h1>
         </div>
 
