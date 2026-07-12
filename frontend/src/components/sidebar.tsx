@@ -9,6 +9,7 @@ import {
   Bell,
   Shield,
   ScrollText,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SystemStatus } from '@/components/system-status';
@@ -19,6 +20,7 @@ const navItems = [
   { href: '/websites', label: 'Sites web', icon: Globe },
   { href: '/alerts', label: 'Alertes', icon: Bell },
   { href: '/events', label: 'Évènements', icon: ScrollText },
+  { href: '/settings', label: 'Configuration', icon: Settings },
 ];
 
 export function Sidebar() {

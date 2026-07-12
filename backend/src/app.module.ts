@@ -16,6 +16,7 @@ import { AuditModule } from './audit/audit.module';
 import { SeedModule } from './seed/seed.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { SystemModule } from './system/system.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { SystemModule } from './system/system.module';
     SeedModule,
     MonitoringModule,
     SystemModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

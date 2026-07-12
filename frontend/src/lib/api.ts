@@ -164,6 +164,28 @@ class ApiClient {
   }
   deleteUser(id: string) { return this.fetch(`/users/${id}`, { method: 'DELETE' }); }
 
+  // Notifications
+  getSmtpSettings() { return this.fetch<SmtpSettings>('/notifications/smtp'); }
+  saveSmtpSettings(data: UpsertSmtpSettingsData) {
+    return this.fetch<SmtpSettings>('/notifications/smtp', { method: 'PUT', body: JSON.stringify(data) });
+  }
+  testSmtp(to: string) {
+    return this.fetch<{ success: boolean }>('/notifications/smtp/test', {
+      method: 'POST',
+      body: JSON.stringify({ to }),
+    });
+  }
+  getNotificationRules() { return this.fetch<NotificationRule[]>('/notifications/rules'); }
+  createNotificationRule(data: NotificationRuleInput) {
+    return this.fetch<NotificationRule>('/notifications/rules', { method: 'POST', body: JSON.stringify(data) });
+  }
+  updateNotificationRule(id: string, data: Partial<NotificationRuleInput>) {
+    return this.fetch<NotificationRule>(`/notifications/rules/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteNotificationRule(id: string) {
+    return this.fetch(`/notifications/rules/${id}`, { method: 'DELETE' });
+  }
+
   // Alerts
   getAlertsPopup() { return this.fetch<Alert[]>('/alerts/popup'); }
   getAlertsSummary() { return this.fetch<AlertSummary>('/alerts/summary'); }
@@ -436,4 +458,50 @@ export interface CreateWebsiteData {
   expectedStatus?: number;
   expectedKeyword?: string;
   monitoringEnabled?: boolean;
+}
+
+export interface SmtpSettings {
+  host: string;
+  port: number;
+  secure: boolean;
+  username?: string;
+  hasPassword: boolean;
+  fromEmail: string;
+  fromName: string;
+  enabled: boolean;
+  updatedAt: string | null;
+}
+
+export interface UpsertSmtpSettingsData {
+  host: string;
+  port: number;
+  secure: boolean;
+  username?: string;
+  password?: string;
+  fromEmail: string;
+  fromName: string;
+  enabled: boolean;
+}
+
+export interface NotificationRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  recipients: string[];
+  serverIds: string[];
+  severities: ('INFO' | 'WARNING' | 'CRITICAL')[];
+  notifyOnCreate: boolean;
+  notifyOnOccurrence: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationRuleInput {
+  name: string;
+  enabled?: boolean;
+  recipients: string[];
+  serverIds?: string[];
+  severities?: ('INFO' | 'WARNING' | 'CRITICAL')[];
+  notifyOnCreate?: boolean;
+  notifyOnOccurrence?: boolean;
 }

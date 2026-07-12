@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function SettingsPage() {
+export default function SettingsIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/dashboard');
+    router.replace('/settings/notifications');
   }, [router]);
 
   return null;

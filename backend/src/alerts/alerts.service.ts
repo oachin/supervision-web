@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AlertStatus, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const SNOOZE_MS = 30 * 60 * 1000;
 
@@ -23,7 +24,10 @@ const alertInclude = {
 
 @Injectable()
 export class AlertsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   private fingerprint(data: { title: string; serverId?: string; websiteId?: string }) {
     return createHash('sha256')
@@ -156,6 +160,7 @@ export class AlertsService {
           status: 'ACTIVE',
           occurrenceCount: { increment: 1 },
         },
+        include: alertInclude,
       });
       await this.logEvent(
         alert.id,
@@ -164,6 +169,7 @@ export class AlertsService {
         undefined,
         { occurrenceCount: updated.occurrenceCount },
       );
+      void this.notifications.dispatchForAlert(updated, 'occurrence');
     }
   }
 
@@ -220,6 +226,7 @@ export class AlertsService {
 
       if (existing.status === 'PENDING_CLOSE') {
         await this.logEvent(existing.id, 'REOPENED', 'Le problème est réapparu');
+        void this.notifications.dispatchForAlert(updated, 'occurrence');
       }
 
       return updated;
@@ -237,6 +244,7 @@ export class AlertsService {
     });
 
     await this.logEvent(alert.id, 'CREATED', data.message);
+    void this.notifications.dispatchForAlert(alert, 'created');
     return alert;
   }
 
