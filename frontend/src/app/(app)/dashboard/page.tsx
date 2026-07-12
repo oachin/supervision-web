@@ -5,7 +5,6 @@ import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw, Ch
 import { api, type DashboardData, type ServerWithHistory, type User, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
-import { EventTicker } from '@/components/event-ticker';
 import { AlertDetailPanel } from '@/components/alert-detail-panel';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { formatDate, cn } from '@/lib/utils';
@@ -98,7 +97,7 @@ export default function DashboardPage() {
 
   if (!data) return <p className="text-destructive">Erreur de chargement</p>;
 
-  const { summary } = data;
+  const { summary, disabledWebsites } = data;
   const serversInAlert = summary.servers.offline + summary.servers.degraded;
   const websitesInAlert = summary.websites.down + summary.websites.degraded;
   const websitesDisabled = summary.websites.disabled ?? 0;
@@ -166,7 +165,30 @@ export default function DashboardPage() {
 
       <ServerOverviewCards servers={servers} websites={websites} alerts={openAlerts} />
 
-      <EventTicker />
+      {websitesDisabled > 0 && (
+        <div className="card border-white/10">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-muted-foreground">Sites avec supervision désactivée</h2>
+            <Link href="/websites?filter=disabled" className="text-sm text-primary hover:underline">Gérer</Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {disabledWebsites.map((w) => (
+              <Link
+                key={w.id}
+                href={`/websites/${w.id}`}
+                className="rounded-lg border border-white/10 bg-secondary/20 px-3 py-1.5 text-sm transition-colors hover:border-primary/30"
+              >
+                {w.name}
+              </Link>
+            ))}
+            {websitesDisabled > disabledWebsites.length && (
+              <span className="self-center text-xs text-muted-foreground">
+                +{websitesDisabled - disabledWebsites.length} autre{websitesDisabled - disabledWebsites.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="mb-4 flex items-center justify-between">
