@@ -56,7 +56,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <BrandLogo size="lg" className="mx-auto mb-5" />
+          <BrandLogo size="lg" className="mb-5 justify-center" />
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Console de Supervision
           </h1>
