@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw, ChevronDown } from 'lucide-react';
+import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
 import { api, type DashboardData, type ServerWithHistory, type User, type WebsiteWithHistory } from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
-import { AlertDetailPanel } from '@/components/alert-detail-panel';
+import { AlertDetailModal } from '@/components/alert-detail-modal';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { formatDate, cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
 
@@ -200,20 +200,16 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-3">
             {openAlerts.map((a) => {
-              const isExpanded = expandedAlertId === a.id;
               const hostingServer = getAlertHostingServer(a);
               return (
                 <div
                   key={a.id}
-                  className={cn(
-                    'rounded-lg border border-white/5 transition-colors',
-                    isExpanded && 'ring-1 ring-primary/30',
-                  )}
+                  className="rounded-lg border border-white/5 transition-colors hover:border-primary/20"
                 >
                   <div className="flex items-start gap-3 p-3">
                     <button
                       type="button"
-                      onClick={() => setExpandedAlertId(isExpanded ? null : a.id)}
+                      onClick={() => setSelectedAlert(a)}
                       className="min-w-0 flex-1 text-left"
                     >
                       <div className="flex flex-wrap items-center gap-2">
@@ -244,53 +240,44 @@ export default function DashboardPage() {
                           {acknowledgingId === a.id ? 'Acquittement…' : 'Acquitter'}
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setExpandedAlertId(isExpanded ? null : a.id)}
-                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary/50"
-                        aria-label={isExpanded ? 'Replier' : 'Déplier'}
-                      >
-                        <ChevronDown
-                          className={cn(
-                            'h-5 w-5 transition-transform',
-                            isExpanded && 'rotate-180',
-                          )}
-                        />
-                      </button>
                     </div>
                   </div>
-                  {isExpanded && (
-                    <div className="px-3 pb-3">
-                      <AlertDetailPanel
-                        alertId={a.id}
-                        summary={a}
-                        canEdit={canEdit}
-                        onUpdated={async () => {
-                          const summary = await refreshOpenAlerts();
-                          setData((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  summary: {
-                                    ...current.summary,
-                                    activeAlerts:
-                                      summary.counts.active
-                                      + summary.counts.acknowledged
-                                      + summary.counts.pendingClose,
-                                  },
-                                }
-                              : current,
-                          );
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {selectedAlert && (
+        <AlertDetailModal
+          open
+          alertId={selectedAlert.id}
+          summary={selectedAlert}
+          canEdit={canEdit}
+          onClose={() => setSelectedAlert(null)}
+          onUpdated={async () => {
+            const summary = await refreshOpenAlerts();
+            setData((current) =>
+              current
+                ? {
+                    ...current,
+                    summary: {
+                      ...current.summary,
+                      activeAlerts:
+                        summary.counts.active
+                        + summary.counts.acknowledged
+                        + summary.counts.pendingClose,
+                    },
+                  }
+                : current,
+            );
+            const updated = [...summary.active, ...summary.acknowledged, ...summary.pendingClose]
+              .find((alert) => alert.id === selectedAlert.id);
+            if (updated) setSelectedAlert(updated);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { api, type Alert, type User } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
-import { formatDate, cn } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import { useAlerts } from '@/components/alert-provider';
-import { AlertDetailPanel } from '@/components/alert-detail-panel';
+import { AlertDetailModal } from '@/components/alert-detail-modal';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { filterAlerts } from '@/lib/alert-search';
 
@@ -15,7 +15,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'active' | 'acknowledged' | 'pendingClose' | 'closed'>('active');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,7 +42,7 @@ export default function AlertsPage() {
   }, []);
 
   useEffect(() => {
-    setExpandedId(null);
+    setSelectedAlert(null);
   }, [tab, searchQuery, severityFilter]);
 
   const tabAlerts = summary?.[tab] ?? [];
@@ -183,20 +183,16 @@ export default function AlertsPage() {
       ) : (
         <div className="space-y-3">
           {filteredAlerts.map((a) => {
-            const isExpanded = expandedId === a.id;
             const hostingServer = getAlertHostingServer(a);
             return (
               <div
                 key={a.id}
-                className={cn(
-                  'card transition-colors',
-                  isExpanded && 'ring-1 ring-primary/30',
-                )}
+                className="card transition-colors hover:border-primary/20"
               >
                 <div className="flex items-start gap-3">
                   <button
                     type="button"
-                    onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                    onClick={() => setSelectedAlert(a)}
                     className="min-w-0 flex-1 text-left"
                   >
                     <div className="min-w-0 flex-1">
@@ -239,34 +235,29 @@ export default function AlertsPage() {
                         {acknowledgingId === a.id ? 'Acquittement…' : 'Acquitter'}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary/50"
-                      aria-label={isExpanded ? 'Replier' : 'Déplier'}
-                    >
-                      <ChevronDown
-                        className={cn(
-                          'h-5 w-5 transition-transform',
-                          isExpanded && 'rotate-180',
-                        )}
-                      />
-                    </button>
                   </div>
                 </div>
-
-                {isExpanded && (
-                  <AlertDetailPanel
-                    alertId={a.id}
-                    summary={a}
-                    canEdit={canEdit}
-                    onUpdated={refresh}
-                  />
-                )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {selectedAlert && (
+        <AlertDetailModal
+          open
+          alertId={selectedAlert.id}
+          summary={selectedAlert}
+          canEdit={canEdit}
+          onClose={() => setSelectedAlert(null)}
+          onUpdated={async () => {
+            await refresh();
+            const summary = await api.getAlertsSummary();
+            const updated = [...summary.active, ...summary.acknowledged, ...summary.pendingClose, ...summary.closed]
+              .find((alert) => alert.id === selectedAlert.id);
+            if (updated) setSelectedAlert(updated);
+          }}
+        />
       )}
     </div>
   );
