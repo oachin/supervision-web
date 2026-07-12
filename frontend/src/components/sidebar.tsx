@@ -7,12 +7,12 @@ import {
   Server,
   Globe,
   Bell,
-  Shield,
   ScrollText,
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SystemStatus } from '@/components/system-status';
+import { BrandLogo } from '@/components/brand-logo';
 
 const navItems = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -28,14 +28,9 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-white/5 bg-card/60 backdrop-blur-xl">
-      <div className="flex items-center gap-3 border-b border-white/5 px-6 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20">
-          <Shield className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-sm font-semibold tracking-tight">Havet Supervision</h1>
-          <p className="text-xs text-muted-foreground">Monitoring Pro</p>
-        </div>
+      <div className="border-b border-white/5 px-6 py-5">
+        <BrandLogo size="sm" />
+        <p className="mt-2 text-xs text-muted-foreground">Console de Supervision</p>
       </div>
 
       <SystemStatus />

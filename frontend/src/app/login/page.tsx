@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, Mail, Lock, KeyRound } from 'lucide-react';
+import { Mail, Lock, KeyRound } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { api } from '@/lib/api';
 
 export default function LoginPage() {
@@ -55,13 +56,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
-            <Shield className="h-7 w-7 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Havet Supervision</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Connectez-vous à votre portail de supervision
-          </p>
+          <BrandLogo size="lg" className="mx-auto mb-5" />
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Console de Supervision - Connectez-vous
+          </h1>
         </div>
 
         <div className="card">
