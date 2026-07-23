@@ -3,7 +3,7 @@
 Plateforme de supervision pour serveurs Linux (Ubuntu, Debian, Plesk) et surveillance de disponibilité des sites web.
 
 **Production** : https://supervision-web-01.havetdigital.app  
-**Serveur** : 217.182.43.234
+**Serveur** : 91.134.100.218
 
 ## Déploiement production (5 minutes)
 
@@ -11,13 +11,13 @@ Plateforme de supervision pour serveurs Linux (Ubuntu, Debian, Plesk) et surveil
 
 - Ubuntu 22.04+ / Debian 12+
 - Docker Engine + Docker Compose v2
-- DNS : `supervision-web-01.havetdigital.app` → `217.182.43.234`
+- DNS : `supervision-web-01.havetdigital.app` → IP publique du serveur (`SERVER_IP` dans `.env`)
 - Ports 80 et 443 ouverts
 
 ### Installation
 
 ```bash
-# Sur le serveur 217.182.43.234
+# Sur le serveur de production
 sudo apt update && sudo apt install -y git
 sudo bash scripts/install-docker.sh   # Docker officiel + Compose v2
 # Ou si le repo n'est pas encore cloné :
@@ -27,8 +27,9 @@ git clone https://github.com/oachin/supervision-web.git
 cd supervision-web
 
 cp .env.example .env
-bash scripts/generate-secrets.sh   # Copier les valeurs dans .env
-nano .env                          # ADMIN_PASSWORD, CERTBOT_EMAIL
+bash scripts/generate-secrets.sh   # Copier les valeurs dans .env.secrets
+nano .env                          # DOMAIN, SERVER_IP, CERTBOT_EMAIL
+nano .env.secrets                  # coller les secrets générés
 
 bash scripts/deploy-production.sh
 ```

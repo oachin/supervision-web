@@ -27,6 +27,7 @@ load_env .env
 load_env_quiet .env.secrets
 
 DOMAIN="${DOMAIN:-supervision-web-01.havetdigital.app}"
+SERVER_IP="${SERVER_IP:-}"
 
 for var in DOMAIN CERTBOT_EMAIL; do
   if [ -z "${!var:-}" ]; then
@@ -48,7 +49,7 @@ if ! command -v docker &>/dev/null; then
 fi
 
 echo "Domaine  : https://${DOMAIN}"
-echo "Serveur  : 217.182.43.234"
+echo "Serveur  : ${SERVER_IP:-détecté au pré-vol}"
 echo ""
 
 echo "→ Construction des images..."

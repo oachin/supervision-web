@@ -13,12 +13,23 @@ if [ -f .env ]; then load_env .env; fi
 if [ -f .env.secrets ]; then load_env .env.secrets; fi
 
 DOMAIN="${DOMAIN:-supervision-web-01.havetdigital.app}"
-EXPECTED_IP="${SERVER_IP:-217.182.43.234}"
 ERRORS=0
 
 warn() { echo "⚠️  $*"; }
 fail() { echo "❌ $*"; ERRORS=$((ERRORS + 1)); }
 ok() { echo "✅ $*"; }
+
+detect_public_ip() {
+  curl -4 -sf --max-time 3 https://ifconfig.me/ip 2>/dev/null \
+    || curl -4 -sf --max-time 3 https://api.ipify.org 2>/dev/null \
+    || true
+}
+
+if [ -n "${SERVER_IP:-}" ]; then
+  EXPECTED_IP="$SERVER_IP"
+else
+  EXPECTED_IP="$(detect_public_ip)"
+fi
 
 echo "=== Pré-vol production — ${DOMAIN} ==="
 echo ""
@@ -35,11 +46,16 @@ else
   fail "Créez .env et .env.secrets (voir .env.example et .env.secrets.example)"
 fi
 
-RESOLVED=$(dig +short "$DOMAIN" 2>/dev/null | tail -1 || true)
-if [ "$RESOLVED" = "$EXPECTED_IP" ]; then
-  ok "DNS ${DOMAIN} → ${RESOLVED}"
+if [ -z "${EXPECTED_IP}" ]; then
+  fail "SERVER_IP non défini dans .env et IP publique indétectable"
 else
-  fail "DNS incorrect : ${DOMAIN} → ${RESOLVED:-vide} (attendu ${EXPECTED_IP})"
+  RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | grep -E '^[0-9.]+$' | tail -1 || true)
+  if [ "$RESOLVED" = "$EXPECTED_IP" ]; then
+    ok "DNS ${DOMAIN} → ${RESOLVED}"
+  else
+    fail "DNS incorrect : ${DOMAIN} → ${RESOLVED:-vide} (attendu ${EXPECTED_IP})"
+    echo "   → Mettez à jour le DNS A, ou SERVER_IP dans .env si l’IP du serveur a changé"
+  fi
 fi
 
 if ss -tln 2>/dev/null | grep -q ':80 '; then
@@ -57,8 +73,13 @@ fi
 if command -v ufw &>/dev/null; then
   UFW_STATUS=$(ufw status 2>/dev/null || true)
   if echo "$UFW_STATUS" | grep -q "Status: active"; then
-    echo "$UFW_STATUS" | grep -qE '80/tcp.*ALLOW' && ok "UFW : port 80 autorisé" || fail "UFW : port 80 non autorisé"
-    echo "$UFW_STATUS" | grep -qE '443/tcp.*ALLOW|443.*ALLOW' && ok "UFW : port 443 autorisé" || fail "UFW : port 443 non autorisé"
+    # ufw status : "80" ou "80/tcp" selon version / règles
+    echo "$UFW_STATUS" | grep -qE '(^|[[:space:]])80(/tcp)?[[:space:]].*ALLOW' \
+      && ok "UFW : port 80 autorisé" \
+      || fail "UFW : port 80 non autorisé — ufw allow 80/tcp"
+    echo "$UFW_STATUS" | grep -qE '(^|[[:space:]])443(/tcp)?[[:space:]].*ALLOW' \
+      && ok "UFW : port 443 autorisé" \
+      || fail "UFW : port 443 non autorisé — ufw allow 443/tcp"
   else
     ok "UFW inactif"
   fi
