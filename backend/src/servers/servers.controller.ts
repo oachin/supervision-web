@@ -27,6 +27,34 @@ export class ServersController {
     return this.servers.findAll();
   }
 
+  @Get(':id/proxmox/vms')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getProxmoxVms(@Param('id') id: string) {
+    return this.servers.getProxmoxVms(id);
+  }
+
+  @Get(':id/proxmox/vms/:vmid/metrics')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getProxmoxVmMetrics(
+    @Param('id') id: string,
+    @Param('vmid') vmid: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.servers.getProxmoxVmMetrics(
+      id,
+      parseInt(vmid, 10),
+      from ? new Date(from) : undefined,
+      to ? new Date(to) : undefined,
+    );
+  }
+
+  @Get(':id/proxmox/backups')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getProxmoxBackups(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.servers.getProxmoxBackups(id, limit ? parseInt(limit, 10) : 50);
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'OPERATOR', 'VIEWER')
   findOne(@Param('id') id: string) {

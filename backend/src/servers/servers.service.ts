@@ -18,6 +18,18 @@ export class ServersService {
     private agentInstall: AgentInstallService,
   ) {}
 
+  private async ensureServer(id: string) {
+    const server = await this.prisma.server.findUnique({ where: { id } });
+    if (!server) throw new NotFoundException('Serveur introuvable');
+    return server;
+  }
+
+  private downsample<T>(items: T[], maxPoints = 500): T[] {
+    if (items.length <= maxPoints) return items;
+    const step = Math.ceil(items.length / maxPoints);
+    return items.filter((_, index) => index % step === 0 || index === items.length - 1);
+  }
+
   private sanitize(server: Record<string, unknown>) {
     const { agentKey, pleskApiKey, ...rest } = server;
     return {
@@ -152,12 +164,48 @@ export class ServersService {
       where: { serverId: id, collectedAt: { gte: since } },
       orderBy: { collectedAt: 'asc' },
     });
+    return this.downsample(metrics);
+  }
 
-    const maxPoints = 500;
-    if (metrics.length <= maxPoints) return metrics;
+  async getProxmoxVms(serverId: string) {
+    await this.ensureServer(serverId);
+    return this.prisma.proxmoxVm.findMany({
+      where: { serverId },
+      orderBy: { vmid: 'asc' },
+    });
+  }
 
-    const step = Math.ceil(metrics.length / maxPoints);
-    return metrics.filter((_, index) => index % step === 0 || index === metrics.length - 1);
+  async getProxmoxVmMetrics(serverId: string, vmid: number, from?: Date, to?: Date) {
+    await this.ensureServer(serverId);
+    const vm = await this.prisma.proxmoxVm.findUnique({
+      where: { serverId_vmid: { serverId, vmid } },
+    });
+    if (!vm) throw new NotFoundException('VM introuvable');
+
+    const metrics = await this.prisma.proxmoxVmMetric.findMany({
+      where: {
+        vmId: vm.id,
+        collectedAt: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: { collectedAt: 'asc' },
+    });
+    return this.downsample(metrics);
+  }
+
+  async getProxmoxBackups(serverId: string, limit = 50) {
+    await this.ensureServer(serverId);
+    const rows = await this.prisma.proxmoxBackup.findMany({
+      where: { serverId },
+      orderBy: { startedAt: 'desc' },
+      take: Math.min(limit, 200),
+    });
+    return rows.map((r) => ({
+      ...r,
+      sizeBytes: r.sizeBytes != null ? r.sizeBytes.toString() : null,
+    }));
   }
 
   determineStatus(cpu: number, memory: number, disk: number, lastSeen: Date | null): ServerStatus {
