@@ -366,18 +366,23 @@ export class AgentService {
       where: { serverId: server.id },
     });
 
-    const anyBackupCount = await this.prisma.proxmoxBackup.count({
-      where: { serverId: server.id },
-    });
-
     for (const vm of vms) {
       const latestOk = latestOkByVmid.get(vm.vmid) ?? null;
+      // Baseline is per-VM only. Using any server-wide backup wrongly alerts
+      // every VM when tasks lack a parsed vmid or only other guests have history.
       const historyForVmid = await this.prisma.proxmoxBackup.count({
         where: { serverId: server.id, vmid: vm.vmid },
       });
-      const hasBaseline = historyForVmid > 0 || anyBackupCount > 0;
+      const hasBaseline = historyForVmid > 0;
 
-      if (!hasBaseline) continue;
+      if (!hasBaseline) {
+        // Clear false positives from the previous server-wide baseline rule
+        await this.alerts.onIssueResolved({
+          serverId: server.id,
+          titleContains: `Backup Proxmox manquant: ${server.name} VM ${vm.vmid}`,
+        });
+        continue;
+      }
 
       if (!latestOk || latestOk < staleBefore) {
         await this.alerts.create({

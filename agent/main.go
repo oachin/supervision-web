@@ -599,10 +599,36 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 }
 
 func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
-	raw, err := pveshJSON("/nodes/"+node+"/tasks", "--typefilter", "vzdump")
+	byUPID := make(map[string]ProxmoxBackupPayload)
+
+	for _, b := range collectProxmoxBackupTasks(node) {
+		byUPID[b.UPID] = b
+	}
+	// Storage content is the source of truth for successful archives
+	// (same list as the Proxmox "Backup" tab). Tasks alone are pruned
+	// quickly and can miss overnight vzdump jobs.
+	for _, b := range collectProxmoxBackupContent(node) {
+		if _, exists := byUPID[b.UPID]; exists {
+			continue
+		}
+		byUPID[b.UPID] = b
+	}
+
+	backups := make([]ProxmoxBackupPayload, 0, len(byUPID))
+	for _, b := range byUPID {
+		backups = append(backups, b)
+	}
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].StartedAt > backups[j].StartedAt
+	})
+	return backups
+}
+
+func collectProxmoxBackupTasks(node string) []ProxmoxBackupPayload {
+	raw, err := pveshJSON("/nodes/"+node+"/tasks", "--typefilter", "vzdump", "--limit", "100")
 	var items []map[string]interface{}
 	if err != nil {
-		raw, err = pveshJSON("/nodes/" + node + "/tasks")
+		raw, err = pveshJSON("/nodes/"+node+"/tasks", "--limit", "500")
 		if err != nil {
 			log.Printf("Proxmox tasks: %v", err)
 			return nil
@@ -628,8 +654,8 @@ func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
 		sj, _ := jsonNumber(items[j], "starttime")
 		return si > sj
 	})
-	if len(items) > 50 {
-		items = items[:50]
+	if len(items) > 100 {
+		items = items[:100]
 	}
 
 	backups := make([]ProxmoxBackupPayload, 0, len(items))
@@ -643,16 +669,17 @@ func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
 			continue
 		}
 		endUnix, hasEnd := jsonNumber(item, "endtime")
+		taskStatus := jsonString(item, "status")
 		exitstatus := jsonString(item, "exitstatus")
-		if exitstatus == "" {
-			exitstatus = jsonString(item, "status")
-		}
+
+		vmid := parseVzdumpVMID(jsonString(item, "id"), exitstatus, upid)
+		status := mapVzdumpStatus(exitstatus, taskStatus, hasEnd)
 
 		b := ProxmoxBackupPayload{
 			UPID:      upid,
-			VMID:      parseVzdumpVMID(jsonString(item, "id"), exitstatus),
+			VMID:      vmid,
 			VMName:    jsonString(item, "vmname"),
-			Status:    mapVzdumpStatus(exitstatus, hasEnd),
+			Status:    status,
 			StartedAt: time.Unix(int64(startUnix), 0).UTC().Format(time.RFC3339),
 		}
 
@@ -664,8 +691,12 @@ func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
 			}
 			b.DurationSec = &dur
 		}
-		if b.Status == "failed" && exitstatus != "" {
-			b.Error = exitstatus
+		if b.Status == "failed" {
+			if exitstatus != "" {
+				b.Error = exitstatus
+			} else if taskStatus != "" && !isTaskRunState(taskStatus) {
+				b.Error = taskStatus
+			}
 		}
 		if size, ok := jsonNumber(item, "size"); ok {
 			sb := int64(size)
@@ -676,11 +707,153 @@ func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
 	return backups
 }
 
-func parseVzdumpVMID(id, statusText string) *int {
+func collectProxmoxBackupContent(node string) []ProxmoxBackupPayload {
+	raw, err := pveshJSON("/nodes/" + node + "/storage")
+	if err != nil {
+		log.Printf("Proxmox storage (backups): %v", err)
+		return nil
+	}
+	var storages []map[string]interface{}
+	if err := json.Unmarshal(raw, &storages); err != nil {
+		log.Printf("Proxmox storage JSON (backups): %v", err)
+		return nil
+	}
+
+	cutoff := time.Now().UTC().Add(-14 * 24 * time.Hour)
+	backups := make([]ProxmoxBackupPayload, 0, 64)
+
+	for _, s := range storages {
+		if !jsonActive(s) {
+			continue
+		}
+		storage := jsonString(s, "storage")
+		if storage == "" {
+			continue
+		}
+		contentField := jsonString(s, "content")
+		if contentField != "" && !strings.Contains(contentField, "backup") {
+			continue
+		}
+
+		craw, err := pveshJSON(
+			"/nodes/"+node+"/storage/"+storage+"/content",
+			"--content", "backup",
+		)
+		if err != nil {
+			continue
+		}
+		var items []map[string]interface{}
+		if err := json.Unmarshal(craw, &items); err != nil {
+			log.Printf("Proxmox storage %s content JSON: %v", storage, err)
+			continue
+		}
+
+		for _, item := range items {
+			volid := jsonString(item, "volid")
+			ctime, hasCtime := jsonNumber(item, "ctime")
+			if volid == "" || !hasCtime {
+				continue
+			}
+			finished := time.Unix(int64(ctime), 0).UTC()
+			if finished.Before(cutoff) {
+				continue
+			}
+
+			var vmid *int
+			if id, ok := jsonInt(item, "vmid"); ok {
+				vmid = &id
+			} else {
+				vmid = parseVmidFromVolid(volid)
+			}
+
+			b := ProxmoxBackupPayload{
+				UPID:       "content:" + volid,
+				VMID:       vmid,
+				VMName:     jsonString(item, "notes"),
+				Status:     "ok",
+				StartedAt:  finished.Format(time.RFC3339),
+				FinishedAt: finished.Format(time.RFC3339),
+			}
+			if size, ok := jsonNumber(item, "size"); ok {
+				sb := int64(size)
+				b.SizeBytes = &sb
+			}
+			backups = append(backups, b)
+		}
+	}
+
+	// Keep at most 5 newest archives per VM to bound payload size
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].StartedAt > backups[j].StartedAt
+	})
+	perVM := make(map[int]int)
+	trimmed := backups[:0]
+	for _, b := range backups {
+		if b.VMID == nil {
+			trimmed = append(trimmed, b)
+			continue
+		}
+		n := perVM[*b.VMID]
+		if n >= 5 {
+			continue
+		}
+		perVM[*b.VMID] = n + 1
+		trimmed = append(trimmed, b)
+	}
+	return trimmed
+}
+
+func parseVmidFromVolid(volid string) *int {
+	// BACKUP:backup/vzdump-qemu-104-2026_07_23-23_50_56.vma.zst
+	base := volid
+	if i := strings.LastIndex(volid, "/"); i >= 0 {
+		base = volid[i+1:]
+	}
+	for _, prefix := range []string{"vzdump-qemu-", "vzdump-lxc-"} {
+		if strings.HasPrefix(base, prefix) {
+			rest := base[len(prefix):]
+			num := ""
+			for _, r := range rest {
+				if r >= '0' && r <= '9' {
+					num += string(r)
+				} else {
+					break
+				}
+			}
+			if n, err := strconv.Atoi(num); err == nil {
+				return &n
+			}
+		}
+	}
+	return nil
+}
+
+func parseVzdumpVMID(id, statusText, upid string) *int {
 	if vmid := extractVMID(id); vmid != nil {
 		return vmid
 	}
+	if vmid := extractVMIDFromUPID(upid); vmid != nil {
+		return vmid
+	}
 	return extractVMID(statusText)
+}
+
+func extractVMIDFromUPID(upid string) *int {
+	// UPID:node:pid:pstart:starttime:type:id:user@realm:
+	parts := strings.Split(upid, ":")
+	if len(parts) < 7 {
+		return nil
+	}
+	id := parts[6]
+	if id == "" {
+		return nil
+	}
+	return extractVMID(id)
+}
+
+func isTaskRunState(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.EqualFold(s, "running") || strings.EqualFold(s, "stopped")
 }
 
 func extractVMID(s string) *int {
@@ -719,15 +892,28 @@ func extractVMID(s string) *int {
 	return nil
 }
 
-func mapVzdumpStatus(exitstatus string, hasEndtime bool) string {
-	if !hasEndtime {
+func mapVzdumpStatus(exitstatus, taskStatus string, hasEndtime bool) string {
+	ts := strings.TrimSpace(taskStatus)
+	es := strings.TrimSpace(exitstatus)
+
+	if strings.EqualFold(ts, "running") {
 		return "running"
 	}
-	es := strings.TrimSpace(exitstatus)
-	if es == "" || strings.EqualFold(es, "OK") {
+
+	// Prefer exitstatus from /tasks/{upid}/status. On the task index,
+	// Proxmox often stores the exit result in "status" ("OK" / error text),
+	// while "stopped"/"running" are run-states and must not mean failure.
+	result := es
+	if result == "" && !isTaskRunState(ts) {
+		result = ts
+	}
+	if result == "" && !hasEndtime {
+		return "running"
+	}
+	if result == "" || strings.EqualFold(result, "OK") {
 		return "ok"
 	}
-	if strings.Contains(strings.ToLower(es), "warn") {
+	if strings.Contains(strings.ToLower(result), "warn") {
 		return "warning"
 	}
 	return "failed"
