@@ -313,15 +313,25 @@ export class AgentService {
           latestOkByVmid.get(backup.vmid)!.getTime() > backup.startedAt.getTime();
 
         if (newerOk) {
-          await this.alerts.onIssueResolved({
-            serverId: server.id,
-            titleContains: `Backup Proxmox échoué: ${server.name} VM ${backup.vmid}`,
-          });
+          const resolvePrefixes = [
+            `Backup Proxmox échoué: ${server.name} VM ${backup.vmid}`,
+            `Backup Proxmox avertissement: ${server.name} VM ${backup.vmid}`,
+          ];
+          for (const titleContains of resolvePrefixes) {
+            await this.alerts.onIssueResolved({
+              serverId: server.id,
+              titleContains,
+            });
+          }
           continue;
         }
 
+        const titlePrefix =
+          backup.status === 'failed'
+            ? 'Backup Proxmox échoué'
+            : 'Backup Proxmox avertissement';
         await this.alerts.create({
-          title: `Backup Proxmox échoué: ${server.name} VM ${vmLabel}`,
+          title: `${titlePrefix}: ${server.name} VM ${vmLabel}`,
           message: backup.error ?? 'Job vzdump en échec',
           severity: backup.status === 'failed' ? 'CRITICAL' : 'WARNING',
           serverId: server.id,

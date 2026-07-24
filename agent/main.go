@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/user"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -382,11 +383,53 @@ func pveshJSON(args ...string) ([]byte, error) {
 }
 
 func localPveNode() (string, error) {
+	if node, err := localPveNodeFromCluster(); err == nil && node != "" {
+		return node, nil
+	}
 	out, err := exec.Command("hostname", "-s").Output()
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	node := strings.TrimSpace(string(out))
+	if node == "" {
+		return "", fmt.Errorf("hostname -s returned empty")
+	}
+	return node, nil
+}
+
+func localPveNodeFromCluster() (string, error) {
+	raw, err := pveshJSON("/cluster/status")
+	if err != nil {
+		return "", err
+	}
+	var items []map[string]interface{}
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return "", err
+	}
+
+	hostnameOut, _ := exec.Command("hostname", "-s").Output()
+	hostname := strings.TrimSpace(string(hostnameOut))
+
+	var byName string
+	for _, item := range items {
+		if jsonString(item, "type") != "node" {
+			continue
+		}
+		name := jsonString(item, "name")
+		if name == "" {
+			continue
+		}
+		if local, ok := jsonNumber(item, "local"); ok && local == 1 {
+			return name, nil
+		}
+		if hostname != "" && name == hostname {
+			byName = name
+		}
+	}
+	if byName != "" {
+		return byName, nil
+	}
+	return "", fmt.Errorf("no local node in /cluster/status")
 }
 
 func jsonNumber(m map[string]interface{}, key string) (float64, bool) {
@@ -580,6 +623,11 @@ func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
 		return nil
 	}
 
+	sort.Slice(items, func(i, j int) bool {
+		si, _ := jsonNumber(items[i], "starttime")
+		sj, _ := jsonNumber(items[j], "starttime")
+		return si > sj
+	})
 	if len(items) > 50 {
 		items = items[:50]
 	}
