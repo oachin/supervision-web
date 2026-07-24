@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Minimize2, RefreshCw, Shield, Clock } from 'lucide-react';
-import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory, type Alert } from '@/lib/api';
+import { api, type DashboardData, type ServerWithHistory, type WebsiteWithHistory, type Alert, type ProxmoxVmWithServer } from '@/lib/api';
 import { NocHiveView } from '@/components/noc-hive-view';
 import { EventTicker } from '@/components/event-ticker';
 import { useAlerts } from '@/components/alert-provider';
@@ -69,19 +69,22 @@ export default function NocPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [servers, setServers] = useState<ServerWithHistory[]>([]);
   const [websites, setWebsites] = useState<WebsiteWithHistory[]>([]);
+  const [vms, setVms] = useState<ProxmoxVmWithServer[]>([]);
   const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   async function loadAll() {
-    const [dashboard, serversData, websitesData, summary] = await Promise.all([
+    const [dashboard, serversData, websitesData, vmsData, summary] = await Promise.all([
       api.getDashboard(),
       api.getServers(),
       api.getWebsites(),
+      api.getAllProxmoxVms().catch(() => [] as ProxmoxVmWithServer[]),
       api.getAlertsSummary(),
     ]);
     setData(dashboard);
     setServers(serversData);
     setWebsites(websitesData);
+    setVms(vmsData);
     setOpenAlerts([...summary.active]);
     refreshAlerts();
   }
@@ -177,7 +180,7 @@ export default function NocPage() {
       </div>
 
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        <NocHiveView servers={servers} websites={websites} alerts={openAlerts} />
+        <NocHiveView servers={servers} websites={websites} vms={vms} alerts={openAlerts} />
       </main>
 
       <footer className="shrink-0 border-t border-white/10 bg-card/30 px-4 py-2">
