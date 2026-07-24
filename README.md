@@ -103,6 +103,7 @@ Créez d'abord le serveur dans l'interface pour obtenir la clé agent.
 |-----------|------|--------|
 | **Serveur Linux** | Agent | Métriques CPU, RAM, disque, uptime |
 | **Serveur Plesk** | Agent | Métriques + services (nginx, Apache, MariaDB…) + import des domaines |
+| **Serveur Proxmox** | Agent | Métriques nœud + VMs QEMU + jobs backup vzdump |
 | **Sites web** | Externe (plateforme) | HTTP (curl-like, redirections), DNS, port 443, SSL/TLS, chaîne de certificats |
 
 Les sites importés depuis Plesk sont **surveillés uniquement depuis l'extérieur** (serveur de supervision).  
