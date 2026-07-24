@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Server,
+  Boxes,
   Globe,
   Bell,
   ScrollText,
@@ -17,6 +18,7 @@ import { BrandLogo } from '@/components/brand-logo';
 const navItems = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/servers', label: 'Serveurs', icon: Server },
+  { href: '/vms', label: 'VMs', icon: Boxes },
   { href: '/websites', label: 'Sites web', icon: Globe },
   { href: '/alerts', label: 'Alertes', icon: Bell },
   { href: '/events', label: 'Évènements', icon: ScrollText },

@@ -82,7 +82,7 @@ export default function NocPage() {
     setData(dashboard);
     setServers(serversData);
     setWebsites(websitesData);
-    setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
+    setOpenAlerts([...summary.active]);
     refreshAlerts();
   }
 
@@ -98,6 +98,16 @@ export default function NocPage() {
   useEffect(() => {
     loadAll().catch(console.error);
     const interval = setInterval(() => loadAll().catch(console.error), 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Keep JWT session alive for wall displays (no interactive login for days).
+  useEffect(() => {
+    const keepAlive = () => {
+      void api.keepAlive().catch(() => {});
+    };
+    keepAlive();
+    const interval = setInterval(keepAlive, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

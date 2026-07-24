@@ -1,8 +1,6 @@
 import type { Alert, AlertSummary } from '@/lib/api';
 import { isMaintenanceStatus } from '@/lib/utils';
 
-const OPEN_ALERT_STATUSES = new Set(['ACTIVE', 'ACKNOWLEDGED']);
-
 export interface ServerWebsiteAlertContext {
   id: string;
   status: string;
@@ -10,6 +8,12 @@ export interface ServerWebsiteAlertContext {
   monitoringEnabled: boolean;
 }
 
+/** Alertes vraiment « en cours » (pas acquittées / pas en attente de clôture). */
+export function flattenActiveAlerts(summary: AlertSummary): Alert[] {
+  return [...summary.active];
+}
+
+/** Toutes les alertes non clôturées (actif + acquitté + clôture en attente). */
 export function flattenOpenAlerts(summary: AlertSummary): Alert[] {
   return [...summary.active, ...summary.acknowledged, ...summary.pendingClose];
 }
@@ -30,12 +34,18 @@ export function openAlertsForServer(
     websites.filter((w) => w.monitoringEnabled).map((w) => w.id),
   );
 
-  return alerts.filter(
-    (a) =>
-      OPEN_ALERT_STATUSES.has(a.status) &&
-      !isFalseOfflineAlert(a, websites) &&
-      (a.serverId === serverId || (a.websiteId != null && monitoredWebsiteIds.has(a.websiteId))),
-  );
+  return alerts.filter((a) => {
+    // « En cours » = ACTIVE uniquement (acquittée / désactivée = hors liste)
+    if (a.status !== 'ACTIVE') return false;
+    if (isFalseOfflineAlert(a, websites)) return false;
+
+    if (a.websiteId) {
+      // Ne pas remonter via serverId les alertes de sites non supervisés
+      return monitoredWebsiteIds.has(a.websiteId);
+    }
+
+    return a.serverId === serverId;
+  });
 }
 
 export interface AlertSiteGroup {

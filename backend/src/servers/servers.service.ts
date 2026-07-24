@@ -167,6 +167,42 @@ export class ServersService {
     return this.downsample(metrics);
   }
 
+  async getAllProxmoxVms() {
+    return this.prisma.proxmoxVm.findMany({
+      include: {
+        server: {
+          select: {
+            id: true,
+            name: true,
+            hostname: true,
+            status: true,
+            profile: true,
+          },
+        },
+      },
+      orderBy: [{ server: { name: 'asc' } }, { vmid: 'asc' }],
+    });
+  }
+
+  async getProxmoxVmById(id: string) {
+    const vm = await this.prisma.proxmoxVm.findUnique({
+      where: { id },
+      include: {
+        server: {
+          select: {
+            id: true,
+            name: true,
+            hostname: true,
+            status: true,
+            profile: true,
+          },
+        },
+      },
+    });
+    if (!vm) throw new NotFoundException('VM introuvable');
+    return vm;
+  }
+
   async getProxmoxVms(serverId: string) {
     await this.ensureServer(serverId);
     return this.prisma.proxmoxVm.findMany({

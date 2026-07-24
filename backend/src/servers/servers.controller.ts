@@ -27,6 +27,18 @@ export class ServersController {
     return this.servers.findAll();
   }
 
+  @Get('proxmox/vms')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getAllProxmoxVms() {
+    return this.servers.getAllProxmoxVms();
+  }
+
+  @Get('proxmox/vms/:vmId')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getProxmoxVmById(@Param('vmId') vmId: string) {
+    return this.servers.getProxmoxVmById(vmId);
+  }
+
   @Get(':id/proxmox/vms')
   @Roles('ADMIN', 'OPERATOR', 'VIEWER')
   getProxmoxVms(@Param('id') id: string) {

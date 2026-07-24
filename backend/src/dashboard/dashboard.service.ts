@@ -39,7 +39,7 @@ export class DashboardService {
         where: { ...monitoredWebsite, status: 'DEGRADED', lastStatusCode: 503 },
       }),
       this.prisma.website.count({ where: { monitoringEnabled: false } }),
-      this.prisma.alert.count({ where: { status: { in: ['ACTIVE', 'ACKNOWLEDGED'] } } }),
+      this.prisma.alert.count({ where: { status: 'ACTIVE' } }),
       this.prisma.alert.findMany({
         where: { status: { not: 'CLOSED' } },
         orderBy: { createdAt: 'desc' },

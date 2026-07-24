@@ -4,6 +4,8 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  /** Epoch ms when access token should be considered expired */
+  expiresAt?: number;
 }
 
 export interface User {
@@ -15,6 +17,8 @@ export interface User {
 }
 
 class ApiClient {
+  private refreshInFlight: Promise<boolean> | null = null;
+
   private getTokens(): AuthTokens | null {
     if (typeof window === 'undefined') return null;
     const data = localStorage.getItem('auth');
@@ -23,7 +27,9 @@ class ApiClient {
 
   private setTokens(tokens: AuthTokens | null) {
     if (tokens) {
-      localStorage.setItem('auth', JSON.stringify(tokens));
+      const expiresAt =
+        tokens.expiresAt ?? Date.now() + Math.max(tokens.expiresIn, 60) * 1000;
+      localStorage.setItem('auth', JSON.stringify({ ...tokens, expiresAt }));
     } else {
       localStorage.removeItem('auth');
     }
@@ -44,30 +50,61 @@ class ApiClient {
     }
   }
 
-  private async refreshToken(): Promise<boolean> {
+  /** True if access token is missing or expires within `skewMs`. */
+  needsRefresh(skewMs = 120_000): boolean {
     const tokens = this.getTokens();
     if (!tokens?.refreshToken) return false;
+    if (!tokens.accessToken) return true;
+    if (!tokens.expiresAt) return true;
+    return Date.now() >= tokens.expiresAt - skewMs;
+  }
 
-    try {
-      const res = await fetch(`${API_URL}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
-      });
-      if (!res.ok) return false;
-      const data = await res.json();
-      this.setTokens({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        expiresIn: data.expiresIn,
-      });
-      return true;
-    } catch {
-      return false;
-    }
+  /**
+   * Proactively refresh the session (NOC / wall displays).
+   * Safe to call often — shares one in-flight refresh.
+   */
+  async keepAlive(): Promise<boolean> {
+    if (!this.getTokens()?.refreshToken) return false;
+    return this.refreshToken();
+  }
+
+  private async refreshToken(): Promise<boolean> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+
+    this.refreshInFlight = (async () => {
+      const tokens = this.getTokens();
+      if (!tokens?.refreshToken) return false;
+
+      try {
+        const res = await fetch(`${API_URL}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        this.setTokens({
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresIn: data.expiresIn,
+          expiresAt: Date.now() + Math.max(data.expiresIn ?? 900, 60) * 1000,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    })().finally(() => {
+      this.refreshInFlight = null;
+    });
+
+    return this.refreshInFlight;
   }
 
   async fetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    if (this.needsRefresh()) {
+      await this.refreshToken();
+    }
+
     const token = this.getAccessToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -149,6 +186,12 @@ class ApiClient {
 
   getProxmoxVms(serverId: string) {
     return this.fetch<ProxmoxVm[]>(`/servers/${serverId}/proxmox/vms`);
+  }
+  getAllProxmoxVms() {
+    return this.fetch<ProxmoxVmWithServer[]>('/servers/proxmox/vms');
+  }
+  getProxmoxVm(vmId: string) {
+    return this.fetch<ProxmoxVmWithServer>(`/servers/proxmox/vms/${vmId}`);
   }
   getProxmoxVmMetrics(serverId: string, vmid: number, from?: string, to?: string) {
     const q = new URLSearchParams();
@@ -465,6 +508,16 @@ export interface ProxmoxVm {
   maxmemMb: number;
   maxdiskGb: number;
   lastSeenAt: string;
+}
+
+export interface ProxmoxVmWithServer extends ProxmoxVm {
+  server: {
+    id: string;
+    name: string;
+    hostname: string;
+    status: string;
+    profile: string;
+  };
 }
 
 export interface ProxmoxVmMetric {

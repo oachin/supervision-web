@@ -12,7 +12,7 @@ import { HostedWebsitesPanel } from '@/components/hosted-websites-panel';
 import { ServerAlertsBySitePanel } from '@/components/server-alerts-panel';
 import { ProxmoxVmsPanel } from '@/components/proxmox-vms-panel';
 import { ProxmoxBackupsPanel } from '@/components/proxmox-backups-panel';
-import { flattenOpenAlerts, openAlertsForServer } from '@/lib/server-alerts';
+import { flattenActiveAlerts, openAlertsForServer } from '@/lib/server-alerts';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
@@ -88,7 +88,7 @@ export default function ServerDetailPage() {
     if (!id) return;
     api.getServer(id).then(setServer);
     api.getAlertsSummary()
-      .then((summary) => setOpenAlerts(flattenOpenAlerts(summary)))
+      .then((summary) => setOpenAlerts(flattenActiveAlerts(summary)))
       .catch(console.error);
   }, [id]);
 
@@ -468,7 +468,7 @@ export default function ServerDetailPage() {
 
       {server.profile === 'PROXMOX' && (
         <>
-          <ProxmoxVmsPanel serverId={server.id} vms={proxmoxVms} />
+          <ProxmoxVmsPanel vms={proxmoxVms} />
           <ProxmoxBackupsPanel backups={proxmoxBackups} />
         </>
       )}

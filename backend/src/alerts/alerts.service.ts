@@ -271,6 +271,41 @@ export class AlertsService {
     }
   }
 
+  /** Clôture immédiate de toutes les alertes ouvertes d'un site (ex. supervision désactivée). */
+  async forceCloseForWebsite(websiteId: string, userId?: string) {
+    const alerts = await this.prisma.alert.findMany({
+      where: {
+        websiteId,
+        status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE'] },
+      },
+    });
+
+    for (const alert of alerts) {
+      await this.prisma.alert.update({
+        where: { id: alert.id },
+        data: {
+          status: 'CLOSED',
+          resolved: true,
+          resolvedAt: new Date(),
+          closedAt: new Date(),
+          issueResolvedAt: alert.issueResolvedAt ?? new Date(),
+          origin: 'Supervision désactivée',
+          resolutionMethod: 'Désactivation du monitoring du site',
+          ...(userId ? { closedById: userId } : {}),
+        },
+      });
+      await this.logEvent(
+        alert.id,
+        'CLOSED',
+        'Clôture automatique — supervision du site désactivée',
+        userId,
+        { auto: true, reason: 'monitoring_disabled' },
+      );
+    }
+
+    return alerts.length;
+  }
+
   /** Clôture automatique sans intervention (ex. faux positif SSL résolu). */
   async autoCloseResolvedByTitle(params: {
     websiteId?: string;

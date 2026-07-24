@@ -3,22 +3,26 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, X, Pause, Play, Search, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
 import { WebsiteStatusBadge, HttpCodeBadge, DnsBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { StatusSummaryBanner } from '@/components/status-summary-banner';
 import { formatDate, cn, isSiteDegraded } from '@/lib/utils';
 
 const filterLabels: Record<string, string> = {
   alert: 'sites en alerte',
   down: 'sites hors ligne',
   degraded: 'sites dégradés',
+  up: 'sites en ligne',
   disabled: 'supervision désactivée',
 };
 
 function WebsitesPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter');
+  const activeFilter = filter && filterLabels[filter] ? filter : 'all';
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -79,21 +83,53 @@ function WebsitesPageContent() {
     }
   }
 
+  function setStatusFilter(id: string) {
+    if (id === 'all') {
+      router.push('/websites');
+      return;
+    }
+    router.push(`/websites?filter=${id}`);
+  }
+
+  const counts = useMemo(() => {
+    let up = 0;
+    let degraded = 0;
+    let down = 0;
+    let disabled = 0;
+    for (const w of websites) {
+      if (!w.monitoringEnabled) {
+        disabled += 1;
+        continue;
+      }
+      if (w.status === 'DOWN') down += 1;
+      else if (isSiteDegraded(w.status, w.lastStatusCode)) degraded += 1;
+      else if (w.status === 'UP') up += 1;
+    }
+    return { total: websites.length, up, degraded, down, disabled };
+  }, [websites]);
+
   const filteredWebsites = useMemo(() => {
     let list = websites;
-    if (filter === 'disabled') {
+    if (activeFilter === 'disabled') {
       list = list.filter((w) => !w.monitoringEnabled);
-    } else if (filter === 'alert') {
+    } else if (activeFilter === 'alert') {
       list = list.filter(
         (w) =>
           w.monitoringEnabled &&
           (w.status === 'DOWN' || isSiteDegraded(w.status, w.lastStatusCode)),
       );
-    } else if (filter === 'down') {
+    } else if (activeFilter === 'down') {
       list = list.filter((w) => w.monitoringEnabled && w.status === 'DOWN');
-    } else if (filter === 'degraded') {
+    } else if (activeFilter === 'degraded') {
       list = list.filter(
         (w) => w.monitoringEnabled && isSiteDegraded(w.status, w.lastStatusCode),
+      );
+    } else if (activeFilter === 'up') {
+      list = list.filter(
+        (w) =>
+          w.monitoringEnabled &&
+          w.status === 'UP' &&
+          !isSiteDegraded(w.status, w.lastStatusCode),
       );
     }
 
@@ -113,7 +149,7 @@ function WebsitesPageContent() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [websites, filter, searchQuery]);
+  }, [websites, activeFilter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -121,8 +157,8 @@ function WebsitesPageContent() {
         <div>
           <h1 className="text-2xl font-bold">Sites web</h1>
           <p className="text-sm text-muted-foreground">
-            {filter && filterLabels[filter]
-              ? `Filtre actif : ${filterLabels[filter]}`
+            {activeFilter !== 'all' && filterLabels[activeFilter]
+              ? `Filtre actif : ${filterLabels[activeFilter]}`
               : 'Surveillance externe HTTP/SSL depuis la plateforme (DNS, port 443, certificat, redirections)'}
           </p>
         </div>
@@ -142,14 +178,17 @@ function WebsitesPageContent() {
         </div>
       </div>
 
-      {filter && (
-        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
-          <span>Affichage filtré : {filterLabels[filter] ?? filter} ({filteredWebsites.length})</span>
-          <Link href="/websites" className="inline-flex items-center gap-1 text-primary hover:underline">
-            <X className="h-4 w-4" /> Tout afficher
-          </Link>
-        </div>
-      )}
+      <StatusSummaryBanner
+        activeId={activeFilter}
+        onSelect={setStatusFilter}
+        tiles={[
+          { id: 'all', label: 'Total', count: counts.total, tone: 'default' },
+          { id: 'up', label: 'En ligne', count: counts.up, tone: 'success' },
+          { id: 'degraded', label: 'Dégradés', count: counts.degraded, tone: 'warning' },
+          { id: 'down', label: 'Hors ligne', count: counts.down, tone: 'danger' },
+          { id: 'disabled', label: 'Désactivés', count: counts.disabled, tone: 'muted' },
+        ]}
+      />
 
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -211,12 +250,14 @@ function WebsitesPageContent() {
           <p className="text-muted-foreground">
             {searchQuery.trim()
               ? 'Aucun site ne correspond à votre recherche.'
-              : filter
+              : activeFilter !== 'all'
                 ? 'Aucun site ne correspond à ce filtre.'
                 : 'Aucun site surveillé.'}
           </p>
-          {filter && (
-            <Link href="/websites" className="btn-secondary mt-4 inline-flex">Voir tous les sites</Link>
+          {activeFilter !== 'all' && (
+            <button type="button" onClick={() => setStatusFilter('all')} className="btn-secondary mt-4 inline-flex">
+              Voir tous les sites
+            </button>
           )}
         </div>
       ) : (

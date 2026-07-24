@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   async function refreshOpenAlerts() {
     const summary = await api.getAlertsSummary();
-    setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
+    setOpenAlerts([...summary.active]);
     return summary;
   }
 
@@ -38,7 +38,7 @@ export default function DashboardPage() {
     setData(dashboard);
     setServers(serversData);
     setWebsites(websitesData);
-    setOpenAlerts([...summary.active, ...summary.acknowledged, ...summary.pendingClose]);
+    setOpenAlerts([...summary.active]);
   }
 
   async function handleRefresh() {
@@ -78,7 +78,7 @@ export default function DashboardPage() {
         current
           ? {
               ...current,
-              summary: { ...current.summary, activeAlerts: summary.counts.active + summary.counts.acknowledged + summary.counts.pendingClose },
+              summary: { ...current.summary, activeAlerts: summary.counts.active },
             }
           : current,
       );
@@ -264,17 +264,14 @@ export default function DashboardPage() {
                     ...current,
                     summary: {
                       ...current.summary,
-                      activeAlerts:
-                        summary.counts.active
-                        + summary.counts.acknowledged
-                        + summary.counts.pendingClose,
+                      activeAlerts: summary.counts.active,
                     },
                   }
                 : current,
             );
-            const updated = [...summary.active, ...summary.acknowledged, ...summary.pendingClose]
-              .find((alert) => alert.id === selectedAlert.id);
+            const updated = summary.active.find((alert) => alert.id === selectedAlert.id);
             if (updated) setSelectedAlert(updated);
+            else setSelectedAlert(null);
           }}
         />
       )}
