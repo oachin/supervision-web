@@ -20,6 +20,11 @@ export class AgentInstallController {
     return this.serveInstall('plesk', key, res);
   }
 
+  @Get('install/proxmox')
+  installProxmox(@Query('key') key: string, @Res() res: Response) {
+    return this.serveInstall('proxmox', key, res);
+  }
+
   @Get('download/linux-amd64')
   async downloadBinary(@Query('key') key: string, @Res() res: Response) {
     if (!key?.startsWith('sv_')) {
@@ -31,7 +36,7 @@ export class AgentInstallController {
     stream.pipe(res);
   }
 
-  private async serveInstall(profile: 'linux' | 'plesk', key: string, res: Response) {
+  private async serveInstall(profile: 'linux' | 'plesk' | 'proxmox', key: string, res: Response) {
     if (!key?.startsWith('sv_')) {
       throw new BadRequestException('Clé agent invalide');
     }

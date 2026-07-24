@@ -24,22 +24,25 @@ export class AgentInstallService {
     return `${origin.replace(/\/$/, '')}/api`;
   }
 
-  buildInstallUrl(profile: 'linux' | 'plesk', plainKey: string): string {
+  buildInstallUrl(profile: 'linux' | 'plesk' | 'proxmox', plainKey: string): string {
     const origin = this.config.get<string>('CORS_ORIGIN', 'http://localhost:4000').replace(/\/$/, '');
     return `${origin}/api/agent/install/${profile}?key=${encodeURIComponent(plainKey)}`;
   }
 
-  buildWgetCommand(profile: 'linux' | 'plesk', plainKey: string): string {
+  buildWgetCommand(profile: 'linux' | 'plesk' | 'proxmox', plainKey: string): string {
     return `wget -qO- "${this.buildInstallUrl(profile, plainKey)}" | sudo bash`;
   }
 
-  profileToSlug(profile: AgentProfile): 'linux' | 'plesk' {
-    return profile === 'PLESK' ? 'plesk' : 'linux';
+  profileToSlug(profile: AgentProfile): 'linux' | 'plesk' | 'proxmox' {
+    if (profile === 'PLESK') return 'plesk';
+    if (profile === 'PROXMOX') return 'proxmox';
+    return 'linux';
   }
 
-  async getInstallScript(profile: 'linux' | 'plesk', plainKey: string): Promise<string> {
+  async getInstallScript(profile: 'linux' | 'plesk' | 'proxmox', plainKey: string): Promise<string> {
     const server = await this.findServerByPlainKey(plainKey);
-    const expected: AgentProfile = profile === 'plesk' ? 'PLESK' : 'LINUX';
+    const expected: AgentProfile =
+      profile === 'plesk' ? 'PLESK' : profile === 'proxmox' ? 'PROXMOX' : 'LINUX';
     if (server.profile !== expected) {
       throw new NotFoundException('Profil agent incompatible');
     }

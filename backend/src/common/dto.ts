@@ -81,8 +81,8 @@ export class CreateServerDto {
   hostname?: string;
 
   @IsOptional()
-  @IsIn(['LINUX', 'PLESK'])
-  profile?: 'LINUX' | 'PLESK';
+  @IsIn(['LINUX', 'PLESK', 'PROXMOX'])
+  profile?: 'LINUX' | 'PLESK' | 'PROXMOX';
 
   @IsOptional()
   @IsString()
@@ -222,6 +222,69 @@ export class AgentPleskWebsiteDto {
   url!: string;
 }
 
+export class AgentProxmoxVmDto {
+  @IsInt()
+  vmid!: number;
+
+  @IsString()
+  name!: string;
+
+  @IsString()
+  status!: string;
+
+  @IsInt()
+  cpus!: number;
+
+  @IsNumber()
+  maxmemMb!: number;
+
+  @IsNumber()
+  maxdiskGb!: number;
+
+  @IsOptional()
+  @IsNumber()
+  cpuPercent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  memUsedMb?: number;
+}
+
+export class AgentProxmoxBackupDto {
+  @IsString()
+  upid!: string;
+
+  @IsOptional()
+  @IsInt()
+  vmid?: number;
+
+  @IsOptional()
+  @IsString()
+  vmName?: string;
+
+  @IsString()
+  status!: string; // ok | failed | warning | running
+
+  @IsString()
+  startedAt!: string; // ISO
+
+  @IsOptional()
+  @IsString()
+  finishedAt?: string;
+
+  @IsOptional()
+  @IsInt()
+  durationSec?: number;
+
+  @IsOptional()
+  @IsString()
+  error?: string;
+
+  @IsOptional()
+  @IsNumber()
+  sizeBytes?: number;
+}
+
 export class AgentMetricsDto {
   @IsOptional()
   @IsString()
@@ -281,4 +344,16 @@ export class AgentMetricsDto {
   @ValidateNested({ each: true })
   @Type(() => AgentPleskWebsiteDto)
   pleskWebsites?: AgentPleskWebsiteDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgentProxmoxVmDto)
+  proxmoxVms?: AgentProxmoxVmDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgentProxmoxBackupDto)
+  proxmoxBackups?: AgentProxmoxBackupDto[];
 }
