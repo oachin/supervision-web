@@ -28,24 +28,49 @@ type PleskWebsitePayload struct {
 	URL  string `json:"url"`
 }
 
+type ProxmoxVmPayload struct {
+	VMID       int      `json:"vmid"`
+	Name       string   `json:"name"`
+	Status     string   `json:"status"`
+	Cpus       int      `json:"cpus"`
+	MaxmemMb   float64  `json:"maxmemMb"`
+	MaxdiskGb  float64  `json:"maxdiskGb"`
+	CPUPercent *float64 `json:"cpuPercent,omitempty"`
+	MemUsedMb  *float64 `json:"memUsedMb,omitempty"`
+}
+
+type ProxmoxBackupPayload struct {
+	UPID        string `json:"upid"`
+	VMID        *int   `json:"vmid,omitempty"`
+	VMName      string `json:"vmName,omitempty"`
+	Status      string `json:"status"`
+	StartedAt   string `json:"startedAt"`
+	FinishedAt  string `json:"finishedAt,omitempty"`
+	DurationSec *int   `json:"durationSec,omitempty"`
+	Error       string `json:"error,omitempty"`
+	SizeBytes   *int64 `json:"sizeBytes,omitempty"`
+}
+
 type MetricsPayload struct {
-	OSVersion     string                `json:"osVersion,omitempty"`
-	Hostname      string                `json:"hostname,omitempty"`
-	Profile       string                `json:"profile,omitempty"`
-	CPUPercent    float64               `json:"cpuPercent"`
-	MemoryPercent float64               `json:"memoryPercent"`
-	MemoryUsedMb  float64               `json:"memoryUsedMb"`
-	MemoryTotalMb float64               `json:"memoryTotalMb"`
-	DiskPercent   float64               `json:"diskPercent"`
-	DiskUsedGb    float64               `json:"diskUsedGb"`
-	DiskTotalGb   float64               `json:"diskTotalGb"`
-	LoadAvg1      float64               `json:"loadAvg1"`
-	LoadAvg5      float64               `json:"loadAvg5"`
-	LoadAvg15     float64               `json:"loadAvg15"`
-	UptimeSeconds int                   `json:"uptimeSeconds"`
-	PleskDomains  *int                  `json:"pleskDomains,omitempty"`
-	PleskServices map[string]string     `json:"pleskServices,omitempty"`
-	PleskWebsites []PleskWebsitePayload `json:"pleskWebsites,omitempty"`
+	OSVersion      string                 `json:"osVersion,omitempty"`
+	Hostname       string                 `json:"hostname,omitempty"`
+	Profile        string                 `json:"profile,omitempty"`
+	CPUPercent     float64                `json:"cpuPercent"`
+	MemoryPercent  float64                `json:"memoryPercent"`
+	MemoryUsedMb   float64                `json:"memoryUsedMb"`
+	MemoryTotalMb  float64                `json:"memoryTotalMb"`
+	DiskPercent    float64                `json:"diskPercent"`
+	DiskUsedGb     float64                `json:"diskUsedGb"`
+	DiskTotalGb    float64                `json:"diskTotalGb"`
+	LoadAvg1       float64                `json:"loadAvg1"`
+	LoadAvg5       float64                `json:"loadAvg5"`
+	LoadAvg15      float64                `json:"loadAvg15"`
+	UptimeSeconds  int                    `json:"uptimeSeconds"`
+	PleskDomains   *int                   `json:"pleskDomains,omitempty"`
+	PleskServices  map[string]string      `json:"pleskServices,omitempty"`
+	PleskWebsites  []PleskWebsitePayload  `json:"pleskWebsites,omitempty"`
+	ProxmoxVMs     []ProxmoxVmPayload     `json:"proxmoxVms,omitempty"`
+	ProxmoxBackups []ProxmoxBackupPayload `json:"proxmoxBackups,omitempty"`
 }
 
 func main() {
@@ -179,6 +204,22 @@ func collectMetrics(cfg Config) (*MetricsPayload, error) {
 		m.PleskDomains = countPleskDomains()
 		if cfg.Profile == "plesk" {
 			m.PleskWebsites = collectPleskWebsites()
+		}
+	}
+
+	if cfg.Profile == "proxmox" {
+		if node, err := localPveNode(); err == nil {
+			if used, total, ok := collectProxmoxDisk(node); ok {
+				m.DiskUsedGb = used
+				m.DiskTotalGb = total
+				if total > 0 {
+					m.DiskPercent = (used / total) * 100
+				}
+			}
+			m.ProxmoxVMs = collectProxmoxVms(node)
+			m.ProxmoxBackups = collectProxmoxBackups(node)
+		} else {
+			log.Printf("Proxmox: impossible de déterminer le nœud: %v", err)
 		}
 	}
 
@@ -332,6 +373,316 @@ func collectPleskWebsites() []PleskWebsitePayload {
 	}
 
 	return sites
+}
+
+func pveshJSON(args ...string) ([]byte, error) {
+	cmdArgs := append([]string{"get"}, args...)
+	cmdArgs = append(cmdArgs, "--output-format", "json")
+	return exec.Command("pvesh", cmdArgs...).Output()
+}
+
+func localPveNode() (string, error) {
+	out, err := exec.Command("hostname", "-s").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func jsonNumber(m map[string]interface{}, key string) (float64, bool) {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case string:
+		f, err := strconv.ParseFloat(n, 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func jsonInt(m map[string]interface{}, key string) (int, bool) {
+	f, ok := jsonNumber(m, key)
+	if !ok {
+		return 0, false
+	}
+	return int(f), true
+}
+
+func jsonString(m map[string]interface{}, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	switch s := v.(type) {
+	case string:
+		return s
+	default:
+		return fmt.Sprint(s)
+	}
+}
+
+func jsonActive(m map[string]interface{}) bool {
+	v, ok := m["active"]
+	if !ok || v == nil {
+		return false
+	}
+	switch a := v.(type) {
+	case float64:
+		return a == 1
+	case bool:
+		return a
+	case json.Number:
+		f, err := a.Float64()
+		return err == nil && f == 1
+	case string:
+		return a == "1" || strings.EqualFold(a, "true")
+	default:
+		return false
+	}
+}
+
+func collectProxmoxDisk(node string) (usedGb, totalGb float64, ok bool) {
+	raw, err := pveshJSON("/nodes/" + node + "/storage")
+	if err != nil {
+		log.Printf("Proxmox storage: %v", err)
+		return 0, 0, false
+	}
+	var storages []map[string]interface{}
+	if err := json.Unmarshal(raw, &storages); err != nil {
+		log.Printf("Proxmox storage JSON: %v", err)
+		return 0, 0, false
+	}
+
+	localTypes := map[string]bool{
+		"dir": true, "lvm": true, "lvmthin": true, "zfspool": true,
+	}
+	var usedBytes, totalBytes float64
+	found := false
+	for _, s := range storages {
+		if !jsonActive(s) || !localTypes[jsonString(s, "type")] {
+			continue
+		}
+		used, hasUsed := jsonNumber(s, "used")
+		total, hasTotal := jsonNumber(s, "total")
+		if !hasTotal {
+			if avail, hasAvail := jsonNumber(s, "avail"); hasAvail && hasUsed {
+				total = used + avail
+				hasTotal = true
+			}
+		}
+		if !hasUsed || !hasTotal || total <= 0 {
+			continue
+		}
+		usedBytes += used
+		totalBytes += total
+		found = true
+	}
+	if !found || totalBytes <= 0 {
+		return 0, 0, false
+	}
+	return usedBytes / (1024 * 1024 * 1024), totalBytes / (1024 * 1024 * 1024), true
+}
+
+func collectProxmoxVms(node string) []ProxmoxVmPayload {
+	raw, err := pveshJSON("/nodes/" + node + "/qemu")
+	if err != nil {
+		log.Printf("Proxmox qemu list: %v", err)
+		return nil
+	}
+	var items []map[string]interface{}
+	if err := json.Unmarshal(raw, &items); err != nil {
+		log.Printf("Proxmox qemu JSON: %v", err)
+		return nil
+	}
+
+	vms := make([]ProxmoxVmPayload, 0, len(items))
+	for _, item := range items {
+		vmid, ok := jsonInt(item, "vmid")
+		if !ok {
+			continue
+		}
+		maxmem, _ := jsonNumber(item, "maxmem")
+		maxdisk, _ := jsonNumber(item, "maxdisk")
+		cpus, _ := jsonInt(item, "cpus")
+		vm := ProxmoxVmPayload{
+			VMID:      vmid,
+			Name:      jsonString(item, "name"),
+			Status:    jsonString(item, "status"),
+			Cpus:      cpus,
+			MaxmemMb:  maxmem / (1024 * 1024),
+			MaxdiskGb: maxdisk / (1024 * 1024 * 1024),
+		}
+		if vm.Status == "running" {
+			statusRaw, err := pveshJSON(fmt.Sprintf("/nodes/%s/qemu/%d/status/current", node, vmid))
+			if err != nil {
+				log.Printf("Proxmox qemu %d status: %v", vmid, err)
+			} else {
+				var st map[string]interface{}
+				if err := json.Unmarshal(statusRaw, &st); err != nil {
+					log.Printf("Proxmox qemu %d status JSON: %v", vmid, err)
+				} else {
+					if cpu, ok := jsonNumber(st, "cpu"); ok {
+						pct := cpu * 100
+						vm.CPUPercent = &pct
+					}
+					if mem, ok := jsonNumber(st, "mem"); ok {
+						mb := mem / (1024 * 1024)
+						vm.MemUsedMb = &mb
+					}
+					if maxmemLive, ok := jsonNumber(st, "maxmem"); ok && maxmemLive > 0 {
+						vm.MaxmemMb = maxmemLive / (1024 * 1024)
+					}
+					if cpusLive, ok := jsonInt(st, "cpus"); ok && cpusLive > 0 {
+						vm.Cpus = cpusLive
+					}
+				}
+			}
+		}
+		vms = append(vms, vm)
+	}
+	return vms
+}
+
+func collectProxmoxBackups(node string) []ProxmoxBackupPayload {
+	raw, err := pveshJSON("/nodes/"+node+"/tasks", "--typefilter", "vzdump")
+	var items []map[string]interface{}
+	if err != nil {
+		raw, err = pveshJSON("/nodes/" + node + "/tasks")
+		if err != nil {
+			log.Printf("Proxmox tasks: %v", err)
+			return nil
+		}
+		if err := json.Unmarshal(raw, &items); err != nil {
+			log.Printf("Proxmox tasks JSON: %v", err)
+			return nil
+		}
+		filtered := items[:0]
+		for _, item := range items {
+			if jsonString(item, "type") == "vzdump" {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
+	} else if err := json.Unmarshal(raw, &items); err != nil {
+		log.Printf("Proxmox vzdump tasks JSON: %v", err)
+		return nil
+	}
+
+	if len(items) > 50 {
+		items = items[:50]
+	}
+
+	backups := make([]ProxmoxBackupPayload, 0, len(items))
+	for _, item := range items {
+		upid := jsonString(item, "upid")
+		if upid == "" {
+			continue
+		}
+		startUnix, hasStart := jsonNumber(item, "starttime")
+		if !hasStart {
+			continue
+		}
+		endUnix, hasEnd := jsonNumber(item, "endtime")
+		exitstatus := jsonString(item, "exitstatus")
+		if exitstatus == "" {
+			exitstatus = jsonString(item, "status")
+		}
+
+		b := ProxmoxBackupPayload{
+			UPID:      upid,
+			VMID:      parseVzdumpVMID(jsonString(item, "id"), exitstatus),
+			VMName:    jsonString(item, "vmname"),
+			Status:    mapVzdumpStatus(exitstatus, hasEnd),
+			StartedAt: time.Unix(int64(startUnix), 0).UTC().Format(time.RFC3339),
+		}
+
+		if hasEnd {
+			b.FinishedAt = time.Unix(int64(endUnix), 0).UTC().Format(time.RFC3339)
+			dur := int(endUnix - startUnix)
+			if dur < 0 {
+				dur = 0
+			}
+			b.DurationSec = &dur
+		}
+		if b.Status == "failed" && exitstatus != "" {
+			b.Error = exitstatus
+		}
+		if size, ok := jsonNumber(item, "size"); ok {
+			sb := int64(size)
+			b.SizeBytes = &sb
+		}
+		backups = append(backups, b)
+	}
+	return backups
+}
+
+func parseVzdumpVMID(id, statusText string) *int {
+	if vmid := extractVMID(id); vmid != nil {
+		return vmid
+	}
+	return extractVMID(statusText)
+}
+
+func extractVMID(s string) *int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	// vzdump:100 or qemu:100 style
+	if idx := strings.LastIndex(s, ":"); idx >= 0 && idx+1 < len(s) {
+		tail := s[idx+1:]
+		if n, err := strconv.Atoi(tail); err == nil {
+			return &n
+		}
+	}
+	// bare number
+	if n, err := strconv.Atoi(s); err == nil {
+		return &n
+	}
+	// scan for digits after common prefixes
+	for _, prefix := range []string{"VMID ", "vmid ", "VM "} {
+		if i := strings.Index(strings.ToLower(s), strings.ToLower(prefix)); i >= 0 {
+			rest := strings.TrimSpace(s[i+len(prefix):])
+			num := ""
+			for _, r := range rest {
+				if r >= '0' && r <= '9' {
+					num += string(r)
+				} else {
+					break
+				}
+			}
+			if n, err := strconv.Atoi(num); err == nil {
+				return &n
+			}
+		}
+	}
+	return nil
+}
+
+func mapVzdumpStatus(exitstatus string, hasEndtime bool) string {
+	if !hasEndtime {
+		return "running"
+	}
+	es := strings.TrimSpace(exitstatus)
+	if es == "" || strings.EqualFold(es, "OK") {
+		return "ok"
+	}
+	if strings.Contains(strings.ToLower(es), "warn") {
+		return "warning"
+	}
+	return "failed"
 }
 
 func pushMetrics(client *http.Client, cfg Config, metrics *MetricsPayload) error {
