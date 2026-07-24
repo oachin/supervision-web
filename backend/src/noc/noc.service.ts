@@ -190,6 +190,7 @@ export class NocService {
         id: server.id,
         name: server.name,
         hostname: server.hostname,
+        tags: server.tags ?? [],
         type: isHyper ? ('hyperviseur' as const) : ('web' as const),
         status,
         sites: isHyper ? null : sites,

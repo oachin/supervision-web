@@ -205,3 +205,17 @@ footer .ticker b{color:var(--ok)}
   color:var(--muted);font-size:11px;text-decoration:none;margin-left:8px;
 }
 .noc-cc a.exit-noc:hover{color:var(--text)}
+.noc-cc .host-head{align-items:flex-start}
+.noc-cc .host-title{min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
+.noc-cc .host-tags{display:flex;flex-wrap:wrap;gap:5px}
+.noc-cc .host-tags.compact{gap:4px;margin-top:-2px}
+.noc-cc .host-tag{
+  font-family:var(--mono);font-size:10.5px;font-weight:500;
+  padding:2px 8px;border-radius:5px;
+  background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.28);
+  color:#7dd3fc;letter-spacing:.2px;
+}
+.noc-cc .ok-card .host-tag{
+  font-size:9.5px;padding:1px 6px;
+  background:rgba(255,255,255,.04);border-color:var(--border-soft);color:var(--muted);
+}

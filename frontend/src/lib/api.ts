@@ -518,6 +518,7 @@ export interface NocHost {
   id: string;
   name: string;
   hostname: string;
+  tags: string[];
   type: 'web' | 'hyperviseur';
   status: 'ok' | 'degraded' | 'critical';
   sites: NocHostSites | null;

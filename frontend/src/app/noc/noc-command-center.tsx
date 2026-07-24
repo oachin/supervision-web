@@ -228,7 +228,18 @@ function CriticalHostCard({ host, now }: { host: NocHost; now: number }) {
   return (
     <div className={`host-card ${host.status === 'degraded' ? 'degraded' : ''}`}>
       <div className="host-head">
-        <div className="name">{host.name}</div>
+        <div className="host-title">
+          <div className="name">{host.name}</div>
+          {host.tags?.length > 0 && (
+            <div className="host-tags">
+              {host.tags.map((tag) => (
+                <span key={tag} className="host-tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <div className={`badge ${host.status === 'critical' ? 'crit' : 'warn'}`}>
           {host.status === 'critical' ? 'Critique' : 'Dégradé'}
         </div>
@@ -307,6 +318,15 @@ function OkHostCard({ host }: { host: NocHost }) {
         <i />
         {short}
       </div>
+      {host.tags?.length > 0 && (
+        <div className="host-tags compact">
+          {host.tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="host-tag">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="stat">
         {count}
         <span>{unit}</span>
