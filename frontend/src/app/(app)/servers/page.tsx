@@ -12,6 +12,7 @@ import { formatDate, cn } from '@/lib/utils';
 const profileLabels: Record<string, string> = {
   LINUX: 'Linux',
   PLESK: 'Plesk',
+  PROXMOX: 'Proxmox',
 };
 
 const filterLabels: Record<string, string> = {
@@ -33,7 +34,7 @@ function ServersPageContent() {
   const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    profile: 'LINUX' as 'LINUX' | 'PLESK',
+    profile: 'LINUX' as 'LINUX' | 'PLESK' | 'PROXMOX',
     notes: '',
   });
 
@@ -157,6 +158,11 @@ function ServersPageContent() {
                   Le profil Plesk importe automatiquement tous les domaines hébergés comme sites web supervisés.
                 </p>
               )}
+              {installInfo.profile === 'PROXMOX' && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  L&apos;agent doit s&apos;exécuter en root sur le nœud Proxmox avec <code className="text-foreground">pvesh</code> disponible.
+                </p>
+              )}
               <div className="mt-3 flex gap-2">
                 <button onClick={copyCommand} className="btn-secondary text-sm">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -175,7 +181,7 @@ function ServersPageContent() {
           <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="mb-2 block text-sm font-medium">Profil agent</label>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <label className={`card cursor-pointer border-2 p-4 transition-colors ${form.profile === 'LINUX' ? 'border-primary bg-primary/5' : 'border-white/10 hover:border-white/20'}`}>
                   <input
                     type="radio"
@@ -199,6 +205,11 @@ function ServersPageContent() {
                   />
                   <p className="font-medium">Serveur Plesk</p>
                   <p className="mt-1 text-xs text-muted-foreground">Métriques + import auto des sites hébergés</p>
+                </label>
+                <label className={`card cursor-pointer border-2 p-4 transition-colors ${form.profile === 'PROXMOX' ? 'border-primary bg-primary/5' : 'border-white/10 hover:border-white/20'}`}>
+                  <input type="radio" name="profile" className="sr-only" value="PROXMOX" checked={form.profile === 'PROXMOX'} onChange={() => setForm({ ...form, profile: 'PROXMOX' })} />
+                  <div className="font-semibold">Proxmox</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Hyperviseur — VMs QEMU, backups vzdump</p>
                 </label>
               </div>
             </div>

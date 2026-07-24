@@ -147,6 +147,22 @@ class ApiClient {
   deleteServer(id: string) { return this.fetch(`/servers/${id}`, { method: 'DELETE' }); }
   regenerateServerKey(id: string) { return this.fetch<{ agentKeyPlain: string; installUrl: string; installCommand: string }>(`/servers/${id}/regenerate-key`, { method: 'POST' }); }
 
+  getProxmoxVms(serverId: string) {
+    return this.fetch<ProxmoxVm[]>(`/servers/${serverId}/proxmox/vms`);
+  }
+  getProxmoxVmMetrics(serverId: string, vmid: number, from?: string, to?: string) {
+    const q = new URLSearchParams();
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    const qs = q.toString();
+    return this.fetch<ProxmoxVmMetric[]>(
+      `/servers/${serverId}/proxmox/vms/${vmid}/metrics${qs ? `?${qs}` : ''}`,
+    );
+  }
+  getProxmoxBackups(serverId: string, limit = 50) {
+    return this.fetch<ProxmoxBackup[]>(`/servers/${serverId}/proxmox/backups?limit=${limit}`);
+  }
+
   // Websites
   getWebsites() { return this.fetch<WebsiteWithHistory[]>('/websites'); }
   getWebsite(id: string) { return this.fetch<WebsiteDetail>(`/websites/${id}`); }
@@ -252,7 +268,7 @@ export interface Server {
   ipAddress?: string;
   osType: string;
   osVersion?: string;
-  profile: 'LINUX' | 'PLESK';
+  profile: 'LINUX' | 'PLESK' | 'PROXMOX';
   hasPlesk: boolean;
   status: 'ONLINE' | 'OFFLINE' | 'DEGRADED' | 'UNKNOWN';
   lastSeenAt?: string;
@@ -439,10 +455,43 @@ export interface ManagedUser {
   lastLoginAt?: string;
 }
 
+export interface ProxmoxVm {
+  id: string;
+  serverId: string;
+  vmid: number;
+  name: string;
+  status: string;
+  cpus: number;
+  maxmemMb: number;
+  maxdiskGb: number;
+  lastSeenAt: string;
+}
+
+export interface ProxmoxVmMetric {
+  id: string;
+  cpuPercent: number;
+  memUsedMb: number;
+  memTotalMb: number;
+  collectedAt: string;
+}
+
+export interface ProxmoxBackup {
+  id: string;
+  upid: string;
+  vmid: number | null;
+  vmName: string | null;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationSec: number | null;
+  error: string | null;
+  sizeBytes: string | null;
+}
+
 export interface CreateServerData {
   name?: string;
   hostname?: string;
-  profile?: 'LINUX' | 'PLESK';
+  profile?: 'LINUX' | 'PLESK' | 'PROXMOX';
   ipAddress?: string;
   hasPlesk?: boolean;
   pleskUrl?: string;
