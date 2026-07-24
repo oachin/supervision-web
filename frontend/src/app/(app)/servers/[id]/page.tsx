@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Trash2, Pencil, Check, Copy, Terminal, Bell } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { api, type ServerDetail, type ServerMetric, type Alert } from '@/lib/api';
+import { api, type ServerDetail, type ServerMetric, type Alert, type ProxmoxVm, type ProxmoxBackup } from '@/lib/api';
 import { StatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { TagEditor } from '@/components/tag-editor';
 import { HostedWebsitesPanel } from '@/components/hosted-websites-panel';
 import { ServerAlertsBySitePanel } from '@/components/server-alerts-panel';
+import { ProxmoxVmsPanel } from '@/components/proxmox-vms-panel';
+import { ProxmoxBackupsPanel } from '@/components/proxmox-backups-panel';
 import { flattenOpenAlerts, openAlertsForServer } from '@/lib/server-alerts';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
@@ -79,6 +81,8 @@ export default function ServerDetailPage() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
+  const [proxmoxVms, setProxmoxVms] = useState<ProxmoxVm[]>([]);
+  const [proxmoxBackups, setProxmoxBackups] = useState<ProxmoxBackup[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -96,6 +100,17 @@ export default function ServerDetailPage() {
       .catch(console.error)
       .finally(() => setMetricsLoading(false));
   }, [id, metricHours]);
+
+  useEffect(() => {
+    if (server?.profile !== 'PROXMOX') return;
+    Promise.all([
+      api.getProxmoxVms(server.id),
+      api.getProxmoxBackups(server.id),
+    ]).then(([vms, backups]) => {
+      setProxmoxVms(vms);
+      setProxmoxBackups(backups);
+    }).catch(console.error);
+  }, [server?.id, server?.profile]);
 
   const serverOpenAlerts = useMemo(() => {
     if (!server) return [];
@@ -235,7 +250,7 @@ export default function ServerDetailPage() {
             {server.hostname === 'en-attente' ? 'Hostname détecté à la connexion' : server.hostname}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Profil : {server.profile === 'PLESK' ? 'Plesk' : 'Linux'}
+            Profil : {server.profile === 'PLESK' ? 'Plesk' : server.profile === 'PROXMOX' ? 'Proxmox' : 'Linux'}
           </p>
           <div className="mt-4 max-w-lg">
             <TagEditor
@@ -449,6 +464,13 @@ export default function ServerDetailPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {server.profile === 'PROXMOX' && (
+        <>
+          <ProxmoxVmsPanel serverId={server.id} vms={proxmoxVms} />
+          <ProxmoxBackupsPanel backups={proxmoxBackups} />
+        </>
       )}
 
       {server.websites.length > 0 && (
