@@ -173,6 +173,7 @@ class ApiClient {
 
   // Dashboard
   getDashboard() { return this.fetch<DashboardData>('/dashboard'); }
+  getNocState() { return this.fetch<NocState>('/noc/state'); }
   getSystemHealth() { return this.fetch<SystemHealth>('/system/health'); }
 
   // Servers
@@ -496,6 +497,68 @@ export interface ManagedUser {
   isActive: boolean;
   totpEnabled: boolean;
   lastLoginAt?: string;
+}
+
+export interface NocHostSites {
+  total: number;
+  ok: number;
+  maintenance: number;
+  degraded: number;
+  down: number;
+  off: number;
+}
+
+export interface NocHostVms {
+  total: number;
+  ok: number;
+  stopped: number;
+}
+
+export interface NocHost {
+  id: string;
+  name: string;
+  hostname: string;
+  type: 'web' | 'hyperviseur';
+  status: 'ok' | 'degraded' | 'critical';
+  sites: NocHostSites | null;
+  vms: NocHostVms | null;
+  downSites: string[];
+  metrics: {
+    cpu: number | null;
+    ram: number | null;
+    latency_ms: number | null;
+    uptimeSeconds: number | null;
+    series: { cpu: number[]; ram: number[] };
+  };
+  incidentSince: string | null;
+}
+
+export interface NocAlertFeedItem {
+  time: string;
+  severity: 'crit' | 'warn' | 'info' | 'ok';
+  host: string;
+  message: string;
+}
+
+export interface NocState {
+  generatedAt: string;
+  global: {
+    status: 'incident' | 'ok';
+    alerts: number;
+    criticalHosts: number;
+    criticalAlerts: number;
+    warningAlerts: number;
+  };
+  kpis: {
+    servers: { ok: number; total: number };
+    sites: { ok: number; total: number; down: number; degraded: number };
+    alerts: { active: number; critical: number; warning: number };
+    vms: { ok: number; total: number };
+    availability30d: number | null;
+  };
+  hosts: NocHost[];
+  alerts: NocAlertFeedItem[];
+  history24h: { hour: number; crit: number; warn: number }[];
 }
 
 export interface ProxmoxVm {

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Havet Supervision — NOC Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#060a12;
+  --panel:#0c1320;
+  --panel2:#101a2b;
+  --border:#1b2942;
+  --border-soft:#152238;
+  --text:#e6edf7;
+  --muted:#6b7d99;
+  --ok:#10b981;
+  --ok-dim:rgba(16,185,129,.12);
+  --warn:#f59e0b;
+  --warn-dim:rgba(245,158,11,.12);
+  --crit:#f43f5e;
+  --crit-dim:rgba(244,63,94,.10);
+  --info:#38bdf8;
+  --maint:#2dd4bf;
+  --off:#3e4c63;
+  --mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:radial-gradient(1200px 600px at 70% -10%, #0b1424 0%, var(--bg) 55%);
+  color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  padding:18px 22px 12px;
+  gap:14px;
+}
+
+/* ---------- HEADER ---------- */
+header{display:flex;align-items:center;gap:20px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .logo{
+  width:38px;height:38px;border-radius:10px;
+  background:linear-gradient(135deg,#1d4ed8,#38bdf8);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;
+  box-shadow:0 0 18px rgba(56,189,248,.35);
+}
+.brand h1{font-size:19px;font-weight:700;letter-spacing:.2px}
+.brand span{display:block;font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.6px;text-transform:uppercase}
+.global-status{
+  margin-left:auto;display:flex;align-items:center;gap:14px;
+  background:var(--crit-dim);border:1px solid rgba(244,63,94,.45);
+  padding:8px 18px;border-radius:12px;
+}
+.global-status .dot{width:12px;height:12px;border-radius:50%;background:var(--crit);animation:pulse 1.6s infinite}
+.global-status b{color:var(--crit);font-size:16px;font-weight:800;letter-spacing:.5px}
+.global-status small{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.clockbox{margin-left:auto;text-align:right}
+.clockbox .time{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:1px}
+.clockbox .date{font-size:11.5px;color:var(--muted);text-transform:capitalize}
+.refresh{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.refresh svg{animation:spin 8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.6)}50%{box-shadow:0 0 0 8px rgba(244,63,94,0)}}
+
+/* ---------- KPI STRIP ---------- */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;flex-shrink:0}
+.kpi{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--border-soft);border-radius:14px;
+  padding:14px 18px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden;
+}
+.kpi .label{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.kpi .value{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.15}
+.kpi .sub{font-size:12px;color:var(--muted)}
+.kpi .value .unit{font-size:16px;color:var(--muted);font-weight:500}
+.kpi.crit{border-color:rgba(244,63,94,.5)}
+.kpi.crit .value{color:var(--crit)}
+.kpi.warn .value{color:var(--warn)}
+.kpi.ok .value{color:var(--ok)}
+.kpi .bar{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:4px 0 0 4px}
+.kpi.crit .bar{background:var(--crit)}
+.kpi.warn .bar{background:var(--warn)}
+.kpi.ok .bar{background:var(--ok)}
+.kpi.info .bar{background:var(--info)}
+.kpi .spark{position:absolute;right:10px;bottom:10px;opacity:.85}
+
+/* ---------- MAIN GRID ---------- */
+main{flex:1;display:grid;grid-template-columns:1fr 1fr 420px;gap:14px;min-height:0}
+.col-hosts{grid-column:1/3;display:flex;flex-direction:column;gap:14px;min-height:0}
+section h2{
+  font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:10px;margin-bottom:10px;
+}
+section h2::after{content:'';flex:1;height:1px;background:var(--border-soft)}
+section h2 .count{font-family:var(--mono);background:var(--panel2);border:1px solid var(--border-soft);border-radius:6px;padding:1px 8px;font-size:11px;color:var(--text)}
+
+/* critical host cards */
+.crit-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.host-card{
+  background:linear-gradient(180deg,#141020 0%,var(--panel) 60%);
+  border:1px solid rgba(244,63,94,.45);border-radius:16px;padding:16px 18px;
+  display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;
+}
+.host-card::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--crit),transparent 70%)}
+.host-head{display:flex;align-items:center;gap:10px}
+.host-head .name{font-size:17px;font-weight:700;font-family:var(--mono)}
+.badge{font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px}
+.badge.crit{background:var(--crit-dim);color:var(--crit);border:1px solid rgba(244,63,94,.5);animation:blink 2.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.55}}
+.host-head .since{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--crit)}
+.host-head .since::before{content:'⏱ ';color:var(--muted)}
+
+.seg-wrap{display:flex;flex-direction:column;gap:7px}
+.seg-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px}
+.seg-bar div{transition:width .6s}
+.seg-legend{display:flex;gap:16px;flex-wrap:wrap}
+.seg-legend span{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;font-family:var(--mono)}
+.seg-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.seg-legend b{color:var(--text)}
+
+.down-sites{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:6px;
+  background:var(--crit-dim);border:1px solid rgba(244,63,94,.4);color:#fda4af;
+}
+.chip.warn{background:var(--warn-dim);border-color:rgba(245,158,11,.4);color:#fcd34d}
+.chip.off{background:rgba(62,76,99,.2);border-color:var(--off);color:#8ea0bd}
+
+.host-metrics{display:flex;gap:14px;margin-top:auto}
+.metric{flex:1;background:rgba(255,255,255,.025);border:1px solid var(--border-soft);border-radius:10px;padding:8px 10px}
+.metric .m-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.metric .m-label b{font-family:var(--mono);font-size:12px;color:var(--text)}
+.metric canvas{width:100%;height:34px;display:block;margin-top:4px}
+
+/* operational compact cards */
+.ok-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.ok-card{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--border-soft);border-radius:13px;padding:12px 14px;
+  display:flex;flex-direction:column;gap:8px;position:relative;
+}
+.ok-card::before{content:'';position:absolute;inset:0 0 auto 0;height:2px;border-radius:13px 13px 0 0;background:linear-gradient(90deg,var(--ok),transparent 80%)}
+.ok-card .name{font-family:var(--mono);font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+.ok-card .name i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);flex-shrink:0}
+.ok-card .stat{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--ok)}
+.ok-card .stat span{font-size:11px;color:var(--muted);font-weight:500;margin-left:5px}
+.ok-card .up{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.ok-card canvas{width:100%;height:22px}
+
+/* ---------- RIGHT RAIL ---------- */
+.rail{display:flex;flex-direction:column;gap:14px;min-height:0}
+.panel{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--border-soft);border-radius:16px;padding:14px 16px;
+  display:flex;flex-direction:column;min-height:0;
+}
+.feed{flex:1}
+.feed-list{flex:1;overflow:hidden;display:flex;flex-direction:column;gap:8px;min-height:0}
+.alert{
+  display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border-radius:10px;
+  background:rgba(255,255,255,.02);border:1px solid var(--border-soft);
+  border-left-width:3px;animation:slideIn .45s ease;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.alert.crit{border-left-color:var(--crit)}
+.alert.warn{border-left-color:var(--warn)}
+.alert.info{border-left-color:var(--info)}
+.alert.ok{border-left-color:var(--ok)}
+.alert .t{font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0;padding-top:2px}
+.alert .body{min-width:0}
+.alert .body .h{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alert .body .d{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alert .sev{margin-left:auto;flex-shrink:0;font-size:9.5px;font-weight:800;letter-spacing:.8px;padding:2px 7px;border-radius:5px}
+.alert.crit .sev{color:var(--crit);background:var(--crit-dim)}
+.alert.warn .sev{color:var(--warn);background:var(--warn-dim)}
+.alert.info .sev{color:var(--info);background:rgba(56,189,248,.12)}
+.alert.ok .sev{color:var(--ok);background:var(--ok-dim)}
+
+.histo{height:190px;flex-shrink:0}
+.histo canvas{width:100%;height:120px;margin-top:6px}
+.histo .legend{display:flex;gap:16px;margin-top:6px}
+.histo .legend span{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.histo .legend i{width:9px;height:9px;border-radius:3px}
+
+/* ---------- FOOTER ---------- */
+footer{flex-shrink:0;display:flex;align-items:center;gap:22px;font-size:11.5px;color:var(--muted);padding-top:2px}
+footer .lg{display:flex;align-items:center;gap:6px}
+footer .lg i{width:10px;height:10px;border-radius:3px}
+footer .ticker{margin-left:auto;font-family:var(--mono);color:var(--muted)}
+footer .ticker b{color:var(--ok)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">H</div>
+    <div>
+      <h1>Havet Supervision</h1>
+      <span>NOC · Vue murale</span>
+    </div>
+  </div>
+
+  <div class="global-status">
+    <div class="dot"></div>
+    <b>INCIDENT EN COURS</b>
+    <small>2 serveurs critiques · 34 alertes actives</small>
+  </div>
+
+  <div class="clockbox">
+    <div class="time" id="clock">17:38:00</div>
+    <div class="date" id="date">ven. 24 juillet 2026</div>
+  </div>
+  <div class="refresh">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+    <span id="refresh-in">auto · 30s</span>
+  </div>
+</header>
+
+<div class="kpis">
+  <div class="kpi crit"><div class="bar"></div>
+    <div class="label">Serveurs</div>
+    <div class="value">5<span class="unit">/7 OK</span></div>
+    <div class="sub">host01a · host04a en incident</div>
+  </div>
+  <div class="kpi warn"><div class="bar"></div>
+    <div class="label">Sites en ligne</div>
+    <div class="value">135<span class="unit">/154</span></div>
+    <div class="sub">87,7 % · 10 down · 6 dégradés</div>
+  </div>
+  <div class="kpi crit"><div class="bar"></div>
+    <div class="label">Alertes actives</div>
+    <div class="value" id="kpi-alerts">34</div>
+    <div class="sub">12 critiques · 22 avertissements</div>
+  </div>
+  <div class="kpi ok"><div class="bar"></div>
+    <div class="label">Machines virtuelles</div>
+    <div class="value">36<span class="unit">/36</span></div>
+    <div class="sub">hyper01 : 12 · hyper02 : 24</div>
+  </div>
+  <div class="kpi info"><div class="bar"></div>
+    <div class="label">Disponibilité 30 j</div>
+    <div class="value">98,6<span class="unit">%</span></div>
+    <div class="sub">SLA cible 99,5 % · MTTR 22 min</div>
+  </div>
+</div>
+
+<main>
+  <div class="col-hosts">
+
+    <section>
+      <h2>Incidents en cours <span class="count">2 hosts</span></h2>
+      <div class="crit-grid">
+
+        <div class="host-card">
+          <div class="host-head">
+            <div class="name">host01a.havetdigital.app</div>
+            <div class="badge crit">Critique</div>
+            <div class="since" id="since1">00:42</div>
+          </div>
+          <div class="seg-wrap">
+            <div class="seg-bar">
+              <div style="width:85.4%;background:var(--ok)"></div>
+              <div style="width:1.6%;background:var(--maint)"></div>
+              <div style="width:4.9%;background:var(--warn)"></div>
+              <div style="width:8.1%;background:var(--crit)"></div>
+            </div>
+            <div class="seg-legend">
+              <span><i style="background:var(--ok)"></i><b>105</b> OK</span>
+              <span><i style="background:var(--maint)"></i><b>2</b> maint.</span>
+              <span><i style="background:var(--warn)"></i><b>6</b> dégradés</span>
+              <span><i style="background:var(--crit)"></i><b>10</b> down</span>
+              <span style="margin-left:auto"><b>123</b> sites</span>
+            </div>
+          </div>
+          <div class="down-sites">
+            <span class="chip">wp-lorient-01</span><span class="chip">wp-vannes-03</span>
+            <span class="chip">shop-atlantic</span><span class="chip">wp-quimper-02</span>
+            <span class="chip">preprod-bzh</span><span class="chip">wp-rennes-07</span>
+            <span class="chip">+4 down</span>
+            <span class="chip warn">6 dégradés (5xx &gt; 2%)</span>
+          </div>
+          <div class="host-metrics">
+            <div class="metric"><div class="m-label">CPU <b id="v-cpu1">91%</b></div><canvas id="s-cpu1"></canvas></div>
+            <div class="metric"><div class="m-label">RAM <b id="v-ram1">78%</b></div><canvas id="s-ram1"></canvas></div>
+            <div class="metric"><div class="m-label">Latence <b id="v-lat1">840ms</b></div><canvas id="s-lat1"></canvas></div>
+          </div>
+        </div>
+
+        <div class="host-card">
+          <div class="host-head">
+            <div class="name">host04a.havetdigital.app</div>
+            <div class="badge crit">Critique</div>
+            <div class="since" id="since2">01:15</div>
+          </div>
+          <div class="seg-wrap">
+            <div class="seg-bar">
+              <div style="width:65%;background:var(--ok)"></div>
+              <div style="width:5%;background:var(--maint)"></div>
+              <div style="width:30%;background:var(--off)"></div>
+            </div>
+            <div class="seg-legend">
+              <span><i style="background:var(--ok)"></i><b>13</b> OK</span>
+              <span><i style="background:var(--maint)"></i><b>1</b> maint.</span>
+              <span><i style="background:var(--off)"></i><b>6</b> supervision off</span>
+              <span style="margin-left:auto"><b>20</b> sites</span>
+            </div>
+          </div>
+          <div class="down-sites">
+            <span class="chip off">agent zabbix injoignable ×6</span>
+            <span class="chip warn">certif TLS expire &lt; 7 j ×2</span>
+          </div>
+          <div class="host-metrics">
+            <div class="metric"><div class="m-label">CPU <b id="v-cpu2">64%</b></div><canvas id="s-cpu2"></canvas></div>
+            <div class="metric"><div class="m-label">RAM <b id="v-ram2">83%</b></div><canvas id="s-ram2"></canvas></div>
+            <div class="metric"><div class="m-label">Latence <b id="v-lat2">210ms</b></div><canvas id="s-lat2"></canvas></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section style="margin-top:auto">
+      <h2>Opérationnel <span class="count">5 hosts</span></h2>
+      <div class="ok-grid">
+        <div class="ok-card"><div class="name"><i></i>host02a</div><div class="stat">9/9<span>sites</span></div><canvas class="mini"></canvas><div class="up">up 42 j · 120 ms</div></div>
+        <div class="ok-card"><div class="name"><i></i>host03a</div><div class="stat">2/2<span>sites</span></div><canvas class="mini"></canvas><div class="up">up 87 j · 95 ms</div></div>
+        <div class="ok-card"><div class="name"><i></i>host04</div><div class="stat">6/6<span>sites</span></div><canvas class="mini"></canvas><div class="up">up 15 j · 140 ms</div></div>
+        <div class="ok-card"><div class="name"><i></i>hyper01</div><div class="stat">12/12<span>VMs</span></div><canvas class="mini"></canvas><div class="up">CPU 34 % · RAM 61 %</div></div>
+        <div class="ok-card"><div class="name"><i></i>hyper02</div><div class="stat">24/24<span>VMs</span></div><canvas class="mini"></canvas><div class="up">CPU 48 % · RAM 72 %</div></div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="rail">
+    <div class="panel feed">
+      <h2>Flux d'alertes <span class="count" id="feed-count">34 actives</span></h2>
+      <div class="feed-list" id="feed"></div>
+    </div>
+    <div class="panel histo">
+      <h2>Alertes · 24 h</h2>
+      <canvas id="histo"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--crit)"></i>Critiques</span>
+        <span><i style="background:var(--warn)"></i>Avertissements</span>
+        <span style="margin-left:auto;font-family:var(--mono)" id="histo-total"></span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="lg"><i style="background:var(--ok)"></i>En ligne</div>
+  <div class="lg"><i style="background:var(--maint)"></i>Maintenance</div>
+  <div class="lg"><i style="background:var(--warn)"></i>Dégradé</div>
+  <div class="lg"><i style="background:var(--crit)"></i>Hors ligne</div>
+  <div class="lg"><i style="background:var(--off)"></i>Supervision off</div>
+  <div class="ticker">Dernière synchro : <b id="last-sync">il y a 4 s</b> · sonde zabbix-proxy-01 <b>OK</b></div>
+</footer>
+
+<script>
+/* ---------- horloge ---------- */
+const clock=document.getElementById('clock'),dateEl=document.getElementById('date');
+function tick(){
+  const n=new Date();
+  clock.textContent=n.toLocaleTimeString('fr-FR');
+  dateEl.textContent=n.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+}
+tick();setInterval(tick,1000);
+
+/* durée incident */
+let inc1=42*60+7, inc2=75*60+31;
+setInterval(()=>{
+  inc1++;inc2++;
+  const f=s=>String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  document.getElementById('since1').textContent=f(inc1);
+  document.getElementById('since2').textContent=f(inc2);
+},1000);
+
+/* compteur refresh */
+let rc=30;
+setInterval(()=>{rc--;if(rc<0)rc=30;document.getElementById('refresh-in').textContent='auto · '+rc+'s';},1000);
+let sync=4;
+setInterval(()=>{sync++;if(sync>28)sync=2;document.getElementById('last-sync').textContent='il y a '+sync+' s';},1000);
+
+/* ---------- sparklines ---------- */
+function sparkline(canvas,color,base,vol,fillAlpha){
+  const dpr=window.devicePixelRatio||1;
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  let data=Array.from({length:40},()=>base+(Math.random()-.5)*vol);
+  function step(){
+    data.push(Math.max(2,Math.min(98,data[data.length-1]+(Math.random()-.5)*vol)));
+    data.shift();draw();
+  }
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    const min=Math.min(...data),max=Math.max(...data),r=(max-min)||1;
+    ctx.beginPath();
+    data.forEach((v,i)=>{
+      const x=i/(data.length-1)*w, y=h-4-((v-min)/r)*(h-8);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    });
+    ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.stroke();
+    ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
+    ctx.fillStyle=color.replace(')',','+(fillAlpha||0.12)+')').replace('rgb','rgba');
+    ctx.fill();
+  }
+  draw();setInterval(step,1800+Math.random()*800);
+  return data;
+}
+const CRIT='rgb(244,63,94)',WARN='rgb(245,158,11)',OK='rgb(16,185,129)',INFO='rgb(56,189,248)';
+sparkline(document.getElementById('s-cpu1'),CRIT,88,10);
+sparkline(document.getElementById('s-ram1'),WARN,76,6);
+sparkline(document.getElementById('s-lat1'),CRIT,80,18);
+sparkline(document.getElementById('s-cpu2'),WARN,62,10);
+sparkline(document.getElementById('s-ram2'),WARN,82,5);
+sparkline(document.getElementById('s-lat2'),OK,30,10);
+document.querySelectorAll('.mini').forEach(c=>sparkline(c,OK,40,14,.10));
+
+/* valeurs live des métriques */
+function jitter(id,base,vol,suffix){
+  setInterval(()=>{
+    document.getElementById(id).textContent=Math.round(base+(Math.random()-.5)*vol)+suffix;
+  },2500);
+}
+jitter('v-cpu1',91,6,'%');jitter('v-ram1',78,4,'%');jitter('v-lat1',840,160,'ms');
+jitter('v-cpu2',64,8,'%');jitter('v-ram2',83,3,'%');jitter('v-lat2',210,60,'ms');
+
+/* ---------- flux d'alertes ---------- */
+const seed=[
+  ['crit','host01a','wp-lorient-01 — HTTP 502, 3 checks consécutifs','17:36'],
+  ['crit','host01a','wp-vannes-03 — timeout > 30 s','17:34'],
+  ['warn','host04a','TLS shop-morbihan expire dans 6 j','17:31'],
+  ['crit','host04a','agent zabbix injoignable (6 hôtes)','17:28'],
+  ['warn','host01a','taux 5xx > 2 % sur 6 sites','17:24'],
+  ['crit','host01a','wp-rennes-07 — HTTP 503','17:21'],
+  ['info','hyper02','snapshot nocturne VM-web-12 terminé','17:15'],
+  ['warn','host01a','charge CPU > 90 % depuis 15 min','17:08'],
+  ['ok','host02a','wp-brest-04 — rétabli (down 2 min)','16:58'],
+  ['warn','host04a','espace disque /var à 86 %','16:52'],
+];
+const pool=[
+  ['crit','host01a','wp-quimper-02 — HTTP 502'],
+  ['warn','host01a','latence moyenne > 800 ms'],
+  ['info','zabbix','re-scan de la file d\'attente des checks'],
+  ['warn','host04a','swap utilisé > 40 %'],
+  ['ok','host01a','preprod-bzh — rétabli'],
+  ['crit','host04a','perte de 2 checks ICMP'],
+];
+const sevLabel={crit:'CRIT',warn:'WARN',info:'INFO',ok:'RESOLU'};
+const feed=document.getElementById('feed');
+function alertNode(sev,host,msg,time){
+  const el=document.createElement('div');
+  el.className='alert '+sev;
+  el.innerHTML='<span class="t">'+time+'</span><div class="body"><div class="h">'+host+'</div><div class="d">'+msg+'</div></div><span class="sev">'+sevLabel[sev]+'</span>';
+  return el;
+}
+seed.forEach(a=>feed.appendChild(alertNode(...a)));
+let alerts=34;
+setInterval(()=>{
+  const a=pool[Math.floor(Math.random()*pool.length)];
+  const t=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  feed.prepend(alertNode(a[0],a[1],a[2],t));
+  while(feed.children.length>10)feed.lastChild.remove();
+  if(a[0]==='ok'&&alerts>28)alerts--;else if(a[0]!=='info')alerts++;
+  document.getElementById('feed-count').textContent=alerts+' actives';
+  document.getElementById('kpi-alerts').textContent=alerts;
+},9000);
+
+/* ---------- histogramme 24h ---------- */
+(function(){
+  const c=document.getElementById('histo'),dpr=window.devicePixelRatio||1;
+  const w=c.clientWidth,h=c.clientHeight;
+  c.width=w*dpr;c.height=h*dpr;
+  const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
+  const hours=24,now=new Date().getHours();
+  const crit=[],warn=[];let total=0;
+  for(let i=0;i<hours;i++){
+    const hot=i>hours-5;
+    const cv=hot?3+Math.floor(Math.random()*6):Math.floor(Math.random()*2);
+    const wv=hot?2+Math.floor(Math.random()*5):Math.floor(Math.random()*3);
+    crit.push(cv);warn.push(wv);total+=cv+wv;
+  }
+  const max=Math.max(...crit.map((v,i)=>v+warn[i]));
+  const bw=w/hours-4;
+  for(let i=0;i<hours;i++){
+    const x=i*(w/hours)+2;
+    const ch=crit[i]/max*(h-18),wh=warn[i]/max*(h-18);
+    ctx.fillStyle='rgba(245,158,11,.85)';
+    ctx.fillRect(x,h-14-wh,bw,wh);
+    ctx.fillStyle='rgba(244,63,94,.9)';
+    ctx.fillRect(x,h-14-wh-ch,bw,ch);
+    if(i%4===0){
+      ctx.fillStyle='#6b7d99';ctx.font='9px JetBrains Mono';
+      ctx.fillText(String((now-hours+1+i+24)%24).padStart(2,'0')+'h',x,h-2);
+    }
+  }
+  document.getElementById('histo-total').textContent=total+' alertes / 24 h';
+})();
+</script>
+</body>
+</html>

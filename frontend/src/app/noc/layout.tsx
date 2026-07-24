@@ -7,7 +7,7 @@ export default function NocLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <AlertProvider>
-        <div className="min-h-screen bg-background text-foreground">{children}</div>
+        <div className="h-screen overflow-hidden bg-[#060a12] text-foreground">{children}</div>
       </AlertProvider>
     </AuthGuard>
   );
