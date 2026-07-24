@@ -54,6 +54,7 @@ enum AlertStatus {
 enum AgentProfile {
   LINUX
   PLESK
+  PROXMOX
 }
 
 model User {
@@ -110,9 +111,11 @@ model Server {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  metrics       ServerMetric[]
-  websites      Website[]
-  alerts        Alert[]
+  metrics        ServerMetric[]
+  websites       Website[]
+  alerts         Alert[]
+  proxmoxVms     ProxmoxVm[]
+  proxmoxBackups ProxmoxBackup[]
 
   @@index([status])
 }
@@ -303,4 +306,55 @@ model NotificationRule {
   updatedAt          DateTime        @updatedAt
 
   @@index([enabled])
+}
+
+model ProxmoxVm {
+  id         String           @id @default(uuid())
+  serverId   String
+  server     Server           @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  vmid       Int
+  name       String
+  status     String
+  cpus       Int
+  maxmemMb   Float
+  maxdiskGb  Float
+  lastSeenAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  metrics    ProxmoxVmMetric[]
+
+  @@unique([serverId, vmid])
+  @@index([serverId])
+}
+
+model ProxmoxVmMetric {
+  id          String    @id @default(uuid())
+  vmId        String
+  vm          ProxmoxVm @relation(fields: [vmId], references: [id], onDelete: Cascade)
+  cpuPercent  Float
+  memUsedMb   Float
+  memTotalMb  Float
+  collectedAt DateTime  @default(now())
+
+  @@index([vmId, collectedAt])
+}
+
+model ProxmoxBackup {
+  id          String    @id @default(uuid())
+  serverId    String
+  server      Server    @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  upid        String
+  vmid        Int?
+  vmName      String?
+  status      String
+  startedAt   DateTime
+  finishedAt  DateTime?
+  durationSec Int?
+  error       String?
+  sizeBytes   BigInt?
+  collectedAt DateTime  @default(now())
+
+  @@unique([serverId, upid])
+  @@index([serverId, startedAt])
+  @@index([serverId, status])
 }
