@@ -22,7 +22,9 @@ function isFalseOfflineAlert(alert: Alert, websites: ServerWebsiteAlertContext[]
   if (!alert.websiteId || !alert.title.toLowerCase().includes('hors ligne')) return false;
   const site = websites.find((w) => w.id === alert.websiteId);
   if (!site?.monitoringEnabled) return false;
-  return isMaintenanceStatus(site.status, site.lastStatusCode);
+  // Maintenance 503 or site already back up — not an open outage
+  if (isMaintenanceStatus(site.status, site.lastStatusCode)) return true;
+  return site.status !== 'DOWN';
 }
 
 export function openAlertsForServer(

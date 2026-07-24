@@ -9,6 +9,75 @@ function isDegraded(status: string, statusCode?: number | null) {
   return status === 'DEGRADED' && !isMaintenance(status, statusCode);
 }
 
+type NocWebsite = {
+  id: string;
+  name: string;
+  status: string;
+  lastStatusCode: number | null;
+  monitoringEnabled: boolean;
+  lastResponseMs: number | null;
+  serverId: string | null;
+};
+
+type NocAlert = {
+  id: string;
+  title: string;
+  message: string;
+  severity: string;
+  status: string;
+  createdAt: Date;
+  closedAt: Date | null;
+  serverId: string | null;
+  websiteId: string | null;
+  server: { id: string; name: string } | null;
+  website: { id: string; name: string; serverId: string | null } | null;
+};
+
+/**
+ * Same rules as frontend openAlertsForServer:
+ * ACTIVE only, monitored sites only, ignore stale/false offline alerts.
+ */
+function isOpenAlertForServer(
+  alert: NocAlert,
+  serverId: string,
+  serverSites: NocWebsite[],
+): boolean {
+  const monitoredIds = new Set(
+    serverSites.filter((s) => s.monitoringEnabled).map((s) => s.id),
+  );
+  const site = alert.websiteId
+    ? serverSites.find((s) => s.id === alert.websiteId)
+    : undefined;
+
+  if (alert.websiteId) {
+    if (!monitoredIds.has(alert.websiteId)) return false;
+
+    const title = alert.title.toLowerCase();
+    if (title.includes('hors ligne')) {
+      if (site && isMaintenance(site.status, site.lastStatusCode)) return false;
+      // Site already recovered — alert should be PENDING_CLOSE; don't drive NOC
+      if (site && site.status !== 'DOWN') return false;
+    }
+    return true;
+  }
+
+  return alert.serverId === serverId;
+}
+
+function isOpenAlertGlobally(alert: NocAlert, websitesById: Map<string, NocWebsite>) {
+  if (alert.websiteId) {
+    const site = websitesById.get(alert.websiteId);
+    if (!site?.monitoringEnabled) return false;
+    const title = alert.title.toLowerCase();
+    if (title.includes('hors ligne')) {
+      if (isMaintenance(site.status, site.lastStatusCode)) return false;
+      if (site.status !== 'DOWN') return false;
+    }
+    return true;
+  }
+  return true;
+}
+
 @Injectable()
 export class NocService {
   constructor(private prisma: PrismaService) {}
@@ -52,7 +121,7 @@ export class NocService {
           orderBy: { createdAt: 'desc' },
           include: {
             server: { select: { id: true, name: true } },
-            website: { select: { name: true, serverId: true } },
+            website: { select: { id: true, name: true, serverId: true } },
           },
         }),
         this.prisma.alert.findMany({
@@ -64,7 +133,7 @@ export class NocService {
           take: 5,
           include: {
             server: { select: { id: true, name: true } },
-            website: { select: { name: true } },
+            website: { select: { id: true, name: true, serverId: true } },
           },
         }),
         this.prisma.alert.findMany({
@@ -91,13 +160,19 @@ export class NocService {
       vmsByServer.set(vm.serverId, list);
     }
 
-    const alertsByServer = new Map<string, typeof activeAlerts>();
-    for (const a of activeAlerts) {
-      const sid = a.serverId ?? a.website?.serverId ?? null;
-      if (!sid) continue;
-      const list = alertsByServer.get(sid) ?? [];
-      list.push(a);
-      alertsByServer.set(sid, list);
+    const websitesById = new Map(websites.map((w) => [w.id, w]));
+
+    const openActiveAlerts = activeAlerts.filter((a) =>
+      isOpenAlertGlobally(a as NocAlert, websitesById),
+    );
+
+    const alertsByServer = new Map<string, NocAlert[]>();
+    for (const server of servers) {
+      const serverSites = sitesByServer.get(server.id) ?? [];
+      const list = activeAlerts.filter((a) =>
+        isOpenAlertForServer(a as NocAlert, server.id, serverSites),
+      ) as NocAlert[];
+      alertsByServer.set(server.id, list);
     }
 
     const hosts = servers.map((server) => {
@@ -226,14 +301,14 @@ export class NocService {
     ).length;
     const vmsRunning = vms.filter((v) => v.status.toLowerCase() === 'running')
       .length;
-    const critAlerts = activeAlerts.filter((a) => a.severity === 'CRITICAL')
+    const critAlerts = openActiveAlerts.filter((a) => a.severity === 'CRITICAL')
       .length;
-    const warnAlerts = activeAlerts.filter((a) => a.severity === 'WARNING')
+    const warnAlerts = openActiveAlerts.filter((a) => a.severity === 'WARNING')
       .length;
     const criticalHosts = hosts.filter((h) => h.status === 'critical');
 
     const feedAlerts = [
-      ...activeAlerts.slice(0, 10).map((a) => ({
+      ...openActiveAlerts.slice(0, 10).map((a) => ({
         time: a.createdAt.toISOString(),
         severity:
           a.severity === 'CRITICAL'
@@ -285,7 +360,7 @@ export class NocService {
       generatedAt: now.toISOString(),
       global: {
         status: globalStatus,
-        alerts: activeAlerts.length,
+        alerts: openActiveAlerts.length,
         criticalHosts: criticalHosts.length,
         criticalAlerts: critAlerts,
         warningAlerts: warnAlerts,
@@ -299,7 +374,7 @@ export class NocService {
           degraded: sitesDegraded,
         },
         alerts: {
-          active: activeAlerts.length,
+          active: openActiveAlerts.length,
           critical: critAlerts,
           warning: warnAlerts,
         },
