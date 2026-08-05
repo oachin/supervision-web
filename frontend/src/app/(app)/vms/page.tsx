@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Boxes, RefreshCw, Search, X } from 'lucide-react';
 import { api, type ProxmoxVmWithServer } from '@/lib/api';
 import { StatusSummaryBanner } from '@/components/status-summary-banner';
+import { isExcludedProxmoxVmName } from '@/lib/proxmox-vm';
 import { cn, formatDate } from '@/lib/utils';
 
 function vmStatusClass(status: string): string {
@@ -42,7 +43,7 @@ export default function VmsPage() {
 
   async function load() {
     const data = await api.getAllProxmoxVms();
-    setVms(data);
+    setVms(data.filter((vm) => !isExcludedProxmoxVmName(vm.name)));
   }
 
   useEffect(() => {
