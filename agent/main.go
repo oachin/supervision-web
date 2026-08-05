@@ -70,13 +70,13 @@ type MetricsPayload struct {
 	UptimeSeconds  int                    `json:"uptimeSeconds"`
 	PleskDomains   *int                   `json:"pleskDomains,omitempty"`
 	PleskServices  map[string]string      `json:"pleskServices,omitempty"`
-	PleskWebsites  []PleskWebsitePayload  `json:"pleskWebsites,omitempty"`
+	PleskWebsites  *[]PleskWebsitePayload `json:"pleskWebsites,omitempty"`
 	ProxmoxVMs     *[]ProxmoxVmPayload    `json:"proxmoxVms,omitempty"`
 	ProxmoxBackups []ProxmoxBackupPayload `json:"proxmoxBackups,omitempty"`
 }
 
 // agentBuildMarker is embedded so install scripts can verify the downloaded binary.
-const agentBuildMarker = "havet-agent-build:2026-08-05-tag18"
+const agentBuildMarker = "havet-agent-build:2026-08-06-plesk-prune"
 
 func main() {
 	cfg := loadConfig()
@@ -94,8 +94,8 @@ func main() {
 			} else {
 				log.Printf("Métriques envoyées (CPU: %.1f%%, RAM: %.1f%%, Disk: %.1f%%)",
 					metrics.CPUPercent, metrics.MemoryPercent, metrics.DiskPercent)
-				if len(metrics.PleskWebsites) > 0 {
-					log.Printf("Sites Plesk synchronisés: %d", len(metrics.PleskWebsites))
+				if metrics.PleskWebsites != nil {
+					log.Printf("Sites Plesk synchronisés: %d", len(*metrics.PleskWebsites))
 				}
 			}
 		}
@@ -208,7 +208,10 @@ func collectMetrics(cfg Config) (*MetricsPayload, error) {
 		m.PleskServices = collectPleskServices()
 		m.PleskDomains = countPleskDomains()
 		if cfg.Profile == "plesk" {
-			m.PleskWebsites = collectPleskWebsites()
+			// nil = collection failed (do not prune); non-nil (even empty) = authoritative inventory.
+			if sites := collectPleskWebsites(); sites != nil {
+				m.PleskWebsites = &sites
+			}
 		}
 	}
 
@@ -367,7 +370,7 @@ func collectPleskWebsites() []PleskWebsitePayload {
 		return nil
 	}
 
-	var sites []PleskWebsitePayload
+	sites := make([]PleskWebsitePayload, 0)
 	seen := map[string]bool{}
 
 	for _, line := range strings.Split(string(out), "\n") {

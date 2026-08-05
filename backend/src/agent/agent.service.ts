@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Server } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServersService } from '../servers/servers.service';
@@ -19,6 +19,8 @@ const PROXMOX_BACKUP_LONG_MS = 6 * 60 * 60 * 1000;
 
 @Injectable()
 export class AgentService {
+  private readonly logger = new Logger(AgentService.name);
+
   constructor(
     private prisma: PrismaService,
     private servers: ServersService,
@@ -70,7 +72,8 @@ export class AgentService {
       }),
     ]);
 
-    if (server.profile === 'PLESK' && dto.pleskWebsites?.length) {
+    // Empty array still syncs so domains removed from Plesk are pruned.
+    if (server.profile === 'PLESK' && dto.pleskWebsites) {
       await this.syncPleskWebsites(server.id, dto.pleskWebsites);
     }
 
@@ -129,16 +132,28 @@ export class AgentService {
     return { success: true, status };
   }
 
+  private normalizeWebsiteUrl(raw: string): string {
+    const url = raw.startsWith('http') ? raw : `https://${raw}`;
+    return url.replace(/\/$/, '') + '/';
+  }
+
   private async syncPleskWebsites(
     serverId: string,
     sites: { name: string; url: string }[],
   ) {
+    const seen = new Set<string>();
+
     for (const site of sites) {
-      const url = site.url.startsWith('http') ? site.url : `https://${site.url}`;
-      const normalized = url.replace(/\/$/, '') + '/';
+      const normalized = this.normalizeWebsiteUrl(site.url);
+      seen.add(normalized);
 
       const existing = await this.prisma.website.findFirst({
-        where: { serverId, url: { in: [url, normalized, url.replace(/\/$/, '')] } },
+        where: {
+          serverId,
+          url: {
+            in: [normalized, normalized.replace(/\/$/, ''), site.url.trim()],
+          },
+        },
       });
 
       if (existing) {
@@ -158,9 +173,28 @@ export class AgentService {
           serverId,
           source: 'agent',
           checkMode: 'EXTERNAL',
-          sslEnabled: url.startsWith('https'),
+          sslEnabled: normalized.startsWith('https'),
         },
       });
+    }
+
+    const agentSites = await this.prisma.website.findMany({
+      where: { serverId, source: 'agent' },
+      select: { id: true, name: true, url: true },
+    });
+
+    for (const stale of agentSites) {
+      if (seen.has(this.normalizeWebsiteUrl(stale.url))) continue;
+
+      this.logger.log(
+        `Pruning Plesk website removed from server inventory: ${stale.name} (${stale.url})`,
+      );
+      await this.alerts.onResourceDeleted({
+        websiteId: stale.id,
+        resourceName: stale.name,
+        resourceType: 'website',
+      });
+      await this.prisma.website.delete({ where: { id: stale.id } });
     }
   }
 
