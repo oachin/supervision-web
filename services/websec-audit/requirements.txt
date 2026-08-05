@@ -1,0 +1,46 @@
+# Core runtime dependencies for the Web Security Audit Tool.
+#
+# Supported Python: 3.11 – 3.13 (see pyproject.toml / .python-version).
+# Version ranges keep the lower bound at a tested-known-good release and cap the
+# next major so `pip install` stays reproducible without breaking on newer
+# Python. See docs/TECHNICAL.md for details.
+
+# HTTP client (availability + security header checks)
+requests>=2.32,<3
+urllib3>=2.2,<3
+
+# TLS/SSL certificate and protocol analysis
+sslyze>=6.0,<7
+
+# DNS lookups for SPF / DKIM / DMARC
+dnspython>=2.6,<3
+
+# Target configuration parsing
+PyYAML>=6.0,<7
+
+# Persistence layer (SQLite by default) and history/trend tracking
+SQLAlchemy>=2.0.30,<2.1
+
+# HTML report templating
+Jinja2>=3.1.4,<4
+
+# Loads SMTP / DB settings from a local .env file
+python-dotenv>=1.0,<2
+
+# PDF report rendering (needs native libs: libpango, libcairo, libgdk-pixbuf)
+weasyprint>=62,<70
+
+# Optional: port scanning (also requires the system `nmap` binary installed)
+python-nmap>=0.7,<0.8
+
+# Interactive web dashboard (FastAPI + ASGI server)
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.30,<0.33
+python-multipart>=0.0.12,<0.1
+
+# Scheduled (continuous) audits for the dashboard
+APScheduler>=3.10,<4
+
+# PostgreSQL driver — used when AUDIT_DB_URL is postgresql+psycopg://…
+# (recommended over the default SQLite for fleet-scale deployments)
+psycopg[binary]>=3.1,<4

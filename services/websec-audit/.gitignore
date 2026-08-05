@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets / config
+.env
+*.env
+
+# Database (runtime artifact)
+audit.db
+audit.db-shm
+audit.db-wal
+*.sqlite
+*.sqlite3
+
+# Scan/scoring outputs (regenerated each run)
+scan_results.json
+scored_results.json
+
+# Generated reports
+reports/output/
+
+# Test / tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node tooling (frontend asset build only; the built CSS is committed)
+node_modules/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

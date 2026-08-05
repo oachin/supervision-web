@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" class="bg-slate-100">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ t.login_title }} — {{ t.app_title }}</title>
+  <script src="{{ url_for('static', path='js/theme-init.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+</head>
+<body class="text-slate-800 min-h-screen flex items-center justify-center px-4">
+  <main class="w-full max-w-sm">
+    <div class="flex items-center gap-2 justify-center mb-6">
+      <span class="text-3xl">🛡️</span>
+      <span class="text-xl font-bold">{{ t.app_title }}</span>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+      <h1 class="text-lg font-semibold mb-1">{{ t.login_title }}</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ t.login_subtitle }}</p>
+      {% if error %}
+      <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 mb-4">
+        {{ t.login_error }}
+      </div>
+      {% endif %}
+      <form method="post" action="/login" class="space-y-3">
+        <div>
+          <label for="username" class="block text-sm font-medium mb-1">{{ t.login_username }}</label>
+          <input id="username" name="username" type="text" autocomplete="username" autofocus
+                 class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label for="password" class="block text-sm font-medium mb-1">{{ t.login_password }}</label>
+          <input id="password" name="password" type="password" autocomplete="current-password"
+                 class="w-full rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 px-3 py-2 text-sm">
+        </div>
+        <button type="submit"
+                class="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 text-sm transition">
+          {{ t.login_submit }}
+        </button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

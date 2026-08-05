@@ -1,0 +1,51 @@
+sites:
+  # --- Strong (expect A/B): modern TLS + good security headers ---
+  - name: GitHub
+    url: https://github.com
+    domain: github.com
+  - name: Cloudflare
+    url: https://www.cloudflare.com
+    domain: cloudflare.com
+  - name: Mozilla
+    url: https://www.mozilla.org
+    domain: mozilla.org
+
+  # --- Medium (expect C/D): missing headers and/or weaker config ---
+  - name: Example (minimal headers)
+    url: https://example.com
+    domain: example.com
+  - name: HTTPBin
+    url: https://httpbin.org
+    domain: httpbin.org
+
+  # --- Weak / broken (expect E/F): deliberately misconfigured TLS ---
+  - name: Expired Certificate
+    url: https://expired.badssl.com
+    domain: badssl.com
+  - name: Self-Signed Certificate
+    url: https://self-signed.badssl.com
+    domain: badssl.com
+  - name: Wrong Host Certificate
+    url: https://wrong.host.badssl.com
+    domain: badssl.com
+  - name: Weak TLS 1.0
+    url: https://tls-v1-0.badssl.com
+    domain: badssl.com
+  - name: No HTTPS (HTTP only)
+    url: http://neverssl.com
+    domain: neverssl.com
+  - name: GestDoc
+    url: https://gestdoc.site.je
+    domain: gestdoc.site.je
+
+# --- EASM asset discovery (optional) ---------------------------------------
+# Auto-expand the attack surface: enumerate subdomains of each root domain via
+# Certificate Transparency (crt.sh) + DNS, and merge the live ones into the scan
+# (de-duplicated with the static `sites:` above). Only enable for domains you
+# are authorised to audit. Leave `enabled: false` (or omit) to scan only the
+# static list.
+# discover:
+#   enabled: true
+#   domains:
+#     - example.com
+#   resolve: true   # keep only hostnames that currently resolve (recommended)

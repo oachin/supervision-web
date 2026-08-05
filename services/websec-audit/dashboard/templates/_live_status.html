@@ -1,0 +1,47 @@
+<div class="flex flex-wrap items-center gap-3 mb-3">
+  <span class="inline-flex items-center gap-1.5 text-xs font-bold rounded-full px-2.5 py-1 bg-emerald-100 text-emerald-700">
+    <span class="relative flex h-2 w-2">
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+    </span>
+    {{ t.live_badge }}
+  </span>
+  <h2 class="font-semibold text-sm">{{ t.live_title }}</h2>
+  {% if live_total %}
+  <span class="text-xs rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200">{{ live_up }} {{ t.live_up }}</span>
+  {% if live_down %}<span class="text-xs rounded-full px-2 py-0.5 bg-red-50 text-red-700 border border-red-200">{{ live_down }} {{ t.live_down }}</span>{% endif %}
+  {% endif %}
+  {% if live_updated_secs is not none %}
+  <span class="text-xs text-slate-400 ml-auto">{{ t.live_updated }} {{ t.ago }} {{ live_updated_secs }}s</span>
+  {% endif %}
+</div>
+
+{% if not live_sites %}
+<p class="text-sm text-slate-400 py-4 text-center">{{ t.live_waiting }}</p>
+{% else %}
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+  {% for s in live_sites %}
+  <a href="/site?url={{ s.url | urlencode }}&lang={{ lang }}"
+     class="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 hover:bg-blue-50/50 transition">
+    <span class="w-2.5 h-2.5 rounded-full shrink-0 {% if s.up %}bg-emerald-500{% else %}bg-red-500{% endif %}"
+          title="{% if s.up %}{{ t.live_up }}{% else %}{{ t.live_down }}{% endif %}"></span>
+    <span class="min-w-0 flex-1">
+      <span class="block text-sm font-medium truncate">{{ s.name }}</span>
+      <span class="block text-xs text-slate-400 truncate">
+        {% if s.up %}
+          {{ s.status_code }} · {{ s.response_time_ms | round(0) | int }}ms {{ t.live_response }}
+        {% else %}
+          {{ t.live_down }}
+        {% endif %}
+      </span>
+    </span>
+    {% if s.cert_days is not none %}
+    <span class="text-xs font-semibold shrink-0
+      {% if s.cert_days < 0 %}text-red-600{% elif s.cert_days < 30 %}text-amber-600{% else %}text-slate-500{% endif %}">
+      {% if s.cert_days < 0 %}{{ t.live_cert }} {{ t.live_cert_expired }}{% else %}{{ t.live_cert }} {{ s.cert_days }}{{ t.days_short }}{% endif %}
+    </span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name if site else 'Site' }} — {{ t.app_title }}{% endblock %}
+{% block content %}
+<a href="/?lang={{ lang }}" class="text-sm text-blue-600 hover:underline">&larr; {{ t.back }}</a>
+
+{% if not site %}
+<div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 mt-4 text-amber-800">
+  {{ t.site_no_data }} <code>{{ identifier }}</code>
+</div>
+{% else %}
+{% set findings = site.findings or [] %}
+{% set crit = findings | selectattr('severity','equalto','critical') | list | length %}
+{% set high = findings | selectattr('severity','equalto','high') | list | length %}
+{% set med = findings | selectattr('severity','equalto','medium') | list | length %}
+{% set low = findings | selectattr('severity','equalto','low') | list | length %}
+{% set info = findings | selectattr('severity','equalto','info') | list | length %}
+
+<div class="flex flex-wrap items-center justify-between gap-4 mt-4 mb-6">
+  <div class="flex items-center gap-4">
+    <span class="grade-{{ site.grade }} text-white font-bold text-2xl rounded-lg px-4 py-2">{{ site.grade }}</span>
+    <div>
+      <h1 class="text-2xl font-bold">{{ site.name }}</h1>
+      <div class="text-slate-400 text-sm break-all">{{ site.url }}</div>
+    </div>
+    <div class="text-3xl font-bold ml-2">{{ site.score }}<span class="text-lg text-slate-400">/100</span></div>
+  </div>
+  <div class="flex gap-2">
+    <a href="/report/site?url={{ site.url | urlencode }}&fmt=html&lang={{ lang }}" class="report-fmt-btn-page"> {{ t.html_report }}</a>
+    <a href="/report/site?url={{ site.url | urlencode }}&fmt=pdf&lang={{ lang }}" class="report-fmt-btn-page report-fmt-btn-page-pdf"> {{ t.pdf_report }}</a>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+  <!-- Trend chart -->
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4 md:col-span-2">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.posture_over_time }}</h2>
+    {% if site.history and site.history|length > 1 %}
+    <div class="relative h-64"><canvas id="siteTrend"></canvas></div>
+    {% else %}
+    <p class="text-sm text-slate-400 py-6 text-center">{{ t.not_enough_history }}</p>
+    {% endif %}
+  </div>
+  <!-- Severity breakdown -->
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.severity_breakdown }}</h2>
+    {% if findings %}
+    <div class="relative h-64"><canvas id="siteSev"></canvas></div>
+    {% else %}
+    <p class="text-sm text-emerald-600 py-6 text-center">{{ t.no_findings_site }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+  <h2 class="font-semibold text-lg">{{ t.findings_reco }}</h2>
+  {% if findings %}
+  <div class="flex flex-wrap items-center gap-1.5 text-xs">
+    <span class="text-slate-500 mr-1">{{ t.filter_by_severity }}</span>
+    <button class="sev-filter rounded-full px-3 py-1 border border-slate-300 bg-slate-800 text-white" data-sev="">{{ t.filter_all }}</button>
+    {% for sev, n in [('critical',crit),('high',high),('medium',med),('low',low),('info',info)] %}
+    {% if n %}<button class="sev-filter rounded-full px-3 py-1 sev-{{ sev }}" data-sev="{{ sev }}">{{ t.sev.get(sev, sev) }} ({{ n }})</button>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% if findings %}
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden mb-6">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+      <tr>
+        <th class="text-left px-4 py-3 w-24">{{ t.th_severity }}</th>
+        <th class="text-left px-4 py-3 w-24">{{ t.th_category }}</th>
+        <th class="text-left px-4 py-3">{{ t.th_finding }}</th>
+        <th class="text-left px-4 py-3 w-32" title="{{ t.status_hint }}">{{ t.th_status }}</th>
+        <th class="text-right px-4 py-3 w-16">{{ t.th_points }}</th>
+      </tr>
+    </thead>
+    <tbody id="findingsBody">
+      {% for f in findings %}
+      {% set reco = f.recommendation_fr if lang == 'fr' else f.recommendation_en %}
+      <tr class="finding-row border-t border-slate-100 align-top" data-sev="{{ f.severity }}">
+        <td class="px-4 py-3"><span class="sev-{{ f.severity }} text-xs font-bold rounded px-2 py-1 uppercase">{{ t.sev.get(f.severity, f.severity) }}</span></td>
+        <td class="px-4 py-3 text-slate-600">{{ f.category }}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium">
+            {% if [f.code, f.message] in new_keys %}<span class="text-[10px] font-bold rounded px-1.5 py-0.5 bg-red-600 text-white align-middle mr-1">{{ t.badge_new }}</span>{% endif %}
+            {{ f.message }}
+            {% if f.exposed is defined and not f.exposed and f.severity != 'info' %}<span class="text-[10px] font-semibold rounded px-1.5 py-0.5 bg-slate-200 text-slate-600 align-middle ml-1" title="{{ 'Présente mais non confirmée exposée/exploitable — priorité de correction réduite, pas d’alerte tant qu’elle n’est pas exposée.' if lang == 'fr' else 'Present but not confirmed exposed/exploitable — lower fix priority, no alert until it becomes exposed.' }}">{{ 'NON EXPOSÉE' if lang == 'fr' else 'NOT EXPOSED' }}</span>{% endif %}
+          </div>
+          {% if reco %}<div class="text-slate-600 mt-1"><span class="font-semibold">{{ t.fix }}</span> {{ reco }}</div>{% endif %}
+          {% if f.reference_links %}<div class="mt-2 flex flex-wrap gap-1">{% for r in f.reference_links %}{% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener noreferrer" class="text-[11px] bg-slate-100 hover:bg-blue-100 text-blue-700 hover:text-blue-900 underline decoration-dotted rounded px-2 py-0.5">{{ r.label }}</a>{% else %}<span class="text-[11px] bg-slate-100 text-slate-600 rounded px-2 py-0.5">{{ r.label }}</span>{% endif %}{% endfor %}</div>{% elif f.references %}<div class="mt-2 flex flex-wrap gap-1">{% for r in f.references %}<span class="text-[11px] bg-slate-100 text-slate-600 rounded px-2 py-0.5">{{ r }}</span>{% endfor %}</div>{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if f.severity != 'info' %}{% with url = site.url %}{% include "_finding_status.html" %}{% endwith %}{% else %}<span class="text-slate-300 text-xs">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-right text-slate-500 whitespace-nowrap">{% if f.penalty %}-{{ f.penalty }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 mb-6 text-emerald-800">{{ t.no_findings_site }}</div>
+{% endif %}
+
+{% if site.compliance %}
+{% set cstatus = {
+  'compliant': 'bg-emerald-100 text-emerald-800 border border-emerald-300',
+  'non_compliant': 'bg-red-100 text-red-800 border border-red-300',
+  'partial': 'bg-amber-100 text-amber-800 border border-amber-300',
+  'not_assessed': 'bg-slate-100 text-slate-600 border border-slate-300'} %}
+<h2 class="font-semibold text-lg mb-1">{{ t.compliance_title }}</h2>
+<p class="text-sm text-slate-500 mb-3">{{ t.compliance_intro }}</p>
+<div class="flex flex-wrap gap-3 mb-3">
+  {% for code, fw in site.compliance.frameworks.items() %}
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 px-4 py-3">
+    <div class="text-sm font-semibold">{{ fw.country }}</div>
+    <div class="mt-1 flex items-center gap-2">
+      <span class="text-xs font-bold rounded px-2 py-0.5 {{ cstatus.get(fw.status, cstatus['not_assessed']) }}">{{ t.compliance_status.get(fw.status, fw.status) }}</span>
+      {% if fw.score is not none %}<span class="text-lg font-bold">{{ fw.score }}%</span>{% endif %}
+    </div>
+    <div class="text-[11px] text-slate-400 mt-1">{{ fw.references | join(' · ') }}</div>
+  </div>
+  {% endfor %}
+</div>
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden mb-3">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+      <tr>
+        <th class="text-left px-4 py-3">{{ t.th_control }}</th>
+        <th class="text-left px-4 py-3 w-24">{{ t.th_category }}</th>
+        <th class="text-left px-4 py-3 w-40">{{ t.th_frameworks }}</th>
+        <th class="text-left px-4 py-3 w-32">{{ t.th_status }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in site.compliance.controls %}
+      <tr class="border-t border-slate-100 align-top">
+        <td class="px-4 py-3">{{ c.title_fr if lang == 'fr' else c.title_en }}</td>
+        <td class="px-4 py-3 text-slate-600">{{ c.category }}</td>
+        <td class="px-4 py-3 text-[11px] text-slate-500">{% for country, ref in c.countries.items() %}<div>{{ country }}: {{ ref }}</div>{% endfor %}</td>
+        <td class="px-4 py-3"><span class="text-xs font-bold rounded px-2 py-0.5 {{ cstatus.get(c.status, cstatus['not_assessed']) }}">{{ t.compliance_status.get(c.status, c.status) }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-slate-400 italic mb-6">{{ site.compliance.disclaimer }}</p>
+{% endif %}
+
+{% if resolved %}
+<div class="rounded-xl bg-emerald-50 border border-emerald-200 p-4 mb-6">
+  <h2 class="font-semibold text-sm text-emerald-800 mb-2">✓ {{ t.resolved_title }}</h2>
+  <ul class="space-y-1">
+    {% for f in resolved %}
+    <li class="flex items-start gap-2 text-sm text-emerald-800">
+      <span class="line-through opacity-70">{{ f.message }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if site.fixed %}
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden mb-6">
+  <div class="px-4 py-3 border-b border-slate-100">
+    <h2 class="font-semibold text-sm text-emerald-800">✓ {{ t.fixed_ledger_title }} ({{ site.fixed | length }})</h2>
+    <p class="text-xs text-slate-400 mt-0.5">{{ t.fixed_ledger_hint }}</p>
+  </div>
+  <table class="w-full text-sm">
+    <tbody>
+      {% for f in site.fixed %}
+      <tr class="border-t border-slate-100">
+        <td class="px-4 py-3 text-slate-700"><span class="line-through opacity-70">{{ f.message }}</span></td>
+        <td class="px-4 py-3 whitespace-nowrap">
+          <span class="text-[11px] font-bold rounded px-2 py-0.5 {{ 'bg-emerald-100 text-emerald-800' if f.verified_by == 'auto' else 'bg-slate-100 text-slate-700' }}">{{ t.verified_auto if f.verified_by == 'auto' else t.verified_manual }}</span>
+        </td>
+        <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{{ (f.resolved_at or '')[:19].replace('T',' ') }}</td>
+        <td class="px-4 py-3 text-xs text-slate-500">{{ f.detail }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if site.history %}
+<h2 class="font-semibold text-lg mb-3">{{ t.run_history }}</h2>
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600 text-xs uppercase">
+      <tr><th class="text-left px-4 py-3">{{ t.th_date }}</th><th class="text-left px-4 py-3">{{ t.th_run }}</th><th class="text-left px-4 py-3">{{ t.th_grade }}</th><th class="text-left px-4 py-3">{{ t.th_score }}</th></tr>
+    </thead>
+    <tbody>
+      {% for h in site.history | reverse %}
+      <tr class="border-t border-slate-100">
+        <td class="px-4 py-3">{{ (h.started_at or '')[:19].replace('T',' ') }}</td>
+        <td class="px-4 py-3">{{ h.run_id }}</td>
+        <td class="px-4 py-3"><span class="grade-{{ h.grade }} text-white font-bold rounded px-2 py-0.5 text-xs">{{ h.grade }}</span></td>
+        <td class="px-4 py-3">{{ h.score }}/100</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script nonce="{{ csp_nonce }}">
+  {% if site.history and site.history|length > 1 %}
+  const hist = {{ site.history | tojson }};
+  window.addChart(function () {
+    return new Chart(document.getElementById('siteTrend'), {
+      type: 'line',
+      data: {
+        labels: hist.map(h => (h.started_at || '').slice(0,10)),
+        datasets: [{ label: 'Score', data: hist.map(h => h.score),
+          borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)',
+          fill: true, tension: .25, pointRadius: 3 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } }
+    });
+  });
+  {% endif %}
+
+  {% if findings %}
+  window.addChart(function () {
+    return new Chart(document.getElementById('siteSev'), {
+      type: 'doughnut',
+      data: {
+        labels: {{ [t.sev.critical, t.sev.high, t.sev.medium, t.sev.low, t.sev.info] | tojson }},
+        datasets: [{ data: [{{ crit }}, {{ high }}, {{ med }}, {{ low }}, {{ info }}],
+          backgroundColor: ['#ab091e','#e12d39','#f0b429','#7ba7e1','#cbd2d9'] }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 6 } } }, cutout: '55%' }
+    });
+  });
+
+  // Severity filter buttons
+  (function () {
+    const rows = Array.from(document.querySelectorAll('.finding-row'));
+    const btns = Array.from(document.querySelectorAll('.sev-filter'));
+    btns.forEach(btn => btn.addEventListener('click', () => {
+      const sev = btn.dataset.sev;
+      btns.forEach(b => b.classList.remove('ring-2','ring-offset-1','ring-slate-500'));
+      btn.classList.add('ring-2','ring-offset-1','ring-slate-500');
+      rows.forEach(r => r.style.display = (!sev || r.dataset.sev === sev) ? '' : 'none');
+    }));
+  })();
+  {% endif %}
+
+  window.renderCharts();
+</script>
+{% endif %}
+{% endblock %}

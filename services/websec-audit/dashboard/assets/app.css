@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Grade + severity badge palette (custom, theme-independent). */
+.grade-A{background:#199473} .grade-B{background:#57ae5b}
+.grade-C{background:#f0b429;color:#3e2c00} .grade-D{background:#f7794b}
+.grade-E{background:#e12d39} .grade-F{background:#ab091e}
+.sev-critical{background:#ab091e;color:#fff} .sev-high{background:#e12d39;color:#fff}
+.sev-medium{background:#f0b429;color:#3e2c00} .sev-low{background:#b6cff3;color:#24365c}
+.sev-info{background:#e4e7eb;color:#52606d}
+.dot-critical{background:#ab091e} .dot-high{background:#e12d39}
+.dot-medium{background:#f0b429} .dot-low{background:#7ba7e1} .dot-info{background:#cbd2d9}
+
+/* --- Dark mode -------------------------------------------------------
+   Overrides the neutral (slate/white) surface + text utilities used
+   across the templates. Coloured badges (grade-*, sev-*) are untouched.
+   Keyed on <html class="dark">, toggled by the header button. */
+html.dark { color-scheme: dark; }
+html.dark.bg-slate-100, html.dark body { background-color:#0b1220; }
+html.dark .bg-white { background-color:#1e293b; }
+html.dark .bg-slate-50 { background-color:#172033; }
+html.dark .bg-slate-100 { background-color:#0f172a; }
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 { border-color:#334155; }
+html.dark .divide-slate-100 > * + * { border-color:#334155; }
+html.dark .text-slate-900 { color:#f1f5f9; }
+html.dark .text-slate-800,
+html.dark .text-slate-700 { color:#e2e8f0; }
+html.dark .text-slate-600 { color:#cbd5e1; }
+html.dark .text-slate-500,
+html.dark .text-slate-400 { color:#94a3b8; }
+html.dark body { color:#e2e8f0; }
+/* Light hover tints would flash white in dark mode. */
+html.dark .hover\:bg-blue-50:hover,
+html.dark .hover\:bg-blue-50\/50:hover { background-color:#1d2b45 !important; }
+/* Form controls default to white; keep them on the dark surface. */
+html.dark input, html.dark select { background-color:#0f172a; color:#e2e8f0; }
+html.dark input::placeholder { color:#64748b; }
+/* Amber "no data" banner stays readable on dark. */
+html.dark .bg-amber-50 { background-color:#3b2f0c; }
+html.dark .border-amber-200 { border-color:#6b5412; }
+html.dark .text-amber-800 { color:#fcd34d; }
+
+/* --- UI polish -------------------------------------------------------
+   Global refinements layered on top of the existing Tailwind markup:
+   crisper fonts, a subtle page gradient, softer layered card shadows,
+   a gentle hover-lift on KPI cards and cleaner badges. */
+body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+       background-image:radial-gradient(1100px 460px at 100% -8%, rgba(37,99,235,.06), transparent 62%);
+       background-attachment:fixed; }
+html.dark body { background-image:radial-gradient(1100px 460px at 100% -8%, rgba(56,189,248,.09), transparent 62%); }
+/* Softer, layered card shadows than the flat default. */
+.shadow-sm { box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 6px rgba(15,23,42,.06) !important; }
+html.dark .shadow-sm { box-shadow:0 1px 2px rgba(0,0,0,.3), 0 2px 8px rgba(0,0,0,.35) !important; }
+/* KPI cards: subtle hover lift for a more "product" feel. */
+.kpi-card { transition:transform .16s ease, box-shadow .16s ease; }
+.kpi-card:hover { transform:translateY(-2px);
+  box-shadow:0 10px 26px -10px rgba(15,23,42,.28) !important; }
+/* Grade & severity badges: crisper edges + slight tracking. */
+[class^="grade-"], [class^="sev-"] { box-shadow:0 1px 2px rgba(0,0,0,.14); letter-spacing:.02em; }
+/* Tabular figures keep KPI numbers aligned. */
+.tnum { font-variant-numeric:tabular-nums; }
+/* Thinner, quieter scrollbars. */
+*{scrollbar-width:thin;} *::-webkit-scrollbar{height:8px;width:8px;}
+*::-webkit-scrollbar-thumb{background:rgba(100,116,139,.4);border-radius:8px;}
+
+/* =====================================================================
+   EASM console shell — left rail + top bar + design tokens.
+   A dark control-plane rail with a light workspace: the layout security
+   teams expect (Censys/RunZero/Detectify-style), not a generic centred page.
+   ===================================================================== */
+:root{
+  --rail-bg:#0b1424; --rail-bg2:#0e1a2f; --rail-fg:#c7d2e0; --rail-muted:#7c8aa3;
+  --accent:#22d3ee; --accent-strong:#0891b2;
+  --line:#e2e8f0; --workspace:#f1f5f9;
+}
+html.dark{ --line:#334155; --workspace:#0b1220; }
+
+/* Technical values (domains, IPs, ASNs, run ids) read as data, not prose. */
+.mono,td .mono,.asset-name{ font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-variant-ligatures:none; }
+
+/* ---- Left rail ---- */
+.app-rail{ width:240px; background:linear-gradient(180deg,var(--rail-bg),var(--rail-bg2));
+  color:var(--rail-fg); border-right:1px solid rgba(148,163,184,.12);
+  position:sticky; top:0; height:100vh;
+  background-image:linear-gradient(180deg,var(--rail-bg),var(--rail-bg2)),
+    linear-gradient(rgba(148,163,184,.05) 1px,transparent 1px);
+  background-size:100% 100%,100% 26px; }
+.app-rail .brand{ border-bottom:1px solid rgba(148,163,184,.12); color:#fff; }
+.brand-mark{ display:inline-flex; align-items:center; justify-content:center;
+  width:34px; height:34px; border-radius:9px; color:#06121f;
+  background:linear-gradient(135deg,var(--accent),#38bdf8);
+  box-shadow:0 4px 12px -3px rgba(34,211,238,.5); }
+.brand-mark-sm{ width:28px; height:28px; border-radius:7px; }
+.brand-name{ font-size:14px; font-weight:700; letter-spacing:.01em; color:#fff; }
+.brand-tag{ font-size:9.5px; font-weight:600; letter-spacing:.16em; color:var(--accent);
+  margin-top:1px; }
+.nav-link{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:9px;
+  font-size:13.5px; font-weight:500; color:var(--rail-fg); text-decoration:none;
+  transition:background .15s,color .15s; }
+.nav-link svg{ color:var(--rail-muted); transition:color .15s; }
+.nav-link:hover{ background:rgba(148,163,184,.09); color:#fff; }
+.nav-link:hover svg{ color:var(--rail-fg); }
+.nav-link.active{ background:rgba(34,211,238,.12); color:#fff;
+  box-shadow:inset 2px 0 0 var(--accent); }
+.nav-link.active svg{ color:var(--accent); }
+.rail-foot{ border-top:1px solid rgba(148,163,184,.12); color:var(--rail-muted); }
+.live-dot{ width:7px; height:7px; border-radius:50%; background:#34d399;
+  box-shadow:0 0 0 0 rgba(52,211,153,.6); animation:live-pulse 2s infinite; }
+@keyframes live-pulse{ 0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}
+  70%{box-shadow:0 0 0 6px rgba(52,211,153,0)} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0)} }
+
+/* ---- Top bar ---- */
+.topbar{ background:rgba(255,255,255,.85); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line); }
+html.dark .topbar{ background:rgba(15,23,42,.8); }
+.topbar-btn{ border-radius:9px; padding:0 10px; color:#475569;
+  background:transparent; border:1px solid transparent; transition:background .15s,color .15s; }
+.topbar-btn:hover{ background:#eef2f7; color:#0f172a; }
+html.dark .topbar-btn{ color:#94a3b8; } html.dark .topbar-btn:hover{ background:#1e293b; color:#fff; }
+.seg{ background:#eef2f7; border-radius:9px; padding:2px; }
+html.dark .seg{ background:#1e293b; }
+.seg a{ padding:4px 9px; border-radius:7px; color:#64748b; text-decoration:none; transition:.15s; }
+.seg a.on{ background:#fff; color:#0f172a; box-shadow:0 1px 2px rgba(15,23,42,.12); }
+html.dark .seg a.on{ background:#0b1220; color:#fff; }
+
+/* Workspace background under the light theme. */
+body{ background-color:var(--workspace); }
+
+/* ---- KPI cards: accent hairline + tighter type ---- */
+.kpi-card{ position:relative; overflow:hidden; }
+.kpi-card::before{ content:""; position:absolute; inset:0 0 auto 0; height:3px;
+  background:linear-gradient(90deg,var(--accent),#3b82f6); opacity:.85; }
+
+/* ---- Data tables: uppercase micro-headers, calmer rows ---- */
+table thead th{ font-size:10.5px !important; letter-spacing:.07em; text-transform:uppercase; }
+tbody tr{ transition:background .12s; }
+
+/* Severity/status pills as outlined chips (crisper than solid blocks). */
+.chip{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+  padding:2px 9px; border-radius:999px; letter-spacing:.02em; }
+
+
+/* Report format buttons — light-surface variant of the rail's .report-fmt-btn,
+   used on pages rendered on the white/light workspace (e.g. site detail). */
+.report-fmt-btn-page{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:600; letter-spacing:.04em;
+  padding:7px 14px; border-radius:8px; text-decoration:none;
+  color:#475569; border:1px solid #cbd5e1; background:#fff;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.report-fmt-btn-page:hover{ background:#eef2f7; color:#0f172a; border-color:#94a3b8; }
+.report-fmt-btn-page-pdf{ color:#dc2626; border-color:#fca5a5; }
+.report-fmt-btn-page-pdf:hover{ background:#fef2f2; color:#b91c1c; border-color:#f87171; }
+
+html.dark .report-fmt-btn-page{ color:#94a3b8; border-color:#334155; background:#1e293b; }
+html.dark .report-fmt-btn-page:hover{ background:#243044; color:#fff; }
+html.dark .report-fmt-btn-page-pdf{ color:#fca5a5; border-color:rgba(248,113,113,.4); background:#1e293b; }
+html.dark .report-fmt-btn-page-pdf:hover{ background:rgba(248,113,113,.12); color:#fff; }

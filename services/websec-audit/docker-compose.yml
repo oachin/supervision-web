@@ -1,0 +1,99 @@
+services:
+  # Interactive dashboard — http://localhost:8000
+  dashboard:
+    build:
+      context: .
+      args:
+        # Bundle OWASP ZAP (web-app passive scanning) into the image. Adds a JRE
+        # (~300 MB); leave "false" unless you want the `zap` scanner.
+        WITH_ZAP: "${WITH_ZAP:-false}"
+    image: web-security-audit-tool
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/app/config:ro          # edit targets.yaml on the host
+      - ./reports/output:/app/reports/output
+      - audit_data:/data                 # persistent SQLite DB
+    # Every setting comes from the .env file next to this compose file (Compose
+    # loads it automatically). Copy .env.example to .env and edit it — see
+    # docs/INTEGRATION.md.
+    environment:
+      AUDIT_DB_URL: "${AUDIT_DB_URL:-sqlite:////data/audit.db}"
+      AUDIT_WORKERS: "${AUDIT_WORKERS:-auto}"
+      AUDIT_SCHEDULE_MINUTES: "${AUDIT_SCHEDULE_MINUTES:-0}"
+      AUDIT_SCHEDULE_AT: "${AUDIT_SCHEDULE_AT:-}"
+      AUDIT_DEEP: "${AUDIT_DEEP:-}"
+      AUDIT_AUTHORIZED: "${AUDIT_AUTHORIZED:-}"
+      AUDIT_MIN_CONFIDENCE: "${AUDIT_MIN_CONFIDENCE:-}"
+      AUDIT_VERIFY_BACKPORTS: "${AUDIT_VERIFY_BACKPORTS:-}"
+      AUDIT_TZ: "${AUDIT_TZ:-}"
+      AUDIT_ENGINE_WORKERS: "${AUDIT_ENGINE_WORKERS:-}"
+      AUDIT_CONFIG: "${AUDIT_CONFIG:-config/targets.yaml}"
+      AUDIT_LIVE_INTERVAL: "${AUDIT_LIVE_INTERVAL:-}"
+      AUDIT_LIVE_REFRESH: "${AUDIT_LIVE_REFRESH:-}"
+      AUDIT_PRUNE_KEEP_RUNS: "${AUDIT_PRUNE_KEEP_RUNS:-}"
+      AUDIT_PRUNE_DAYS: "${AUDIT_PRUNE_DAYS:-}"
+      NVD_API_KEY: "${NVD_API_KEY:-}"
+      # Dashboard login gate (leave empty only on a trusted localhost).
+      DASHBOARD_USERNAME: "${DASHBOARD_USERNAME:-admin}"
+      DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:-}"
+      DASHBOARD_SECRET_KEY: "${DASHBOARD_SECRET_KEY:-}"
+      DASHBOARD_INSECURE_COOKIE: "${DASHBOARD_INSECURE_COOKIE:-}"
+      # Email alerts (optional).
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_USE_TLS: "${SMTP_USE_TLS:-}"
+      ALERT_FROM: "${ALERT_FROM:-}"
+      ALERT_TO: "${ALERT_TO:-}"
+      ALERT_SCORE_THRESHOLD: "${ALERT_SCORE_THRESHOLD:-}"
+    restart: unless-stopped
+
+  # One-off CLI audit:  docker compose run --rm audit
+  # (writes to the same DB/reports as the dashboard)
+  audit:
+    build:
+      context: .
+      args:
+        WITH_ZAP: "${WITH_ZAP:-false}"
+    image: web-security-audit-tool
+    profiles: ["cli"]
+    volumes:
+      - ./config:/app/config:ro
+      - ./reports/output:/app/reports/output
+      - audit_data:/data
+    environment:
+      AUDIT_DB_URL: "${AUDIT_DB_URL:-sqlite:////data/audit.db}"
+      AUDIT_DEEP: "${AUDIT_DEEP:-}"
+      AUDIT_AUTHORIZED: "${AUDIT_AUTHORIZED:-}"
+      AUDIT_MIN_CONFIDENCE: "${AUDIT_MIN_CONFIDENCE:-}"
+      AUDIT_VERIFY_BACKPORTS: "${AUDIT_VERIFY_BACKPORTS:-}"
+      AUDIT_PRUNE_KEEP_RUNS: "${AUDIT_PRUNE_KEEP_RUNS:-}"
+      AUDIT_PRUNE_DAYS: "${AUDIT_PRUNE_DAYS:-}"
+      NVD_API_KEY: "${NVD_API_KEY:-}"
+    command: ["python", "main.py", "--per-site-reports"]
+
+  # PostgreSQL — recommended over the default SQLite for fleet-scale (200+ sites)
+  # or continuous scanning. Start it with:  docker compose --profile postgres up -d
+  # and point the app at it in .env:
+  #   AUDIT_DB_URL=postgresql+psycopg://audit:CHANGE_ME@db:5432/websec_audit
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-audit}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-change-me}"
+      POSTGRES_DB: "${POSTGRES_DB:-websec_audit}"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-audit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  audit_data:
+  pg_data:

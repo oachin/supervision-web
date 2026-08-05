@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web-security-audit-tool"
+version = "2.0.0"
+description = "Automated web security auditing & monitoring tool (scanners, scoring, reports, dashboard) — embeddable as a module or run standalone."
+requires-python = ">=3.11,<3.14"
+readme = "README.md"
+dependencies = [
+    "requests>=2.32,<3",
+    "urllib3>=2.2,<3",
+    "sslyze>=6.0,<7",
+    "dnspython>=2.6,<3",
+    "PyYAML>=6.0,<7",
+    "SQLAlchemy>=2.0.30,<2.1",
+    "Jinja2>=3.1.4,<4",
+    "python-dotenv>=1.0,<2",
+    "weasyprint>=62,<70",
+    "python-nmap>=0.7,<0.8",
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.30,<0.33",
+    "python-multipart>=0.0.12,<0.1",
+    "APScheduler>=3.10,<4",
+]
+
+[project.optional-dependencies]
+# PostgreSQL driver — recommended over the default SQLite for fleet-scale
+# deployments:  pip install ".[postgres]"
+postgres = [
+    "psycopg[binary]>=3.1,<4",
+]
+dev = [
+    "pytest>=8.0,<10",
+    "ruff>=0.7,<0.13",
+    "httpx>=0.27,<0.29",
+]
+
+[project.scripts]
+web-security-audit = "main:main"
+
+[tool.setuptools]
+# The scanning module and its subpackages. `config` is data (targets.yaml), not
+# a package, so it is shipped as package data rather than importable code.
+py-modules = ["main"]
+
+[tool.setuptools.package-data]
+# Ship the dashboard's Jinja templates and self-hosted frontend assets (built
+# Tailwind CSS + vendored htmx/Chart.js) and the report templates, so the
+# dashboard and report generation work from an installed wheel with no CDN.
+dashboard = ["templates/*.html", "static/css/*.css", "static/vendor/*.js"]
+reports = ["templates/*.j2"]
+
+[tool.setuptools.packages.find]
+include = [
+    "websec_audit*",
+    "core*",
+    "db*",
+    "scanners*",
+    "scoring*",
+    "reports*",
+    "alerts*",
+    "dashboard*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

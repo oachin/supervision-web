@@ -1,0 +1,13 @@
+{
+  "name": "web-security-audit-tool-frontend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Frontend asset build (Tailwind CSS) for the dashboard. The built CSS is committed under dashboard/static/css; run these scripts only when the templates or dashboard/assets/app.css change.",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i dashboard/assets/app.css -o dashboard/static/css/app.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i dashboard/assets/app.css -o dashboard/static/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

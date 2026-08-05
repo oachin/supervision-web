@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% block title %}{{ t.nav_dashboard }} — {{ t.app_title }}{% endblock %}
+{% block content %}
+
+{% if not states %}
+<div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-6 text-amber-800">
+  <span class="font-semibold">{{ t.no_data_title }}.</span> {{ t.no_data_body }}
+</div>
+{% endif %}
+
+<div class="mb-4">
+  <h1 id="fleetTitle" class="text-2xl font-bold transition-all duration-300">{{ t.fleet_overview }}</h1>
+  <div class="mt-1.5">
+    {% include "_scan_status.html" %}
+  </div>
+</div>
+
+<div class="mb-4">
+  {% if schedule_saved %}
+  <div id="scheduleSavedFlash"
+       class="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 mb-2 text-emerald-800 text-sm transition-opacity duration-500">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 6 9 17l-5-5"/></svg>
+    {{ t.schedule_saved }}
+  </div>
+  <script nonce="{{ csp_nonce }}">
+    (function () {
+      var url = new URL(window.location.href);
+      url.searchParams.delete('schedule');
+      window.history.replaceState({}, '', url);
+      var el = document.getElementById('scheduleSavedFlash');
+      setTimeout(function () {
+        el.style.opacity = '0';
+        setTimeout(function () { el.remove(); }, 500);
+      }, 3000);
+    })();
+  </script>
+  {% endif %}
+
+  <details class="schedule-details" id="scheduleDetails">
+    <summary>
+      <span id="scheduleToggle" class="schedule-trigger {% if (scheduled and scheduled > 0) or scheduled_at %}is-active{% endif %}">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="dot"></span>
+        <span>
+          {% if (scheduled and scheduled > 0) or scheduled_at %}{{ t.schedule_edit }}{% else %}{{ t.schedule_none }}{% endif %}
+        </span>
+      </span>
+    </summary>
+
+    <div class="schedule-panel">
+      <form method="post" action="/schedule" id="scheduleForm">
+        <input type="hidden" name="times" id="timesField" value="{{ scheduled_at | join(',') }}">
+
+        <div class="schedule-panel-head">
+          <h3>{{ t.schedule_times_label }}</h3>
+          <p>{{ t.schedule_times_hint }}</p>
+        </div>
+
+        <div class="day-rail">
+          <div class="day-rail-track" id="dayRailTrack"></div>
+          <div class="day-rail-labels"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        </div>
+
+        <div id="timeChips" class="schedule-row" style="flex-wrap:wrap;gap:6px;padding-top:10px;padding-bottom:2px"></div>
+
+        <div class="schedule-row" style="margin-top:10px">
+          <input type="time" step="1" id="timeInput" class="schedule-input-time">
+          <button type="button" id="addTimeBtn" class="schedule-add-btn" aria-label="{{ t.schedule_add_time }}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+
+        <div class="schedule-row" style="margin-top:16px; padding-bottom:4px">
+          <span style="font-size:11.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">{{ t.schedule_interval_label }}</span>
+        </div>
+        <div class="schedule-row" style="flex-wrap:wrap; gap:6px; padding-bottom:14px">
+          {% for label, mins in [('15m',15),('30m',30),('1h',60),('6h',360),('12h',720),('24h',1440),('Off',0)] %}
+          <button type="button" class="preset-chip" data-mins="{{ mins }}">{{ label }}</button>
+          {% endfor %}
+          <input type="number" name="interval_minutes" id="intervalInput" min="0" value="{{ scheduled }}"
+                 class="schedule-input-time" style="width:70px" placeholder="min">
+        </div>
+
+        <div class="schedule-panel-foot">
+          <button type="submit" class="schedule-save-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            {{ t.schedule_save }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </details>
+</div>
+
+<!-- KPI cards -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_sites }}</div>
+    <div class="text-3xl font-bold mt-1 tnum">{{ stats.total }}</div>
+  </div>
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_avg }}</div>
+    <div class="text-3xl font-bold mt-1 tnum">{{ stats.avg_score if stats.avg_score is not none else '—' }}<span class="text-base text-slate-400">/100</span></div>
+  </div>
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_critical }}</div>
+    <div class="text-3xl font-bold mt-1 tnum {% if stats.critical_sites %}text-red-600{% else %}text-emerald-600{% endif %}">{{ stats.critical_sites }}</div>
+  </div>
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_atrisk }}</div>
+    <div class="text-3xl font-bold mt-1 tnum {% if stats.at_risk %}text-amber-600{% endif %}">{{ stats.at_risk }}</div>
+  </div>
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_findings }}</div>
+    <div class="text-3xl font-bold mt-1 tnum">{{ stats.open_findings }}</div>
+  </div>
+  <div class="kpi-card rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <div class="text-slate-500 text-xs uppercase tracking-wide">{{ t.kpi_clean }}</div>
+    <div class="text-3xl font-bold mt-1 tnum text-emerald-600">{{ stats.clean_sites }}</div>
+  </div>
+</div>
+
+<!-- Live status (auto-refreshing, near real-time availability + cert expiry) -->
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4 mb-6"
+     hx-get="/live/status?lang={{ lang }}" hx-trigger="every {{ live_refresh }}s" hx-swap="innerHTML">
+  {% include "_live_status.html" %}
+</div>
+
+{% if changes and changes.any %}
+<!-- Changes since last scan -->
+<div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4 mb-6">
+  <div class="flex flex-wrap items-center gap-3 mb-2">
+    <h2 class="font-semibold text-sm">🔔 {{ t.changes_title }}</h2>
+    {% if changes.new_critical %}<span class="text-xs font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-700">+{{ changes.new_critical }} {{ t.changes_new_critical }}</span>{% endif %}
+    {% if changes.new_high %}<span class="text-xs font-semibold rounded-full px-2 py-0.5 bg-orange-100 text-orange-700">+{{ changes.new_high }} {{ t.changes_new_high }}</span>{% endif %}
+    {% if changes.resolved %}<span class="text-xs font-semibold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-700">✓ {{ changes.resolved }} {{ t.changes_resolved }}</span>{% endif %}
+  </div>
+  <div class="flex flex-wrap gap-2">
+    {% for c in changes.sites %}
+    <a href="/site?url={{ c.url | urlencode }}&lang={{ lang }}"
+       class="inline-flex items-center gap-2 text-xs rounded-lg border border-slate-200 px-2.5 py-1 hover:bg-blue-50">
+      <span class="font-medium">{{ c.name }}</span>
+      {% if c.new %}<span class="text-red-600 font-semibold">+{{ c.new }}</span>{% endif %}
+      {% if c.resolved %}<span class="text-emerald-600 font-semibold">✓{{ c.resolved }}</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Charts -->
+<div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.chart_grades }}</h2>
+    <div class="relative h-48"><canvas id="gradeChart"></canvas></div>
+  </div>
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.chart_severity }}</h2>
+    {% if stats.open_findings or stats.severity[4] %}
+    <div class="relative h-48"><canvas id="sevChart"></canvas></div>
+    {% else %}
+    <p class="text-sm text-slate-400 py-10 text-center">{{ t.no_findings_fleet }}</p>
+    {% endif %}
+  </div>
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.chart_categories }}</h2>
+    {% if stats.category_labels %}
+    <div class="relative h-48"><canvas id="catChart"></canvas></div>
+    {% else %}
+    <p class="text-sm text-slate-400 py-10 text-center">{{ t.no_findings_fleet }}</p>
+    {% endif %}
+  </div>
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4">
+    <h2 class="font-semibold mb-2 text-sm">{{ t.chart_trend }}</h2>
+    {% if trend and trend|length > 1 %}
+    <div class="relative h-48"><canvas id="trendChart"></canvas></div>
+    {% else %}
+    <p class="text-sm text-slate-400 py-10 text-center">{{ t.need_two }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Top issues + Sites table -->
+<div class="grid xl:grid-cols-3 gap-4">
+  <!-- Top issues -->
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 p-4 xl:col-span-1">
+    <h2 class="font-semibold">{{ t.top_issues }}</h2>
+    <p class="text-xs text-slate-400 mb-3">{{ t.top_issues_hint }}</p>
+    {% if top_issues %}
+    <ul class="space-y-2">
+      {% for issue in top_issues %}
+      <li class="flex items-start gap-2 text-sm">
+        <span class="sev-{{ issue.severity }} text-[10px] font-bold rounded px-1.5 py-0.5 uppercase shrink-0 mt-0.5">{{ t.sev.get(issue.severity, issue.severity) }}</span>
+        <span class="flex-1">{{ issue.message }}</span>
+        <span class="shrink-0 font-semibold text-slate-500 bg-slate-100 rounded-full px-2 py-0.5 text-xs">{{ issue.count }} {{ t.sites_affected }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-emerald-600 py-6 text-center">{{ t.no_findings_fleet }}</p>
+    {% endif %}
+  </div>
+
+  <!-- Sites table -->
+  <div class="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden xl:col-span-2">
+    <div class="flex flex-wrap items-center gap-3 p-3 border-b border-slate-100 bg-slate-50">
+      <input id="siteSearch" type="search" placeholder="{{ t.search_placeholder }}"
+             class="flex-1 min-w-[160px] rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
+      <select id="gradeFilter" class="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white">
+        <option value="">{{ t.filter_all_grades }}</option>
+        {% for g in ['A','B','C','D','E','F'] %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+      </select>
+      <span id="siteCount" class="text-xs text-slate-400 whitespace-nowrap"></span>
+    </div>
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm" id="sitesTable">
+      <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wide select-none">
+        <tr>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="grade">{{ t.th_grade }} <span class="sort-ind"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="score">{{ t.th_score }} <span class="sort-ind"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="trend">{{ t.th_trend }} <span class="sort-ind"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="name">{{ t.th_site }} <span class="sort-ind"></span></th>
+          <th class="text-left px-4 py-3">{{ t.th_history }}</th>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="findings">{{ t.th_findings }} <span class="sort-ind"></span></th>
+          <th class="text-left px-4 py-3 cursor-pointer" data-sort="date">{{ t.th_lastscan }} <span class="sort-ind"></span></th>
+        </tr>
+      </thead>
+      <tbody id="sitesBody">
+        {% for s in states %}
+        {% set hist = s.history or [] %}
+        {% set actionable = s.findings | rejectattr('severity','equalto','info') | list | length %}
+        {% set crit = s.findings | selectattr('severity','equalto','critical') | list | length %}
+        {% set high = s.findings | selectattr('severity','equalto','high') | list | length %}
+        {% set med = s.findings | selectattr('severity','equalto','medium') | list | length %}
+        {% set low = s.findings | selectattr('severity','equalto','low') | list | length %}
+        {% set delta = (hist[-1].score - hist[-2].score) if hist|length >= 2 else '' %}
+        <tr class="site-row border-t border-slate-100 hover:bg-blue-50/50 cursor-pointer"
+            data-name="{{ (s.name ~ ' ' ~ s.url) | lower }}"
+            data-grade="{{ s.grade }}" data-score="{{ s.score if s.score is not none else -1 }}"
+            data-findings="{{ actionable }}" data-trend="{{ delta if delta != '' else 0 }}"
+            data-date="{{ (s.started_at or '')[:19] }}"
+            data-href="/site?url={{ s.url | urlencode }}&lang={{ lang }}">
+          <td class="px-4 py-3"><span class="grade-{{ s.grade }} text-white font-bold rounded px-2 py-1">{{ s.grade }}</span></td>
+          <td class="px-4 py-3 font-semibold">{{ s.score }}/100</td>
+          <td class="px-4 py-3">
+            {% if hist|length >= 2 %}
+              {% if delta > 0 %}<span class="text-emerald-600 font-bold">▲ +{{ delta }}</span>
+              {% elif delta < 0 %}<span class="text-red-600 font-bold">▼ {{ delta }}</span>
+              {% else %}<span class="text-slate-400">= 0</span>{% endif %}
+            {% elif hist|length == 1 %}<span class="text-slate-400">{{ t.label_new }}</span>
+            {% else %}<span class="text-slate-300">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium">{{ s.name }}</div>
+            <div class="text-slate-400 text-xs break-all">{{ s.url }}</div>
+          </td>
+          <td class="px-4 py-3">{{ (hist | map(attribute='score') | list) | sparkline_svg | safe }}</td>
+          <td class="px-4 py-3">
+            {% if actionable %}
+            <div class="flex items-center gap-1.5">
+              <span class="font-semibold">{{ actionable }}</span>
+              <span class="flex gap-0.5">
+                {% for _ in range(crit) %}<span class="w-2 h-2 rounded-full dot-critical inline-block"></span>{% endfor %}
+                {% for _ in range(high) %}<span class="w-2 h-2 rounded-full dot-high inline-block"></span>{% endfor %}
+                {% for _ in range(med) %}<span class="w-2 h-2 rounded-full dot-medium inline-block"></span>{% endfor %}
+                {% for _ in range(low) %}<span class="w-2 h-2 rounded-full dot-low inline-block"></span>{% endfor %}
+              </span>
+            </div>
+            {% else %}<span class="text-emerald-600 font-semibold">0</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{{ (s.started_at or '')[:19].replace('T',' ') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div id="noMatch" class="hidden px-4 py-6 text-sm text-slate-400 text-center">{{ t.no_match }}</div>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+  // Row click -> site diagnostic page. Wired here (not an inline onclick) so it
+  // works under the CSP, which forbids inline event handlers. Clicks on links
+  // inside a row keep their own behaviour.
+  document.querySelectorAll('.site-row').forEach(function (r) {
+    r.addEventListener('click', function (e) {
+      if (e.target.closest('a')) return;
+      if (r.dataset.href) window.location = r.dataset.href;
+    });
+  });
+</script>
+
+<script nonce="{{ csp_nonce }}">
+  Chart.defaults.font.family = 'ui-sans-serif, system-ui, sans-serif';
+
+  // Grade distribution
+  window.addChart(function () {
+    return new Chart(document.getElementById('gradeChart'), {
+      type: 'bar',
+      data: {
+        labels: ['A','B','C','D','E','F'],
+        datasets: [{ data: {{ stats.grades | tojson }},
+          backgroundColor: ['#199473','#57ae5b','#f0b429','#f7794b','#e12d39','#ab091e'],
+          borderRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                 scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  });
+
+  // Severity doughnut
+  {% if stats.open_findings or stats.severity[4] %}
+  window.addChart(function () {
+    return new Chart(document.getElementById('sevChart'), {
+      type: 'doughnut',
+      data: {
+        labels: {{ [t.sev.critical, t.sev.high, t.sev.medium, t.sev.low, t.sev.info] | tojson }},
+        datasets: [{ data: {{ stats.severity | tojson }},
+          backgroundColor: ['#ab091e','#e12d39','#f0b429','#7ba7e1','#cbd2d9'] }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } } }, cutout: '58%' }
+    });
+  });
+  {% endif %}
+
+  // Findings by category (horizontal bar)
+  {% if stats.category_labels %}
+  window.addChart(function () {
+    return new Chart(document.getElementById('catChart'), {
+      type: 'bar',
+      data: {
+        labels: {{ stats.category_labels | tojson }},
+        datasets: [{ data: {{ stats.category_counts | tojson }}, backgroundColor: '#2563eb', borderRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } },
+                 scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  });
+  {% endif %}
+
+  // Fleet score trend
+  {% if trend and trend|length > 1 %}
+  const trend = {{ trend | tojson }};
+  window.addChart(function () {
+    return new Chart(document.getElementById('trendChart'), {
+      type: 'line',
+      data: {
+        labels: trend.map(t => (t.started_at || '').slice(0,10)),
+        datasets: [{ label: 'Avg', data: trend.map(t => t.avg_score),
+          borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)',
+          fill: true, tension: .25, pointRadius: 3 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100 } } }
+    });
+  });
+  {% endif %}
+
+  window.renderCharts();
+
+  // ---- Table: search, grade filter, sortable columns ----
+  (function () {
+  const timeInput = document.getElementById('timeInput');
+  const addBtn = document.getElementById('addTimeBtn');
+  const chipsWrap = document.getElementById('timeChips');
+  const timesField = document.getElementById('timesField');
+  const rail = document.getElementById('dayRailTrack');
+  const intervalInput = document.getElementById('intervalInput');
+  const presetBtns = document.querySelectorAll('.preset-chip');
+  if (!timeInput) return;
+
+  let chips = (timesField.value || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  function toSeconds(hhmmss) {
+    const [h, m, s] = hhmmss.split(':').map(Number);
+    return h * 3600 + m * 60 + (s || 0);
+  }
+
+  function renderRail() {
+    rail.querySelectorAll('.day-rail-dot').forEach(d => d.remove());
+    chips.forEach(t => {
+      const pct = (toSeconds(t) / 86400) * 100;
+      const dot = document.createElement('div');
+      dot.className = 'day-rail-dot';
+      dot.style.left = pct + '%';
+      dot.title = t;
+      rail.appendChild(dot);
+    });
+  }
+
+  function renderChips() {
+    chipsWrap.innerHTML = '';
+    chips.sort();
+    chips.forEach(t => {
+      const chip = document.createElement('span');
+      chip.className = 'time-chip';
+      chip.innerHTML = '<span>' + t.slice(0, 5) + '</span>';
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = String.fromCharCode(215); // ×
+      rm.addEventListener('click', () => { chips = chips.filter(c => c !== t); sync(); });
+      chip.appendChild(rm);
+      chipsWrap.appendChild(chip);
+    });
+    if (!chips.length) {
+      const empty = document.createElement('span');
+      empty.className = 'text-sm text-slate-400';
+      empty.textContent = '-';
+      chipsWrap.appendChild(empty);
+    }
+  }
+
+  function sync() {
+    timesField.value = chips.join(',');
+    renderChips();
+    renderRail();
+  }
+
+  addBtn.addEventListener('click', () => {
+    if (!timeInput.value) return;
+    let value = timeInput.value;
+    if (value.length === 5) value += ':00';
+    if (!chips.includes(value)) chips.push(value);
+    sync();
+  });
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      intervalInput.value = btn.dataset.mins;
+      presetBtns.forEach(b => b.classList.remove('is-on'));
+      btn.classList.add('is-on');
+    });
+  });
+
+  sync();
+})();
+
+</script>
+{% endblock %}

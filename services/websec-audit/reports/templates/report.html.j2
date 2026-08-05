@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ t.doc_title_global }}</title>
+  <style>
+    @page {
+      size: A4; margin: 1.7cm 1.4cm 1.9cm;
+      @bottom-center { content: "{{ t.confidential }} · {{ t.page }} " counter(page) "/" counter(pages); font-size: 8pt; color: #9aa5b1; }
+    }
+    @page :first { margin: 0; }
+    body { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; color:#0f172a;
+           font-size: 10.5pt; line-height: 1.55; margin: 0; }
+    .cover { height: 100vh; background: #0b1220; color:#fff; padding: 3.2cm 2.4cm;
+             box-sizing: border-box; position: relative; }
+    .cover::before { content:""; position:absolute; top:0; left:0; right:0; height:6px;
+             background: linear-gradient(90deg,#2563eb,#38bdf8); }
+    .cover .conf { display:inline-block; color:#7dd3fc; letter-spacing:.28em; font-size:8.5pt;
+             font-weight:700; text-transform:uppercase; }
+    .cover h1 { font-size: 30pt; margin: 2cm 0 6px; line-height:1.1; font-weight:700; letter-spacing:-.01em; }
+    .cover .sub { color:#94a3b8; font-size:12.5pt; }
+    .cover .headline { margin-top:1.6cm; display:flex; gap:34px; align-items:baseline; }
+    .cover .headline .big { font-size:36pt; font-weight:700; letter-spacing:-.02em; }
+    .cover .headline .lbl { color:#7c8aa5; font-size:8.5pt; text-transform:uppercase; letter-spacing:.14em; }
+    .cover .meta { position:absolute; bottom:3.2cm; left:2.4cm; right:2.4cm; font-size:10pt;
+             color:#94a3b8; border-top:1px solid rgba(148,163,184,.22); padding-top:14px; }
+    .cover .meta div { margin:4px 0; }
+    .cover .meta b { color:#e2e8f0; font-weight:600; }
+    .content { padding: 0 0.2cm; }
+    h2 { font-size: 12.5pt; margin: 26px 0 10px; padding-bottom:5px; color:#0f172a; font-weight:700;
+         letter-spacing:-.01em; border-bottom:1px solid #e5e9f0; }
+    h3 { font-size: 10.5pt; margin: 16px 0 6px; color:#334155; font-weight:700; }
+    p { margin: 6px 0; }
+    .meta { color:#64748b; font-size:9pt; }
+    .toc { border:1px solid #e5e9f0; border-radius:8px; padding:12px 18px; margin:12px 0; column-count:2;
+           background:#f8fafc; }
+    .toc div { margin:4px 0; font-size:9.5pt; color:#334155; }
+    .grade-A{background:#0f9d76}.grade-B{background:#5aae5a}.grade-C{background:#e6a817;color:#3e2c00}
+    .grade-D{background:#ef7c4b}.grade-E{background:#dc2f39}.grade-F{background:#a4091e}
+    table { width:100%; border-collapse:collapse; margin:12px 0; font-size:9.7pt; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #eef1f6; vertical-align:top; }
+    th { font-size:8pt; text-transform:uppercase; letter-spacing:.07em; color:#64748b; font-weight:700;
+         border-bottom:1.5px solid #cbd5e1; }
+    tbody tr:last-child td { border-bottom:1px solid #cbd5e1; }
+    .grade-cell { color:#fff; font-weight:700; padding:2px 9px; border-radius:5px; font-size:9pt; }
+    .sev { font-size:7.5pt; font-weight:700; padding:2px 7px; border-radius:5px; text-transform:uppercase; white-space:nowrap; }
+    .sev-critical{background:#a4091e;color:#fff}.sev-high{background:#dc2f39;color:#fff}
+    .sev-medium{background:#e6a817;color:#3e2c00}.sev-low{background:#dbe7fb;color:#24365c}.sev-info{background:#eef1f6;color:#64748b}
+    .st { font-size:7.5pt; font-weight:700; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .st-open{background:#f1f5f9;color:#475569;border:1px solid #d7dee7}
+    .st-in_progress{background:#fef6e0;color:#92400e;border:1px solid #f8dd9a}
+    .st-fixed{background:#dcf5e9;color:#065f46;border:1px solid #9ce0c1}
+    .pill { display:inline-block; font-size:9pt; padding:3px 11px; border-radius:20px; margin:0 6px 5px 0;
+            background:#f1f5f9; color:#475569; border:1px solid #e5e9f0; }
+    .pill b { color:#0f172a; }
+    .kpis { margin:8px 0; }
+    .grid { display:flex; gap:12px; margin:12px 0; flex-wrap:wrap; }
+    .card { flex:1; min-width:120px; border:1px solid #e5e9f0; border-radius:10px; padding:14px 12px;
+            text-align:center; background:#fff; }
+    .card .n { font-size:22pt; font-weight:700; color:#0f172a; letter-spacing:-.02em; }
+    .card .l { font-size:7.5pt; color:#64748b; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+    .ba { display:flex; gap:12px; margin:12px 0; }
+    .ba .box { flex:1; border:1px solid #e5e9f0; border-radius:10px; padding:14px 12px; text-align:center; background:#fff; }
+    .ba .box .n { font-size:22pt; font-weight:700; letter-spacing:-.02em; }
+    .ba .box .l { font-size:7.5pt; color:#64748b; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+    .delta-pos{color:#0f9d76}.delta-neg{color:#dc2f39}
+    .rec { margin-top:5px; font-size:9pt; color:#475569; }
+    .ref { display:inline-block; font-size:7.5pt; background:#f1f5f9; color:#64748b; border:1px solid #e5e9f0;
+           border-radius:5px; padding:2px 6px; margin:2px 4px 1px 0; }
+    a.ref { color:#2563eb; border-color:#c9dcfb; text-decoration:none; }
+    ul.scope { margin:6px 0; padding-left:20px; }
+    ul.scope li { margin:4px 0; }
+    .prio { font-weight:700; color:#0f172a; margin:12px 0 2px; }
+    .site-block { margin:18px 0; page-break-inside: avoid; }
+    .site-head { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+    .site-head .g { color:#fff; font-weight:700; padding:3px 10px; border-radius:6px; font-size:11pt; }
+    .no-findings { color:#0f9d76; font-weight:600; }
+    .footer-note { margin-top:24px; font-size:8.5pt; color:#64748b; border-top:1px solid #e5e9f0; padding-top:10px; }
+    .note { font-size:8.5pt; color:#64748b; font-style:italic; }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <span class="conf">{{ t.confidential }}</span>
+    <h1>{{ t.doc_title_global }}</h1>
+    <div class="sub">{{ t.doc_subtitle_global }}</div>
+    <div class="headline">
+      <div><div class="big">{{ fleet.avg_score }}<span style="font-size:16pt;color:#94a3b8">/100</span></div><div class="lbl">{{ t.score }}</div></div>
+      <div><div class="big">{{ t.posture_labels.get(fleet.posture, fleet.posture) }}</div><div class="lbl">{{ t.exec_posture }}</div></div>
+      <div><div class="big">{{ fleet.site_count }}</div><div class="lbl">{{ t.scope }}</div></div>
+    </div>
+    <div class="meta">
+      <div><b>{{ t.scope }}:</b> {{ t.scope_global.format(n=fleet.site_count) }}</div>
+      <div><b>{{ t.prepared_by }}:</b> {{ t.tool_name }}</div>
+      <div><b>{{ t.date }}:</b> {{ generated_at }} &nbsp;·&nbsp; <b>{{ t.rubric }}:</b> v{{ rubric_version }}</div>
+    </div>
+  </div>
+
+  <div class="content">
+  <h2>{{ t.contents }}</h2>
+  <div class="toc">
+    <div>1. {{ t.sec_exec }}</div>
+    <div>2. {{ t.sec_scores }}</div>
+    <div>3. {{ t.sec_sites }}</div>
+    <div>4. {{ t.sec_findings }}</div>
+    <div>5. {{ t.sec_residual }}</div>
+    <div>6. {{ t.sec_method }}</div>
+    <div>7. {{ t.sec_annex }}</div>
+  </div>
+
+  <h2>1. {{ t.sec_exec }}</h2>
+  <p>{{ t.exec_intro_global.format(n=fleet.site_count, avg=fleet.avg_score) }}</p>
+  <p><b>{{ t.exec_posture }}:</b> {{ t.posture_labels.get(fleet.posture, fleet.posture) }}</p>
+  {% if fleet.severity.actionable %}
+  <p>{{ t.exec_findings_line.format(actionable=fleet.severity.actionable, critical=fleet.severity.critical, high=fleet.severity.high, medium=fleet.severity.medium, low=fleet.severity.low) }}</p>
+  {% else %}
+  <p>{{ t.exec_clean }}</p>
+  {% endif %}
+  {% if fleet.status.total %}
+  <p class="note">{{ t.exec_status_line.format(fixed=fleet.status.fixed, total=fleet.status.total, in_progress=fleet.status.in_progress) }}</p>
+  {% endif %}
+  <div class="grid">
+    <div class="card"><div class="n">{{ fleet.critical_sites }}</div><div class="l">{{ t.kpi_critical_sites }}</div></div>
+    <div class="card"><div class="n">{{ fleet.at_risk }}</div><div class="l">{{ t.kpi_atrisk }}</div></div>
+    <div class="card"><div class="n">{{ fleet.clean }}</div><div class="l">{{ t.kpi_clean }}</div></div>
+    <div class="card"><div class="n">{{ fleet.severity.actionable }}</div><div class="l">{{ t.severity_counts }}</div></div>
+  </div>
+
+  <h2>2. {{ t.sec_scores }}</h2>
+  {% if fleet.before_after %}
+  <h3>{{ t.before_after }}</h3>
+  <div class="ba">
+    <div class="box"><div class="n">{{ fleet.before_after.before }}</div><div class="l">{{ t.before }}</div></div>
+    <div class="box"><div class="n">{{ fleet.before_after.after }}</div><div class="l">{{ t.after }}</div></div>
+    <div class="box"><div class="n {% if fleet.before_after.delta > 0 %}delta-pos{% elif fleet.before_after.delta < 0 %}delta-neg{% endif %}">{{ '%+g' % fleet.before_after.delta }}</div><div class="l">{{ t.delta }}</div></div>
+  </div>
+  {% else %}
+  <p class="note">{{ t.no_history }}</p>
+  {% endif %}
+
+  <h3>{{ t.grade_dist }}</h3>
+  <div class="kpis">
+    {% for g in fleet.grade_dist %}<span class="pill"><span class="grade-cell grade-{{ g.grade }}">{{ g.grade }}</span> <b>{{ g.count }}</b></span>{% endfor %}
+  </div>
+  <h3>{{ t.severity_counts }}</h3>
+  <div class="kpis">
+    <span class="pill">{{ t.sev.critical }}: <b>{{ fleet.severity.critical }}</b></span>
+    <span class="pill">{{ t.sev.high }}: <b>{{ fleet.severity.high }}</b></span>
+    <span class="pill">{{ t.sev.medium }}: <b>{{ fleet.severity.medium }}</b></span>
+    <span class="pill">{{ t.sev.low }}: <b>{{ fleet.severity.low }}</b></span>
+    <span class="pill">{{ t.sev.info }}: <b>{{ fleet.severity.info }}</b></span>
+  </div>
+  {% if fleet.common_issues %}
+  <h3>{{ t.common_issues }}</h3>
+  <table>
+    <thead><tr><th style="width:70px">{{ t.th_severity }}</th><th>{{ t.th_finding }}</th><th style="width:80px">{{ t.affects }}</th></tr></thead>
+    <tbody>
+      {% for i in fleet.common_issues %}
+      <tr>
+        <td><span class="sev sev-{{ i.severity }}">{{ t.sev.get(i.severity, i.severity) }}</span></td>
+        <td>{{ i.message }}</td>
+        <td>{{ i.sites }} {{ t.sites_word }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>3. {{ t.sec_sites }}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t.th_site }}</th>
+        <th style="width:48px">{{ t.th_grade }}</th>
+        <th style="width:48px">{{ t.th_score }}</th>
+        <th style="width:120px">{{ t.th_findings }}</th>
+        <th style="width:70px">{{ t.th_trend }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in sites %}
+      <tr>
+        <td><strong>{{ s.name }}</strong><br><span class="meta">{{ s.url }}</span></td>
+        <td><span class="grade-cell grade-{{ s.grade }}">{{ s.grade }}</span></td>
+        <td>{{ s.score }}</td>
+        <td>{{ s._severity.critical }}/{{ s._severity.high }}/{{ s._severity.medium }}/{{ s._severity.low }}</td>
+        <td>{% if s.history and s.history|length > 1 %}{{ s.history | map(attribute='score') | list | sparkline_svg | safe }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>4. {{ t.sec_findings }}</h2>
+  {% for s in sites %}
+  {% set findings = s.findings or [] %}
+  <div class="site-block">
+    <div class="site-head">
+      <span class="g grade-{{ s.grade }}">{{ s.grade }}</span>
+      <strong>{{ s.name }}</strong> <span class="meta">{{ s.url }} · {{ s.score }}/100</span>
+    </div>
+    {% if findings %}
+    <table>
+      <thead>
+        <tr>
+          <th style="width:66px">{{ t.th_severity }}</th>
+          <th style="width:62px">{{ t.th_category }}</th>
+          <th>{{ t.th_finding }}</th>
+          <th style="width:60px">{{ t.th_status }}</th>
+          <th style="width:38px">{{ t.th_points }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in findings %}
+        {% set reco = f.recommendation_fr if lang == 'fr' else f.recommendation_en %}
+        <tr>
+          <td><span class="sev sev-{{ f.severity }}">{{ t.sev.get(f.severity, f.severity) }}</span></td>
+          <td>{{ t.cat.get(f.category, f.category) }}</td>
+          <td>
+            <strong>{{ f.message }}</strong>
+            {% if reco %}<div class="rec"><strong>{{ t.fix }}</strong> {{ reco }}</div>{% endif %}
+            {% if f.reference_links %}<div style="margin-top:3px">{% for r in f.reference_links %}{% if r.url %}<a class="ref" href="{{ r.url }}">{{ r.label }}</a>{% else %}<span class="ref">{{ r.label }}</span>{% endif %}{% endfor %}</div>{% elif f.references %}<div style="margin-top:3px">{% for r in f.references %}<span class="ref">{{ r }}</span>{% endfor %}</div>{% endif %}
+          </td>
+          <td>{% if f.severity != 'info' %}<span class="st st-{{ f.status or 'open' }}">{{ t.status_labels.get(f.status or 'open', f.status or 'open') }}</span>{% else %}—{% endif %}</td>
+          <td style="text-align:right;color:#7b8794">{% if f.penalty %}-{{ f.penalty }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="no-findings">{{ t.no_findings }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <p class="note">{{ t.status_note }}</p>
+
+  <h2>5. {{ t.sec_residual }}</h2>
+  {% if fleet.residual %}
+  <p>{{ t.residual_intro }}</p>
+  {% for bucket in fleet.residual %}
+  <div class="prio">{{ t.priority_labels.get(bucket.priority, bucket.priority) }}</div>
+  <ul class="scope">
+    {% for i in bucket.entries %}
+    {% set reco = i.recommendation_fr if lang == 'fr' else i.recommendation_en %}
+    <li><strong>{{ i.message }}</strong> <span class="meta">({{ t.affects }} {{ i.sites }} {{ t.sites_word }})</span>{% if reco %} — {{ reco }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% else %}
+  <p class="no-findings">{{ t.residual_none }}</p>
+  {% endif %}
+
+  <h2>6. {{ t.sec_method }}</h2>
+  <p>{{ t.method_intro }}</p>
+  <ul class="scope">
+    <li>{{ t.method_availability }}</li>
+    <li>{{ t.method_tls }}</li>
+    <li>{{ t.method_headers }}</li>
+    <li>{{ t.method_dns }}</li>
+    <li>{{ t.method_takeover }}</li>
+    <li>{{ t.method_misconfig }}</li>
+  </ul>
+  <p>{{ t.rubric_intro }}</p>
+  <p class="meta">{{ t.rubric_grades }}</p>
+
+  <h2>7. {{ t.sec_annex }}</h2>
+  <div class="footer-note">
+    <strong>{{ t.annex_limitations }}.</strong> {{ t.annex_text }}<br>
+    {{ t.annex_confidential }}
+  </div>
+  </div>
+</body>
+</html>

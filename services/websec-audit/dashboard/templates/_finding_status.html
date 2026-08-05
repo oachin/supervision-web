@@ -1,0 +1,20 @@
+{# User-maintained remediation status for one finding. HTMX-swappable in place. #}
+<span class="fstatus inline-flex items-center gap-1.5">
+  <input type="hidden" name="url" value="{{ url }}">
+  <input type="hidden" name="code" value="{{ f.code or '' }}">
+  <input type="hidden" name="message" value="{{ f.message or '' }}">
+  {% set st = f.status or 'open' %}
+  <select name="status"
+          hx-post="/finding/status?lang={{ lang }}"
+          hx-include="closest .fstatus"
+          hx-target="closest .fstatus"
+          hx-swap="outerHTML"
+          class="text-xs rounded border px-2 py-1 cursor-pointer
+                 {% if st == 'fixed' %}bg-emerald-50 border-emerald-300 text-emerald-800
+                 {% elif st == 'in_progress' %}bg-amber-50 border-amber-300 text-amber-800
+                 {% else %}bg-slate-50 border-slate-300 text-slate-700{% endif %}">
+    {% for s in statuses %}
+    <option value="{{ s }}" {% if s == st %}selected{% endif %}>{{ t.status_labels.get(s, s) }}</option>
+    {% endfor %}
+  </select>
+</span>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="utf-8">
+  <title>{{ t.doc_title_site }} — {{ site.name }}</title>
+  <style>
+    @page {
+      size: A4; margin: 1.7cm 1.4cm 1.9cm;
+      @bottom-center { content: "{{ t.confidential }} · {{ site.name }} · {{ t.page }} " counter(page) "/" counter(pages); font-size: 8pt; color: #9aa5b1; }
+    }
+    @page :first { margin: 0; }
+    body { font-family: "DejaVu Sans", "Helvetica Neue", Arial, sans-serif; color:#0f172a;
+           font-size: 10.5pt; line-height: 1.55; margin: 0; }
+    .cover { height: 100vh; background: #0b1220; color:#fff; padding: 3.2cm 2.4cm;
+             box-sizing: border-box; position: relative; }
+    .cover::before { content:""; position:absolute; top:0; left:0; right:0; height:6px;
+             background: linear-gradient(90deg,#2563eb,#38bdf8); }
+    .cover .conf { display:inline-block; color:#7dd3fc; letter-spacing:.28em; font-size:8.5pt;
+             font-weight:700; text-transform:uppercase; }
+    .cover h1 { font-size: 29pt; margin: 2cm 0 6px; line-height:1.1; font-weight:700; letter-spacing:-.01em; }
+    .cover .sub { color:#94a3b8; font-size:12.5pt; }
+    .cover .meta { position:absolute; bottom:3.2cm; left:2.4cm; right:2.4cm; font-size:10pt;
+             color:#94a3b8; border-top:1px solid rgba(148,163,184,.22); padding-top:14px; }
+    .cover .meta div { margin:4px 0; }
+    .cover .meta b { color:#e2e8f0; font-weight:600; }
+    .cover .badge { display:inline-block; font-weight:700; padding:8px 18px; border-radius:8px; font-size:15pt; color:#fff; }
+    .content { padding: 0 0.2cm; }
+    h2 { font-size: 12.5pt; margin: 26px 0 10px; padding-bottom:5px; color:#0f172a; font-weight:700;
+         letter-spacing:-.01em; border-bottom:1px solid #e5e9f0; }
+    h3 { font-size: 10.5pt; margin: 16px 0 6px; color:#334155; font-weight:700; }
+    p { margin: 6px 0; }
+    .meta { color:#64748b; font-size:9pt; }
+    .grade-A{background:#0f9d76}.grade-B{background:#5aae5a}.grade-C{background:#e6a817;color:#3e2c00}
+    .grade-D{background:#ef7c4b}.grade-E{background:#dc2f39}.grade-F{background:#a4091e}
+    table { width:100%; border-collapse:collapse; margin:12px 0; font-size:9.7pt; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #eef1f6; vertical-align:top; }
+    th { font-size:8pt; text-transform:uppercase; letter-spacing:.07em; color:#64748b; font-weight:700;
+         border-bottom:1.5px solid #cbd5e1; }
+    tbody tr:last-child td { border-bottom:1px solid #cbd5e1; }
+    .sev { font-size:7.5pt; font-weight:700; padding:2px 7px; border-radius:5px; text-transform:uppercase; white-space:nowrap; }
+    .sev-critical{background:#a4091e;color:#fff}.sev-high{background:#dc2f39;color:#fff}
+    .sev-medium{background:#e6a817;color:#3e2c00}.sev-low{background:#dbe7fb;color:#24365c}.sev-info{background:#eef1f6;color:#64748b}
+    .st { font-size:7.5pt; font-weight:700; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .st-open{background:#f1f5f9;color:#475569;border:1px solid #d7dee7}
+    .st-in_progress{background:#fef6e0;color:#92400e;border:1px solid #f8dd9a}
+    .st-fixed{background:#dcf5e9;color:#065f46;border:1px solid #9ce0c1}
+    .st-compliant{background:#dcf5e9;color:#065f46;border:1px solid #9ce0c1}
+    .st-non_compliant{background:#fde4e4;color:#991b1b;border:1px solid #f5b0b0}
+    .st-partial{background:#fef6e0;color:#92400e;border:1px solid #f8dd9a}
+    .st-not_assessed{background:#f1f5f9;color:#475569;border:1px solid #d7dee7}
+    .pill { display:inline-block; font-size:9pt; padding:3px 11px; border-radius:20px; margin:0 6px 5px 0;
+            background:#f1f5f9; color:#475569; border:1px solid #e5e9f0; }
+    .pill b { color:#0f172a; }
+    .rec { margin-top:5px; font-size:9pt; color:#475569; }
+    .refs { margin-top:4px; }
+    .ref { display:inline-block; font-size:7.5pt; background:#f1f5f9; color:#64748b; border:1px solid #e5e9f0;
+           border-radius:5px; padding:2px 6px; margin:2px 4px 1px 0; }
+    a.ref { color:#2563eb; border-color:#c9dcfb; text-decoration:none; }
+    .pts { text-align:right; white-space:nowrap; color:#64748b; }
+    .chart { border:1px solid #e5e9f0; border-radius:10px; padding:12px; margin:8px 0; background:#fff; }
+    .no-findings { color:#0f9d76; font-weight:600; }
+    .lead { margin:7px 0; }
+    .kpis { margin:8px 0; }
+    .ba { display:flex; gap:12px; margin:12px 0; }
+    .ba .box { flex:1; border:1px solid #e5e9f0; border-radius:10px; padding:14px 12px; text-align:center; background:#fff; }
+    .ba .box .n { font-size:22pt; font-weight:700; letter-spacing:-.02em; }
+    .ba .box .l { font-size:7.5pt; color:#64748b; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+    .delta-pos{color:#0f9d76}.delta-neg{color:#dc2f39}
+    ul.scope { margin:6px 0; padding-left:20px; }
+    ul.scope li { margin:4px 0; }
+    .prio { font-weight:700; color:#0f172a; margin:12px 0 2px; }
+    .footer-note { margin-top:24px; font-size:8.5pt; color:#64748b; border-top:1px solid #e5e9f0; padding-top:10px; }
+    .note { font-size:8.5pt; color:#64748b; font-style:italic; }
+  </style>
+</head>
+<body>
+  {% set findings = site.findings or [] %}
+
+  <div class="cover">
+    <span class="conf">{{ t.confidential }}</span>
+    <h1>{{ t.doc_title_site }}</h1>
+    <div class="sub">{{ t.doc_subtitle_site }}</div>
+    <div style="margin-top:1.4cm">
+      <span class="badge grade-{{ site.grade }}">{{ site.grade }} · {{ site.score }}/100</span>
+    </div>
+    <div class="meta">
+      <div><b>{{ t.target }}:</b> {{ site.name }} — {{ site.url }}</div>
+      <div><b>{{ t.domain }}:</b> {{ site.domain }}</div>
+      <div><b>{{ t.prepared_by }}:</b> {{ t.tool_name }}</div>
+      <div><b>{{ t.date }}:</b> {{ generated_at }} &nbsp;·&nbsp; <b>{{ t.rubric }}:</b> v{{ rubric_version }}</div>
+    </div>
+  </div>
+
+  <div class="content">
+  <h2>1. {{ t.sec_exec }}</h2>
+  <p class="lead">{{ t.exec_intro_site.format(name=site.name, score=site.score, grade=site.grade) }}</p>
+  <p class="lead"><b>{{ t.exec_posture }}:</b> {{ t.posture_labels.get(posture, posture) }}</p>
+  {% if severity.actionable %}
+  <p class="lead">{{ t.exec_findings_line.format(actionable=severity.actionable, critical=severity.critical, high=severity.high, medium=severity.medium, low=severity.low) }}</p>
+  {% else %}
+  <p class="lead">{{ t.exec_clean }}</p>
+  {% endif %}
+  {% if status_summary.total %}
+  <p class="note">{{ t.exec_status_line.format(fixed=status_summary.fixed, total=status_summary.total, in_progress=status_summary.in_progress) }}</p>
+  {% endif %}
+
+  <h2>2. {{ t.sec_scores }}</h2>
+  <div class="kpis">
+    <span class="pill">{{ t.sev.critical }}: <b>{{ severity.critical }}</b></span>
+    <span class="pill">{{ t.sev.high }}: <b>{{ severity.high }}</b></span>
+    <span class="pill">{{ t.sev.medium }}: <b>{{ severity.medium }}</b></span>
+    <span class="pill">{{ t.sev.low }}: <b>{{ severity.low }}</b></span>
+    <span class="pill">{{ t.sev.info }}: <b>{{ severity.info }}</b></span>
+  </div>
+  {% if before_after %}
+  <h3>{{ t.before_after }}</h3>
+  <div class="ba">
+    <div class="box"><div class="n">{{ before_after.before }}</div><div class="l">{{ t.before }} · {{ before_after.before_date }}</div></div>
+    <div class="box"><div class="n">{{ before_after.after }}</div><div class="l">{{ t.after }} · {{ before_after.after_date }}</div></div>
+    <div class="box"><div class="n {% if before_after.delta > 0 %}delta-pos{% elif before_after.delta < 0 %}delta-neg{% endif %}">{{ '%+d' % before_after.delta }}</div><div class="l">{{ t.delta }}</div></div>
+  </div>
+  {% else %}
+  <p class="note">{{ t.no_history }}</p>
+  {% endif %}
+
+  {% if site.history and site.history|length > 1 %}
+  <h2>3. {{ t.sec_history }}</h2>
+  <div class="chart">{{ site.history | history_svg | safe }}</div>
+  {% set n_findings = 4 %}{% set n_compliance = 5 %}{% set n_residual = 6 %}{% set n_method = 7 %}
+  {% else %}
+  {% set n_findings = 3 %}{% set n_compliance = 4 %}{% set n_residual = 5 %}{% set n_method = 6 %}
+  {% endif %}
+
+  <h2>{{ n_findings }}. {{ t.sec_findings }}</h2>
+  {% if findings %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:70px">{{ t.th_severity }}</th>
+        <th style="width:66px">{{ t.th_category }}</th>
+        <th>{{ t.th_finding }}</th>
+        <th style="width:64px">{{ t.th_status }}</th>
+        <th style="width:40px">{{ t.th_points }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in findings %}
+      {% set reco = f.recommendation_fr if lang == 'fr' else f.recommendation_en %}
+      <tr>
+        <td><span class="sev sev-{{ f.severity }}">{{ t.sev.get(f.severity, f.severity) }}</span></td>
+        <td>{{ t.cat.get(f.category, f.category) }}</td>
+        <td>
+          <strong>{{ f.message }}</strong>
+          {% if reco %}<div class="rec"><strong>{{ t.fix }}</strong> {{ reco }}</div>{% endif %}
+          {% if f.reference_links %}<div class="refs">{% for r in f.reference_links %}{% if r.url %}<a class="ref" href="{{ r.url }}">{{ r.label }}</a>{% else %}<span class="ref">{{ r.label }}</span>{% endif %}{% endfor %}</div>{% elif f.references %}<div class="refs">{% for r in f.references %}<span class="ref">{{ r }}</span>{% endfor %}</div>{% endif %}
+        </td>
+        <td>{% if f.severity != 'info' %}<span class="st st-{{ f.status or 'open' }}">{{ t.status_labels.get(f.status or 'open', f.status or 'open') }}</span>{% else %}—{% endif %}</td>
+        <td class="pts">{% if f.penalty %}-{{ f.penalty }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">{{ t.status_note }}</p>
+  {% else %}
+  <p class="no-findings">{{ t.no_findings }}</p>
+  {% endif %}
+
+  {% if site.fixed %}
+  <h3>{{ t.fixed_ledger_title }}</h3>
+  <p class="note">{{ t.fixed_ledger_hint }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t.th_finding }}</th>
+        <th style="width:90px">{{ t.th_verified_by }}</th>
+        <th style="width:140px">{{ t.th_resolved_at }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in site.fixed %}
+      <tr>
+        <td>{{ f.message }}{% if f.detail %} <span class="ref">{{ f.detail }}</span>{% endif %}</td>
+        <td>{{ t.verified_auto if f.verified_by == 'auto' else t.verified_manual }}</td>
+        <td>{{ (f.resolved_at or '')[:19].replace('T',' ') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if site.compliance %}
+  <h2>{{ n_compliance }}. {{ t.sec_compliance }}</h2>
+  <p class="lead">{{ t.compliance_intro }}</p>
+  <h3>{{ t.compliance_overall }}</h3>
+  <div class="kpis">
+    {% for code, fw in site.compliance.frameworks.items() %}
+    <span class="pill">{{ fw.country }}:
+      <span class="st st-{{ fw.status }}">{{ t.compliance_status.get(fw.status, fw.status) }}</span>
+      {% if fw.score is not none %}<b>{{ fw.score }}%</b>{% endif %}</span>
+    {% endfor %}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>{{ t.th_control }}</th>
+        <th style="width:66px">{{ t.th_category }}</th>
+        <th style="width:120px">{{ t.th_frameworks }}</th>
+        <th style="width:88px">{{ t.th_status }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in site.compliance.controls %}
+      <tr>
+        <td>{{ c.title_fr if lang == 'fr' else c.title_en }}</td>
+        <td>{{ t.cat.get(c.category, c.category) }}</td>
+        <td>{% for country, ref in c.countries.items() %}<span class="ref">{{ country }}: {{ ref }}</span>{% endfor %}</td>
+        <td><span class="st st-{{ c.status }}">{{ t.compliance_status.get(c.status, c.status) }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="note">{{ t.compliance_disclaimer }}</p>
+  {% endif %}
+
+  <h2>{{ n_residual }}. {{ t.sec_residual }}</h2>
+  {% if prioritized %}
+  <p class="lead">{{ t.residual_intro }}</p>
+  {% for bucket in prioritized %}
+  <div class="prio">{{ t.priority_labels.get(bucket.priority, bucket.priority) }}</div>
+  <ul class="scope">
+    {% for f in bucket.findings %}
+    {% set reco = f.recommendation_fr if lang == 'fr' else f.recommendation_en %}
+    <li><strong>{{ f.message }}</strong>{% if reco %} — {{ reco }}{% endif %}
+      {% if f.severity != 'info' %}<span class="st st-{{ f.status or 'open' }}" style="margin-left:4px">{{ t.status_labels.get(f.status or 'open', f.status or 'open') }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% else %}
+  <p class="no-findings">{{ t.residual_none }}</p>
+  {% endif %}
+
+  {% if site.history %}
+  <h3>{{ t.run_history }}</h3>
+  <table>
+    <thead><tr><th>{{ t.th_date }}</th><th>{{ t.th_run }}</th><th>{{ t.th_grade }}</th><th>{{ t.th_score }}</th></tr></thead>
+    <tbody>
+      {% for h in site.history | reverse %}
+      <tr>
+        <td>{{ (h.started_at or '')[:19] | replace('T', ' ') }}</td>
+        <td>{{ h.run_id }}</td>
+        <td><span class="grade-{{ h.grade }}" style="color:#fff;font-weight:700;padding:1px 7px;border-radius:3px">{{ h.grade }}</span></td>
+        <td>{{ h.score }}/100</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>{{ n_method }}. {{ t.sec_method }}</h2>
+  <p class="lead">{{ t.method_intro }}</p>
+  <ul class="scope">
+    <li>{{ t.method_availability }}</li>
+    <li>{{ t.method_tls }}</li>
+    <li>{{ t.method_headers }}</li>
+    <li>{{ t.method_dns }}</li>
+    <li>{{ t.method_takeover }}</li>
+    <li>{{ t.method_misconfig }}</li>
+    {% if site.ports %}<li>{{ t.method_ports }}</li>{% endif %}
+  </ul>
+  <p class="lead">{{ t.rubric_intro }}</p>
+  <p class="meta">{{ t.rubric_grades }}</p>
+
+  <div class="footer-note">
+    <strong>{{ t.annex_limitations }}.</strong> {{ t.annex_text }}<br>
+    {{ t.annex_confidential }}
+  </div>
+  </div>
+</body>
+</html>
