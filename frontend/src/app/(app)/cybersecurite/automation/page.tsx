@@ -11,6 +11,7 @@ import {
   Repeat,
   Trash2,
   Info,
+  ChevronDown,
 } from 'lucide-react';
 import { api, type CyberAutomation, type CyberAutoTarget } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
@@ -50,6 +51,7 @@ export default function CyberAutomationPage() {
   const [deep, setDeep] = useState(false);
   const [timezone, setTimezone] = useState('Europe/Paris');
   const [targets, setTargets] = useState<CyberAutoTarget[]>([]);
+  const [targetsOpen, setTargetsOpen] = useState(false);
 
   const apply = useCallback((a: CyberAutomation) => {
     setData(a);
@@ -248,69 +250,91 @@ export default function CyberAutomationPage() {
         </div>
       </div>
 
-      <div className="card space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <div className="card space-y-0 overflow-hidden p-0">
+        <button
+          type="button"
+          className="flex w-full items-start justify-between gap-3 px-4 py-4 text-left hover:bg-white/[0.02]"
+          onClick={() => setTargetsOpen((o) => !o)}
+          aria-expanded={targetsOpen}
+        >
+          <div className="min-w-0">
             <h2 className="font-semibold">Cibles du scan automatique</h2>
-            <p className="text-sm text-muted-foreground">
-              Par défaut toutes sont incluses. Décochez pour exclure du scan auto (le scan manuel reste complet).
+            <p className="mt-1 text-sm text-muted-foreground">
+              {includedCount}/{targets.length} incluse{includedCount > 1 ? 's' : ''}
+              {!targetsOpen && ' — cliquez pour développer'}
             </p>
           </div>
-          {canModify && targets.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn-secondary px-2 py-1 text-xs"
-                disabled={saving || allIncluded}
-                onClick={() => setAllIncluded(true)}
-              >
-                Tout inclure
-              </button>
-              <button
-                type="button"
-                className="btn-secondary px-2 py-1 text-xs"
-                disabled={saving || includedCount === 0}
-                onClick={() => setAllIncluded(false)}
-              >
-                Tout exclure
-              </button>
-            </div>
-          )}
-        </div>
+          <ChevronDown
+            className={cn(
+              'mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+              targetsOpen && 'rotate-180',
+            )}
+          />
+        </button>
 
-        {targets.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Aucune cible active.{' '}
-            <Link href="/cybersecurite/cibles" className="text-primary hover:underline">
-              Activer des cibles
-            </Link>
-          </p>
-        ) : (
-          <ul className="divide-y divide-white/5 rounded-lg border border-white/5">
-            {targets.map((t) => (
-              <li key={t.url} className="flex items-center gap-3 px-3 py-2.5">
-                <input
-                  type="checkbox"
-                  className="accent-primary h-4 w-4 shrink-0"
-                  checked={t.includedInAuto}
-                  disabled={!canModify || saving}
-                  onChange={(e) => toggleTarget(t.url, e.target.checked)}
-                  aria-label={`Inclure ${t.name} dans le scan auto`}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
-                    {t.name}
-                  </p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">{t.url}</p>
+        {targetsOpen && (
+          <div className="space-y-4 border-t border-white/5 px-4 py-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Par défaut toutes sont incluses. Décochez pour exclure du scan auto (le scan manuel reste complet).
+              </p>
+              {canModify && targets.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary px-2 py-1 text-xs"
+                    disabled={saving || allIncluded}
+                    onClick={() => setAllIncluded(true)}
+                  >
+                    Tout inclure
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary px-2 py-1 text-xs"
+                    disabled={saving || includedCount === 0}
+                    onClick={() => setAllIncluded(false)}
+                  >
+                    Tout exclure
+                  </button>
                 </div>
-                {!t.includedInAuto && (
-                  <span className="shrink-0 rounded border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Exclue
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
+              )}
+            </div>
+
+            {targets.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Aucune cible active.{' '}
+                <Link href="/cybersecurite/cibles" className="text-primary hover:underline">
+                  Activer des cibles
+                </Link>
+              </p>
+            ) : (
+              <ul className="divide-y divide-white/5 rounded-lg border border-white/5">
+                {targets.map((t) => (
+                  <li key={t.url} className="flex items-center gap-3 px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      className="accent-primary h-4 w-4 shrink-0"
+                      checked={t.includedInAuto}
+                      disabled={!canModify || saving}
+                      onChange={(e) => toggleTarget(t.url, e.target.checked)}
+                      aria-label={`Inclure ${t.name} dans le scan auto`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
+                        {t.name}
+                      </p>
+                      <p className="truncate font-mono text-xs text-muted-foreground">{t.url}</p>
+                    </div>
+                    {!t.includedInAuto && (
+                      <span className="shrink-0 rounded border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Exclue
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
 
