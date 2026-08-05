@@ -10,7 +10,11 @@ import {
   Clock,
   Repeat,
   Trash2,
+  Info,
 } from 'lucide-react';
+
+const DEEP_MODE_HELP =
+  'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
 import { api, type CyberAutomation } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
@@ -208,7 +212,14 @@ export default function CyberAutomationPage() {
             disabled={!canModify || saving}
             onChange={(e) => setDeep(e.target.checked)}
           />
-          Mode approfondi pour les scans programmés (nuclei / moteurs lourds)
+          Mode approfondi pour les scans programmés
+          <span
+            className="inline-flex cursor-help text-muted-foreground/80 hover:text-sky-300"
+            title={DEEP_MODE_HELP}
+            aria-label={DEEP_MODE_HELP}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </span>
         </label>
 
         <div>

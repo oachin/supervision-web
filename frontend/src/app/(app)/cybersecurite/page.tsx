@@ -11,7 +11,10 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarClock } from 'lucide-react';
+import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarClock, Info } from 'lucide-react';
+
+const DEEP_MODE_HELP =
+  'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
 import { api, type CyberOverview } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
@@ -137,7 +140,7 @@ export default function CybersecuritePage() {
           </button>
           {canScan && (
             <>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <input
                   type="checkbox"
                   className="accent-primary"
@@ -145,6 +148,13 @@ export default function CybersecuritePage() {
                   onChange={(e) => setDeep(e.target.checked)}
                 />
                 Mode approfondi
+                <span
+                  className="inline-flex cursor-help text-muted-foreground/80 hover:text-sky-300"
+                  title={DEEP_MODE_HELP}
+                  aria-label={DEEP_MODE_HELP}
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </span>
               </label>
               <button
                 type="button"
