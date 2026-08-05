@@ -33,6 +33,8 @@ export class AgentInstallController {
     const stream = await this.install.getAgentBinary(key);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', 'attachment; filename="supervision-agent"');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     stream.pipe(res);
   }
 
