@@ -75,7 +75,7 @@ type MetricsPayload struct {
 }
 
 // agentBuildMarker is embedded so install scripts can verify the downloaded binary.
-const agentBuildMarker = "havet-agent-build:2026-08-05-tag18"
+const agentBuildMarker = "havet-agent-build:2026-08-05-name18"
 
 func main() {
 	cfg := loadConfig()
@@ -546,65 +546,11 @@ func collectProxmoxDisk(node string) (usedGb, totalGb float64, ok bool) {
 	return usedBytes / (1024 * 1024 * 1024), totalBytes / (1024 * 1024 * 1024), true
 }
 
-// excludedProxmoxTag is skipped during inventory (e.g. internal/affiliate VMs).
-const excludedProxmoxTag = "18"
+// excludedProxmoxVmNameSuffix marks VMs to skip from inventory (name ends with this).
+const excludedProxmoxVmNameSuffix = "[18]"
 
-// proxmoxTagsContain reports whether the Proxmox semicolon-separated tags field
-// includes the given tag (exact match after trim).
-func proxmoxTagsContain(tags, needle string) bool {
-	if needle == "" || tags == "" {
-		return false
-	}
-	for _, t := range strings.Split(tags, ";") {
-		if strings.TrimSpace(t) == needle {
-			return true
-		}
-	}
-	return false
-}
-
-// proxmoxVmTagsByVMID resolves guest tags for VMs on the local node.
-// Prefer /cluster/resources (includes tags); fall back to each VM config.
-func proxmoxVmTagsByVMID(node string, vmids []int) map[int]string {
-	out := make(map[int]string, len(vmids))
-	raw, err := pveshJSON("/cluster/resources", "--type", "vm")
-	if err == nil {
-		var items []map[string]interface{}
-		if err := json.Unmarshal(raw, &items); err == nil {
-			for _, item := range items {
-				if jsonString(item, "node") != node {
-					continue
-				}
-				vmid, ok := jsonInt(item, "vmid")
-				if !ok {
-					continue
-				}
-				if tags := jsonString(item, "tags"); tags != "" {
-					out[vmid] = tags
-				}
-			}
-		}
-	} else {
-		log.Printf("Proxmox cluster resources (tags): %v", err)
-	}
-
-	for _, vmid := range vmids {
-		if out[vmid] != "" {
-			continue
-		}
-		cfgRaw, err := pveshJSON(fmt.Sprintf("/nodes/%s/qemu/%d/config", node, vmid))
-		if err != nil {
-			continue
-		}
-		var cfg map[string]interface{}
-		if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
-			continue
-		}
-		if tags := jsonString(cfg, "tags"); tags != "" {
-			out[vmid] = tags
-		}
-	}
-	return out
+func isExcludedProxmoxVmName(name string) bool {
+	return strings.HasSuffix(strings.TrimSpace(name), excludedProxmoxVmNameSuffix)
 }
 
 func collectProxmoxVms(node string) []ProxmoxVmPayload {
@@ -619,26 +565,15 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 		return nil
 	}
 
-	vmids := make([]int, 0, len(items))
-	for _, item := range items {
-		if vmid, ok := jsonInt(item, "vmid"); ok {
-			vmids = append(vmids, vmid)
-		}
-	}
-	tagsByVMID := proxmoxVmTagsByVMID(node, vmids)
-
 	vms := make([]ProxmoxVmPayload, 0, len(items))
 	for _, item := range items {
 		vmid, ok := jsonInt(item, "vmid")
 		if !ok {
 			continue
 		}
-		tags := tagsByVMID[vmid]
-		if tags == "" {
-			tags = jsonString(item, "tags")
-		}
-		if proxmoxTagsContain(tags, excludedProxmoxTag) {
-			log.Printf("Proxmox: exclusion VM %d (%s) tag %s", vmid, jsonString(item, "name"), excludedProxmoxTag)
+		name := jsonString(item, "name")
+		if isExcludedProxmoxVmName(name) {
+			log.Printf("Proxmox: exclusion VM %d (%s) suffix %s", vmid, name, excludedProxmoxVmNameSuffix)
 			continue
 		}
 		maxmem, _ := jsonNumber(item, "maxmem")
@@ -646,7 +581,7 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 		cpus, _ := jsonInt(item, "cpus")
 		vm := ProxmoxVmPayload{
 			VMID:      vmid,
-			Name:      jsonString(item, "name"),
+			Name:      name,
 			Status:    jsonString(item, "status"),
 			Cpus:      cpus,
 			MaxmemMb:  maxmem / (1024 * 1024),

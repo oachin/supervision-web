@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { proxmoxVmVisibleWhere } from '../common/proxmox-vm';
 
 function isMaintenance(status: string, statusCode?: number | null) {
   return status === 'DEGRADED' && statusCode === 503;
@@ -114,6 +115,7 @@ export class NocService {
           },
         }),
         this.prisma.proxmoxVm.findMany({
+          where: proxmoxVmVisibleWhere,
           select: { id: true, name: true, status: true, serverId: true },
         }),
         this.prisma.alert.findMany({
