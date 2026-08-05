@@ -2,8 +2,9 @@
 
 ## websec-audit
 
-Sous-module Git du projet [SalmaC79/easm-platform-](https://github.com/SalmaC79/easm-platform-)
-(Web Security Audit Tool / EASM).
+Copie vendored du projet [SalmaC79/easm-platform-](https://github.com/SalmaC79/easm-platform-)
+(Web Security Audit Tool / EASM), intégrée dans ce dépôt pour le build Docker en prod
+(le dépôt amont est privé).
 
 ## websec-bridge
 
