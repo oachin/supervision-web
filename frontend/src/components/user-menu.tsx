@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, LogOut, Settings, Users } from 'lucide-react';
+import { ChevronDown, LogOut, Settings } from 'lucide-react';
 import { api, type User } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { AccountSettingsPanel } from '@/components/account-settings';
+import { can } from '@/lib/permissions';
 
 function initials(name: string) {
   return name
@@ -37,7 +38,11 @@ export function UserMenu() {
     }
   }, [open]);
 
-  const isAdmin = profile?.role === 'ADMIN';
+  const canOpenSettings =
+    can(profile?.permissions, 'settings', 'view', profile?.role) ||
+    can(profile?.permissions, 'users', 'view', profile?.role) ||
+    can(profile?.permissions, 'profiles', 'view', profile?.role) ||
+    can(profile?.permissions, 'notifications', 'view', profile?.role);
 
   return (
     <>
@@ -63,7 +68,9 @@ export function UserMenu() {
               <div className="border-b border-white/5 px-4 pb-3 pt-1">
                 <p className="font-medium truncate">{profile.name}</p>
                 <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{profile.role}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {profile.profile?.name ?? profile.role}
+                </p>
               </div>
             )}
 
@@ -77,14 +84,14 @@ export function UserMenu() {
                 Mon compte
               </button>
 
-              {isAdmin && (
+              {canOpenSettings && (
                 <Link
-                  href="/users"
+                  href="/settings"
                   onClick={() => setOpen(false)}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50"
                 >
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  Gestion utilisateurs
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  Configuration
                 </Link>
               )}
 

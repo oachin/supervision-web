@@ -14,6 +14,15 @@ export interface User {
   name: string;
   role: 'ADMIN' | 'OPERATOR' | 'VIEWER';
   totpEnabled: boolean;
+  profileId?: string;
+  profile?: {
+    id: string;
+    name: string;
+    slug: string;
+    baseRole: string;
+    permissions?: Record<string, { view: boolean; modify: boolean; delete: boolean }>;
+  };
+  permissions?: Record<string, { view: boolean; modify: boolean; delete: boolean }> | null;
 }
 
 class ApiClient {
@@ -216,13 +225,93 @@ class ApiClient {
 
   // Users
   getUsers() { return this.fetch<ManagedUser[]>('/users'); }
-  createUser(data: { email: string; name: string; password: string; role?: string }) {
-    return this.fetch('/users', { method: 'POST', body: JSON.stringify(data) });
+  createUser(data: { email: string; firstName: string; lastName: string; profileId?: string; role?: string }) {
+    return this.fetch<ManagedUser & { inviteUrl?: string; inviteExpiresAt?: string }>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
-  updateUser(id: string, data: { name?: string; role?: string; isActive?: boolean }) {
-    return this.fetch(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  updateUser(id: string, data: {
+    firstName?: string;
+    lastName?: string;
+    profileId?: string;
+    role?: string;
+    isActive?: boolean;
+  }) {
+    return this.fetch<ManagedUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  resendUserInvite(id: string) {
+    return this.fetch<{ success: boolean; inviteUrl: string; inviteExpiresAt: string }>(
+      `/users/${id}/resend-invite`,
+      { method: 'POST' },
+    );
+  }
+  resetUser2fa(id: string) {
+    return this.fetch<{ success: boolean }>(`/users/${id}/reset-2fa`, { method: 'POST' });
   }
   deleteUser(id: string) { return this.fetch(`/users/${id}`, { method: 'DELETE' }); }
+
+  // Invite (public)
+  getInviteInfo(token: string) {
+    return this.fetch<{
+      email: string;
+      firstName: string;
+      lastName: string;
+      name: string;
+      hasPassword: boolean;
+      totpEnabled: boolean;
+      step: 'password' | 'totp' | 'done';
+    }>(`/auth/invite/${token}`);
+  }
+  completeInvitePassword(token: string, password: string) {
+    return this.fetch<{ inviteToken: string; email: string; step: string }>('/auth/invite/password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  }
+  resumeInvite(token: string) {
+    return this.fetch<{ inviteToken: string; email: string; step: string }>('/auth/invite/resume', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
+  setupInviteTotp(inviteToken: string) {
+    return this.fetch<{ secret: string; qrCode: string }>('/auth/invite/totp/setup', {
+      method: 'POST',
+      body: JSON.stringify({ inviteToken }),
+    });
+  }
+  enableInviteTotp(inviteToken: string, code: string) {
+    return this.fetch<{
+      accessToken?: string;
+      refreshToken?: string;
+      expiresIn?: number;
+      backupCodes: string[];
+    }>('/auth/invite/totp/enable', {
+      method: 'POST',
+      body: JSON.stringify({ inviteToken, code }),
+    }).then((result) => {
+      if (result.accessToken && result.refreshToken) {
+        this.saveTokens({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          expiresIn: result.expiresIn ?? 900,
+        });
+      }
+      return result;
+    });
+  }
+
+  // Profiles
+  getProfiles() { return this.fetch<AccessProfile[]>('/profiles'); }
+  getProfileById(id: string) { return this.fetch<AccessProfile>(`/profiles/${id}`); }
+  createProfile(data: { name: string; description?: string; permissions: AccessProfile['permissions'] }) {
+    return this.fetch<AccessProfile>('/profiles', { method: 'POST', body: JSON.stringify(data) });
+  }
+  updateProfile(id: string, data: { name?: string; description?: string; permissions?: AccessProfile['permissions'] }) {
+    return this.fetch<AccessProfile>(`/profiles/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteProfile(id: string) { return this.fetch(`/profiles/${id}`, { method: 'DELETE' }); }
 
   // Notifications
   getSmtpSettings() { return this.fetch<SmtpSettings>('/notifications/smtp'); }
@@ -486,10 +575,31 @@ export interface ManagedUser {
   id: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: string;
   isActive: boolean;
   totpEnabled: boolean;
   lastLoginAt?: string;
+  profileId?: string;
+  profile?: { id: string; name: string; slug: string; baseRole?: string };
+  hasPassword?: boolean;
+  invitePending?: boolean;
+  inviteSentAt?: string;
+  inviteExpiresAt?: string;
+}
+
+export interface AccessProfile {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  isSystem: boolean;
+  baseRole: string;
+  permissions: Record<string, { view: boolean; modify: boolean; delete: boolean }>;
+  usersCount: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface NocHostSites {

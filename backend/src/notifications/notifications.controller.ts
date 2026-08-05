@@ -10,8 +10,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../common/roles.guard';
-import { Roles } from '../common/decorators';
+import { PermissionsGuard } from '../common/permissions.guard';
+import { RequirePermission } from '../common/permissions.decorator';
 import { NotificationsService } from './notifications.service';
 import {
   CreateNotificationRuleDto,
@@ -21,48 +21,48 @@ import {
 } from './notifications.dto';
 
 @Controller('notifications')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class NotificationsController {
   constructor(private notifications: NotificationsService) {}
 
   @Get('smtp')
-  @Roles('ADMIN', 'OPERATOR')
+  @RequirePermission('notifications', 'view')
   getSmtp() {
     return this.notifications.getSmtpSettings();
   }
 
   @Put('smtp')
-  @Roles('ADMIN')
+  @RequirePermission('notifications', 'modify')
   upsertSmtp(@Body() dto: UpsertSmtpSettingsDto) {
     return this.notifications.upsertSmtpSettings(dto);
   }
 
   @Post('smtp/test')
-  @Roles('ADMIN')
+  @RequirePermission('notifications', 'modify')
   testSmtp(@Body() dto: TestSmtpDto) {
     return this.notifications.testSmtp(dto);
   }
 
   @Get('rules')
-  @Roles('ADMIN', 'OPERATOR')
+  @RequirePermission('notifications', 'view')
   listRules() {
     return this.notifications.listRules();
   }
 
   @Post('rules')
-  @Roles('ADMIN')
+  @RequirePermission('notifications', 'modify')
   createRule(@Body() dto: CreateNotificationRuleDto) {
     return this.notifications.createRule(dto);
   }
 
   @Patch('rules/:id')
-  @Roles('ADMIN')
+  @RequirePermission('notifications', 'modify')
   updateRule(@Param('id') id: string, @Body() dto: UpdateNotificationRuleDto) {
     return this.notifications.updateRule(id, dto);
   }
 
   @Delete('rules/:id')
-  @Roles('ADMIN')
+  @RequirePermission('notifications', 'delete')
   deleteRule(@Param('id') id: string) {
     return this.notifications.deleteRule(id);
   }

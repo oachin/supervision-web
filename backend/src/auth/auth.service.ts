@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { LoginDto, VerifyTotpDto, EnableTotpDto, ChangePasswordDto } from '../common/dto';
@@ -36,6 +36,12 @@ export class AuthService {
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       throw new ForbiddenException('Compte temporairement verrouillé. Réessayez plus tard.');
+    }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(
+        'Compte non activé — utilisez le lien d’invitation reçu par e-mail',
+      );
     }
 
     const valid = await argon2.verify(user.passwordHash, dto.password);
@@ -210,7 +216,7 @@ export class AuthService {
 
   async disableTotp(userId: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new BadRequestException('Utilisateur introuvable');
+    if (!user?.passwordHash) throw new BadRequestException('Utilisateur introuvable');
 
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) throw new UnauthorizedException('Mot de passe incorrect');
@@ -226,7 +232,7 @@ export class AuthService {
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new BadRequestException('Utilisateur introuvable');
+    if (!user?.passwordHash) throw new BadRequestException('Utilisateur introuvable');
 
     const valid = await argon2.verify(user.passwordHash, dto.currentPassword);
     if (!valid) throw new UnauthorizedException('Mot de passe actuel incorrect');
@@ -258,13 +264,190 @@ export class AuthService {
         id: true,
         email: true,
         name: true,
+        firstName: true,
+        lastName: true,
         role: true,
         totpEnabled: true,
         lastLoginAt: true,
         createdAt: true,
+        profileId: true,
+        profile: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            baseRole: true,
+            permissions: true,
+          },
+        },
       },
     });
     if (!user) throw new BadRequestException('Utilisateur introuvable');
+    return {
+      ...user,
+      permissions: user.profile?.permissions ?? null,
+    };
+  }
+
+  private hashInviteToken(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async findInviteUser(rawToken: string) {
+    const inviteTokenHash = this.hashInviteToken(rawToken);
+    const user = await this.prisma.user.findFirst({
+      where: { inviteTokenHash },
+    });
+    if (!user || !user.isActive) {
+      throw new BadRequestException('Lien d’invitation invalide');
+    }
+    if (!user.inviteExpiresAt || user.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('Lien d’invitation expiré — demandez un nouvel envoi');
+    }
     return user;
+  }
+
+  async getInviteInfo(rawToken: string) {
+    const user = await this.findInviteUser(rawToken);
+    return {
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: user.name,
+      hasPassword: !!user.passwordHash,
+      totpEnabled: user.totpEnabled,
+      step: !user.passwordHash ? 'password' : user.totpEnabled ? 'done' : 'totp',
+    };
+  }
+
+  private signInviteSetupToken(user: { id: string; inviteTokenHash: string | null }) {
+    if (!user.inviteTokenHash) {
+      throw new BadRequestException('Invitation invalide');
+    }
+    return this.jwt.sign(
+      { sub: user.id, type: 'invite_setup', tokenHash: user.inviteTokenHash },
+      { secret: this.config.getOrThrow('JWT_SECRET'), expiresIn: '2h' },
+    );
+  }
+
+  async completeInvitePassword(rawToken: string, password: string) {
+    if (password.length < 12) {
+      throw new BadRequestException('Le mot de passe doit contenir au moins 12 caractères');
+    }
+
+    const user = await this.findInviteUser(rawToken);
+    if (user.totpEnabled) {
+      throw new BadRequestException('Ce compte est déjà activé');
+    }
+
+    const passwordHash = await argon2.hash(password, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+    });
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    const inviteToken = this.signInviteSetupToken(user);
+    await this.audit.log(user.id, 'INVITE_PASSWORD_SET', 'auth', {});
+
+    return {
+      inviteToken,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      step: 'totp',
+    };
+  }
+
+  /** Reprend l’étape 2FA si le mot de passe a déjà été défini. */
+  async resumeInvite(rawToken: string) {
+    const user = await this.findInviteUser(rawToken);
+    if (user.totpEnabled) {
+      throw new BadRequestException('Ce compte est déjà activé');
+    }
+    if (!user.passwordHash) {
+      throw new BadRequestException('Définissez d’abord votre mot de passe');
+    }
+    return {
+      inviteToken: this.signInviteSetupToken(user),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      step: 'totp' as const,
+    };
+  }
+
+  private async verifyInviteJwt(inviteToken: string) {
+    let payload: { sub: string; type: string; tokenHash?: string };
+    try {
+      payload = this.jwt.verify(inviteToken, {
+        secret: this.config.getOrThrow('JWT_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Session d’invitation expirée');
+    }
+    if (payload.type !== 'invite_setup') {
+      throw new UnauthorizedException('Token invalide');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user?.isActive || !user.passwordHash) {
+      throw new UnauthorizedException('Utilisateur invalide');
+    }
+    if (!user.inviteTokenHash || user.inviteTokenHash !== payload.tokenHash) {
+      throw new UnauthorizedException('Invitation invalide ou déjà utilisée');
+    }
+    if (!user.inviteExpiresAt || user.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('Lien d’invitation expiré');
+    }
+    return user;
+  }
+
+  async setupInviteTotp(inviteToken: string) {
+    const user = await this.verifyInviteJwt(inviteToken);
+    if (user.totpEnabled) throw new BadRequestException('2FA déjà activée');
+
+    const secret = authenticator.generateSecret();
+    const otpauth = authenticator.keyuri(user.email, 'Havet Supervision', secret);
+    const qrCode = await QRCode.toDataURL(otpauth);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { totpSecret: secret },
+    });
+
+    return { secret, qrCode };
+  }
+
+  async enableInviteTotp(inviteToken: string, code: string, ip: string, userAgent: string) {
+    const user = await this.verifyInviteJwt(inviteToken);
+    if (!user.totpSecret) throw new BadRequestException('Configurez d’abord la 2FA');
+
+    const valid = authenticator.verify({ token: code, secret: user.totpSecret });
+    if (!valid) throw new BadRequestException('Code invalide');
+
+    const backupCodes = Array.from({ length: 8 }, () =>
+      randomBytes(4).toString('hex').toUpperCase(),
+    );
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        totpEnabled: true,
+        totpBackupCodes: backupCodes,
+        inviteTokenHash: null,
+        inviteExpiresAt: null,
+        inviteSentAt: null,
+      },
+    });
+
+    await this.audit.log(user.id, 'INVITE_COMPLETED', 'auth', {}, ip, userAgent);
+
+    const tokens = await this.issueTokens(user.id, user.email, user.role, user.name, ip, userAgent);
+    return { ...tokens, backupCodes };
   }
 }

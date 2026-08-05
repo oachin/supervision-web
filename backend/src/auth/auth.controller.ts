@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, UseGuards, HttpCode } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  UseGuards,
+  HttpCode,
+  BadRequestException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { Public } from '../common/decorators';
@@ -10,11 +19,52 @@ import {
   RefreshTokenDto,
   EnableTotpDto,
   ChangePasswordDto,
+  CompleteInvitePasswordDto,
+  InviteTotpDto,
 } from '../common/dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private auth: AuthService) {}
+
+  @Public()
+  @Get('invite/:token')
+  getInvite(@Param('token') token: string) {
+    return this.auth.getInviteInfo(token);
+  }
+
+  @Public()
+  @Post('invite/password')
+  @HttpCode(200)
+  invitePassword(@Body() dto: CompleteInvitePasswordDto) {
+    return this.auth.completeInvitePassword(dto.token, dto.password);
+  }
+
+  @Public()
+  @Post('invite/resume')
+  @HttpCode(200)
+  inviteResume(@Body('token') token: string) {
+    if (!token) throw new BadRequestException('Token requis');
+    return this.auth.resumeInvite(token);
+  }
+
+  @Public()
+  @Post('invite/totp/setup')
+  @HttpCode(200)
+  inviteTotpSetup(@Body() dto: InviteTotpDto) {
+    return this.auth.setupInviteTotp(dto.inviteToken);
+  }
+
+  @Public()
+  @Post('invite/totp/enable')
+  @HttpCode(200)
+  inviteTotpEnable(
+    @Body() dto: InviteTotpDto,
+    @ClientInfo() client: { ip: string; userAgent: string },
+  ) {
+    if (!dto.code) throw new BadRequestException('Code 2FA requis');
+    return this.auth.enableInviteTotp(dto.inviteToken, dto.code, client.ip, client.userAgent);
+  }
 
   @Public()
   @Throttle({ auth: { limit: 10, ttl: 900000 } })

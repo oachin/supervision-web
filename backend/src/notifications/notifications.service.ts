@@ -134,20 +134,31 @@ export class NotificationsService {
   }
 
   async testSmtp(dto: TestSmtpDto) {
-    const ctx = await this.createTransport();
-    if (!ctx) {
-      throw new NotFoundException('SMTP non configuré ou désactivé');
-    }
-
-    await ctx.transport.sendMail({
-      from: `"${ctx.settings.fromName}" <${ctx.settings.fromEmail}>`,
+    await this.sendMail({
       to: dto.to,
       subject: '[Havet Supervision] Test SMTP',
       text: 'Ceci est un message de test depuis Havet Supervision.',
       html: '<p>Ceci est un message de test depuis <strong>Havet Supervision</strong>.</p>',
     });
-
     return { success: true };
+  }
+
+  /** Envoi transactionnel (invitation, etc.). Exige un SMTP actif. */
+  async sendMail(params: { to: string; subject: string; text: string; html: string }) {
+    const ctx = await this.createTransport();
+    if (!ctx) {
+      throw new BadRequestException(
+        'SMTP non configuré ou désactivé — configurez-le dans Configuration → SMTP & notifications',
+      );
+    }
+
+    await ctx.transport.sendMail({
+      from: `"${ctx.settings.fromName}" <${ctx.settings.fromEmail}>`,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+    });
   }
 
   async listRules() {

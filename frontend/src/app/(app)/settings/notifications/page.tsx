@@ -224,6 +224,11 @@ export default function NotificationsSettingsPage() {
 
   return (
     <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold">SMTP & notifications</h1>
+        <p className="text-sm text-muted-foreground">Serveur mail et règles d&apos;envoi des alertes</p>
+      </div>
+
       <div className="card">
         <div className="mb-4 flex items-center gap-2">
           <Mail className="h-5 w-5 text-primary" />

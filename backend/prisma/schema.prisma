@@ -57,12 +57,29 @@ enum AgentProfile {
   PROXMOX
 }
 
+model Profile {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  isSystem    Boolean  @default(false)
+  baseRole    Role     @default(VIEWER)
+  permissions Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
-  passwordHash      String
+  passwordHash      String?
   name              String
+  firstName         String    @default("")
+  lastName          String    @default("")
   role              Role      @default(VIEWER)
+  profileId         String
+  profile           Profile   @relation(fields: [profileId], references: [id])
   totpSecret        String?
   totpEnabled       Boolean   @default(false)
   totpBackupCodes   String[]
@@ -70,6 +87,9 @@ model User {
   failedLoginCount  Int       @default(0)
   lockedUntil       DateTime?
   lastLoginAt       DateTime?
+  inviteTokenHash   String?   @unique
+  inviteExpiresAt   DateTime?
+  inviteSentAt      DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   refreshTokens     RefreshToken[]
@@ -77,6 +97,8 @@ model User {
   alertsAcknowledged Alert[]     @relation("AlertAcknowledgedBy")
   alertsClosed       Alert[]     @relation("AlertClosedBy")
   alertEvents        AlertEvent[]
+
+  @@index([profileId])
 }
 
 model RefreshToken {

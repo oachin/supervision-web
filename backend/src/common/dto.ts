@@ -45,13 +45,18 @@ export class CreateUserDto {
   email!: string;
 
   @IsString()
-  @MinLength(2)
-  name!: string;
+  @MinLength(1)
+  firstName!: string;
 
   @IsString()
-  @MinLength(12)
-  password!: string;
+  @MinLength(1)
+  lastName!: string;
 
+  @IsOptional()
+  @IsString()
+  profileId?: string;
+
+  /** @deprecated Prefer profileId */
   @IsOptional()
   @IsString()
   role?: 'ADMIN' | 'OPERATOR' | 'VIEWER';
@@ -60,15 +65,46 @@ export class CreateUserDto {
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  name?: string;
+  @MinLength(1)
+  firstName?: string;
 
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  profileId?: string;
+
+  /** @deprecated Prefer profileId */
   @IsOptional()
   @IsString()
   role?: 'ADMIN' | 'OPERATOR' | 'VIEWER';
 
   @IsOptional()
   isActive?: boolean;
+}
+
+export class CompleteInvitePasswordDto {
+  @IsString()
+  @MinLength(20)
+  token!: string;
+
+  @IsString()
+  @MinLength(12)
+  password!: string;
+}
+
+export class InviteTotpDto {
+  @IsString()
+  @MinLength(10)
+  inviteToken!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(6, 6)
+  code?: string;
 }
 
 export class CreateServerDto {

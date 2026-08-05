@@ -18,6 +18,7 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { SystemModule } from './system/system.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { NocModule } from './noc/noc.module';
+import { ProfilesModule } from './profiles/profiles.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NocModule } from './noc/noc.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    ProfilesModule,
     ServersModule,
     WebsitesModule,
     AlertsModule,
