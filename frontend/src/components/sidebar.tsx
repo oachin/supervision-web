@@ -15,6 +15,8 @@ import {
   Shield,
   Crosshair,
   ChevronDown,
+  TrendingUp,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SystemStatus } from '@/components/system-status';
@@ -36,6 +38,8 @@ const supervisionItems = [
 
 const cyberItems = [
   { href: '/cybersecurite', label: 'Audit web', icon: Shield, resource: 'cybersecurity' as const },
+  { href: '/cybersecurite/evolution', label: 'Évolution du score', icon: TrendingUp, resource: 'cybersecurity' as const },
+  { href: '/cybersecurite/rapport', label: 'Rapport', icon: FileText, resource: 'cybersecurity' as const },
   { href: '/cybersecurite/cibles', label: 'Cibles', icon: Crosshair, resource: 'cybersecurity' as const },
 ];
 

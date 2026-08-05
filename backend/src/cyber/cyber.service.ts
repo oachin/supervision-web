@@ -183,6 +183,25 @@ export class CyberService {
   }
 
   getSiteResult(url: string) {
-    return this.websec.getSite(url);
+    if (!url?.trim()) throw new BadRequestException('URL requise');
+    return this.websec.getSite(url.trim());
+  }
+
+  getTrend(limit = 30) {
+    return this.websec.getTrend(limit);
+  }
+
+  getHistory(url: string, limit = 30) {
+    if (!url?.trim()) throw new BadRequestException('URL requise');
+    return this.websec.getHistory(url.trim(), limit);
+  }
+
+  getGlobalReport(fmt: 'html' | 'pdf' = 'html', lang = 'fr') {
+    return this.websec.getGlobalReport(fmt, lang);
+  }
+
+  getSiteReport(url: string, fmt: 'html' | 'pdf' = 'html', lang = 'fr') {
+    if (!url?.trim()) throw new BadRequestException('URL requise');
+    return this.websec.getSiteReport(url.trim(), fmt, lang);
   }
 }

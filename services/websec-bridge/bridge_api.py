@@ -13,11 +13,17 @@ import secrets
 import threading
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from db.models import fleet_trend, get_site_state, latest_site_states
+from db.models import fleet_trend, get_site_state, latest_site_states, score_history
+from reports.generator import generate_report, generate_site_report
 from websec_audit import CORE_SCANNERS, DEFAULT_SCANNERS, ENGINE_SCANNERS, AuditConfig
+
+REPORT_OUT = Path(os.getenv("AUDIT_REPORT_DIR", "/data/reports"))
 
 API_KEY = os.getenv("WEBSEC_API_KEY", "")
 DB_URL = os.getenv("AUDIT_DB_URL", "sqlite:////data/audit.db")
@@ -128,8 +134,57 @@ def site_by_url(url: str) -> dict[str, Any]:
 
 
 @app.get("/v1/trend", dependencies=[Depends(require_key)])
-def trend() -> dict[str, Any]:
-    return {"trend": fleet_trend()}
+def trend(limit: int = 30) -> dict[str, Any]:
+    return {"trend": fleet_trend(limit=limit)}
+
+
+@app.get("/v1/history", dependencies=[Depends(require_key)])
+def history(url: str = Query(...), limit: int = 30) -> dict[str, Any]:
+    return {"url": url, "history": score_history(url, limit=limit)}
+
+
+def _serve_report(paths: dict, fmt: str) -> FileResponse:
+    fmt = (fmt or "html").lower()
+    if fmt == "pdf":
+        if not paths.get("pdf"):
+            raise HTTPException(
+                503,
+                "PDF indisponible (WeasyPrint ou dépendances manquantes)",
+            )
+        path = Path(paths["pdf"])
+        return FileResponse(
+            str(path),
+            media_type="application/pdf",
+            filename=path.name,
+        )
+    path = Path(paths["html"])
+    return FileResponse(
+        str(path),
+        media_type="text/html; charset=utf-8",
+        filename=path.name,
+    )
+
+
+@app.get("/v1/report/global", dependencies=[Depends(require_key)])
+def report_global(fmt: str = "html", lang: str = "fr") -> FileResponse:
+    states = latest_site_states()
+    if not states:
+        raise HTTPException(404, "Aucun résultat de scan à exporter")
+    paths = generate_report(states, out_dir=str(REPORT_OUT), lang=lang or "fr")
+    return _serve_report(paths, fmt)
+
+
+@app.get("/v1/report/site", dependencies=[Depends(require_key)])
+def report_site(
+    url: str = Query(...),
+    fmt: str = "html",
+    lang: str = "fr",
+) -> FileResponse:
+    state = get_site_state(url)
+    if not state:
+        raise HTTPException(404, "Aucun résultat pour cette URL")
+    paths = generate_site_report(state, out_dir=str(REPORT_OUT), lang=lang or "fr")
+    return _serve_report(paths, fmt)
 
 
 @app.post("/v1/scan", dependencies=[Depends(require_key)])

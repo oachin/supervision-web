@@ -330,7 +330,57 @@ class ApiClient {
     return this.fetch<Record<string, unknown>>('/cyber/scan/status');
   }
   getCyberSiteResult(url: string) {
-    return this.fetch<Record<string, unknown>>(`/cyber/sites?url=${encodeURIComponent(url)}`);
+    return this.fetch<CyberSiteResult>(`/cyber/sites?url=${encodeURIComponent(url)}`);
+  }
+  getCyberTrend(limit = 30) {
+    return this.fetch<{ trend: CyberTrendPoint[] }>(`/cyber/trend?limit=${limit}`);
+  }
+  getCyberHistory(url: string, limit = 30) {
+    return this.fetch<{ url: string; history: CyberHistoryPoint[] }>(
+      `/cyber/history?url=${encodeURIComponent(url)}&limit=${limit}`,
+    );
+  }
+  async downloadCyberReport(kind: 'global' | 'site', opts: { fmt: 'html' | 'pdf'; url?: string; lang?: string }) {
+    if (this.needsRefresh()) await this.refreshToken();
+    const token = this.getAccessToken();
+    const params = new URLSearchParams({ fmt: opts.fmt, lang: opts.lang || 'fr' });
+    if (kind === 'site') {
+      if (!opts.url) throw new Error('URL requise pour le rapport site');
+      params.set('url', opts.url);
+    }
+    const path = kind === 'global' ? '/cyber/report/global' : '/cyber/report/site';
+    let res = await fetch(`${API_URL}/api${path}?${params}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.status === 401 && token) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        res = await fetch(`${API_URL}/api${path}?${params}`, {
+          headers: { Authorization: `Bearer ${this.getAccessToken()}` },
+        });
+      } else {
+        this.logout();
+        throw new Error('Session expirée');
+      }
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Erreur serveur' }));
+      throw new Error(typeof err.message === 'string' ? err.message : `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('content-disposition') || '';
+    const match = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(cd);
+    const filename = match
+      ? decodeURIComponent(match[1].replace(/"/g, ''))
+      : `audit_${kind}.${opts.fmt}`;
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(href);
   }
 
   // Profiles
@@ -649,20 +699,49 @@ export interface CyberTargets {
   external: CyberTargetRow[];
 }
 
+export interface CyberTrendPoint {
+  run_id?: number;
+  started_at?: string | null;
+  avg_score?: number;
+  site_count?: number;
+}
+
+export interface CyberHistoryPoint {
+  run_id?: number;
+  started_at?: string | null;
+  score?: number;
+  grade?: string;
+}
+
+export interface CyberFinding {
+  code?: string;
+  title?: string;
+  detail?: string;
+  severity?: string;
+  category?: string;
+  recommendation?: string;
+  penalty?: number;
+  status?: string;
+}
+
+export interface CyberSiteResult {
+  name?: string;
+  url?: string;
+  domain?: string;
+  score?: number;
+  grade?: string;
+  findings?: CyberFinding[];
+  history?: CyberHistoryPoint[];
+}
+
 export interface CyberOverview {
   healthy: boolean;
   scan: Record<string, unknown>;
   enabledTargets: number;
   resultsCount: number;
   grades: Record<string, number>;
-  sites: Array<{
-    name?: string;
-    url?: string;
-    score?: number;
-    grade?: string;
-    findings?: unknown[];
-  }>;
-  trend: unknown[];
+  sites: CyberSiteResult[];
+  trend: CyberTrendPoint[];
 }
 
 export interface NocHostSites {

@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards';
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermission } from '../common/permissions.decorator';
@@ -77,5 +79,59 @@ export class CyberController {
   @RequirePermission('cybersecurity', 'view')
   siteResult(@Query('url') url: string) {
     return this.cyber.getSiteResult(url);
+  }
+
+  @Get('trend')
+  @RequirePermission('cybersecurity', 'view')
+  trend(@Query('limit') limit?: string) {
+    const n = limit ? Number(limit) : 30;
+    return this.cyber.getTrend(Number.isFinite(n) ? n : 30);
+  }
+
+  @Get('history')
+  @RequirePermission('cybersecurity', 'view')
+  history(@Query('url') url: string, @Query('limit') limit?: string) {
+    const n = limit ? Number(limit) : 30;
+    return this.cyber.getHistory(url, Number.isFinite(n) ? n : 30);
+  }
+
+  @Get('report/global')
+  @RequirePermission('cybersecurity', 'view')
+  async reportGlobal(
+    @Query('fmt') fmt: string,
+    @Query('lang') lang: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.cyber.getGlobalReport(
+      fmt === 'pdf' ? 'pdf' : 'html',
+      lang || 'fr',
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.filename.replace(/"/g, '')}"`,
+    );
+    res.send(file.buffer);
+  }
+
+  @Get('report/site')
+  @RequirePermission('cybersecurity', 'view')
+  async reportSite(
+    @Query('url') url: string,
+    @Query('fmt') fmt: string,
+    @Query('lang') lang: string,
+    @Res() res: Response,
+  ) {
+    const file = await this.cyber.getSiteReport(
+      url,
+      fmt === 'pdf' ? 'pdf' : 'html',
+      lang || 'fr',
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.filename.replace(/"/g, '')}"`,
+    );
+    res.send(file.buffer);
   }
 }
