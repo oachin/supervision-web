@@ -252,17 +252,10 @@ class ApiClient {
   getAlertEvents(limit = 200) { return this.fetch<AlertEvent[]>(`/alerts/events?limit=${limit}`); }
   getAlerts(status?: string) { return this.fetch<Alert[]>(status ? `/alerts?status=${status}` : '/alerts'); }
   getAlert(id: string) { return this.fetch<AlertDetail>(`/alerts/${id}`); }
-  acknowledgeAlert(id: string) { return this.fetch<Alert>(`/alerts/${id}/acknowledge`, { method: 'PATCH' }); }
   addAlertNote(id: string, message: string) {
     return this.fetch<AlertDetail>(`/alerts/${id}/notes`, {
       method: 'POST',
       body: JSON.stringify({ message }),
-    });
-  }
-  closeAlert(id: string, origin: string, resolutionMethod: string) {
-    return this.fetch<Alert>(`/alerts/${id}/close`, {
-      method: 'POST',
-      body: JSON.stringify({ origin, resolutionMethod }),
     });
   }
 

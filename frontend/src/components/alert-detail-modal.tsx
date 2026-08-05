@@ -11,23 +11,20 @@ import { getAlertHostingServer } from '@/lib/alert-hosting';
 
 const statusLabels: Record<string, string> = {
   ACTIVE: 'En cours',
-  ACKNOWLEDGED: 'Acquittée',
-  PENDING_CLOSE: 'En attente de clôture',
+  ACKNOWLEDGED: 'En cours',
+  PENDING_CLOSE: 'Clôturée',
   CLOSED: 'Clôturée',
 };
 
 function StatusBadge({ status }: { status: Alert['status'] }) {
+  const isActive = status === 'ACTIVE' || status === 'ACKNOWLEDGED';
   return (
     <span
       className={cn(
         'rounded-md border px-2.5 py-1 text-xs font-medium',
-        status === 'ACTIVE'
+        isActive
           ? 'border-destructive/30 bg-destructive/10 text-destructive'
-          : status === 'ACKNOWLEDGED'
-            ? 'border-warning/30 bg-warning/10 text-warning'
-            : status === 'PENDING_CLOSE'
-              ? 'border-primary/30 bg-primary/10 text-primary'
-              : 'border-white/10 bg-secondary/30 text-muted-foreground',
+          : 'border-white/10 bg-secondary/30 text-muted-foreground',
       )}
     >
       {statusLabels[status] ?? status}
@@ -54,9 +51,7 @@ export function AlertDetailModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState<'note' | 'close' | null>(null);
-  const [closeForm, setCloseForm] = useState({ origin: '', resolutionMethod: '' });
-  const [showCloseForm, setShowCloseForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -72,9 +67,7 @@ export function AlertDetailModal({
     if (!open) return;
     load();
     setNote('');
-    setShowCloseForm(false);
-    setCloseForm({ origin: '', resolutionMethod: '' });
-  }, [open, load, summary.status, summary.acknowledgedAt]);
+  }, [open, load, summary.status]);
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +90,7 @@ export function AlertDetailModal({
   async function handleNote(e: React.FormEvent) {
     e.preventDefault();
     if (!note.trim()) return;
-    setSubmitting('note');
+    setSubmitting(true);
     try {
       const updated = await api.addAlertNote(alertId, note.trim());
       setDetail(updated);
@@ -106,22 +99,7 @@ export function AlertDetailModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
-      setSubmitting(null);
-    }
-  }
-
-  async function handleClose(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting('close');
-    try {
-      await api.closeAlert(alertId, closeForm.origin, closeForm.resolutionMethod);
-      setShowCloseForm(false);
-      onUpdated();
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    } finally {
-      setSubmitting(null);
+      setSubmitting(false);
     }
   }
 
@@ -209,11 +187,8 @@ export function AlertDetailModal({
 
             <div className="space-y-1 text-xs text-muted-foreground">
               <p>Créée le {formatDate(alert.createdAt)}</p>
-              {alert.acknowledgedBy && (
-                <p>Acquittée par {alert.acknowledgedBy.name} le {formatDate(alert.acknowledgedAt)}</p>
-              )}
-              {alert.closedBy && (
-                <p>Clôturée par {alert.closedBy.name} le {formatDate(alert.closedAt)}</p>
+              {alert.status === 'CLOSED' && alert.closedAt && (
+                <p>Clôturée le {formatDate(alert.closedAt)}</p>
               )}
             </div>
 
@@ -228,54 +203,7 @@ export function AlertDetailModal({
               </p>
             )}
 
-            {canEdit && alert.status !== 'CLOSED' && alert.status === 'PENDING_CLOSE' && !showCloseForm && (
-              <button
-                type="button"
-                onClick={() => setShowCloseForm(true)}
-                className="btn-primary text-sm"
-              >
-                Clôturer
-              </button>
-            )}
-
-            {showCloseForm && canEdit && (
-              <form onSubmit={handleClose} className="space-y-3 rounded-lg border border-white/5 bg-secondary/10 p-4">
-                <h4 className="text-sm font-semibold">Clôturer l&apos;alerte</h4>
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Origine du problème</label>
-                  <input
-                    className="input"
-                    value={closeForm.origin}
-                    onChange={(e) => setCloseForm({ ...closeForm, origin: e.target.value })}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Méthode de résolution</label>
-                  <textarea
-                    className="input"
-                    rows={3}
-                    value={closeForm.resolutionMethod}
-                    onChange={(e) => setCloseForm({ ...closeForm, resolutionMethod: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button type="submit" disabled={submitting !== null} className="btn-primary text-sm">
-                    {submitting === 'close' ? 'Clôture…' : 'Confirmer la clôture'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCloseForm(false)}
-                    className="btn-secondary text-sm"
-                  >
-                    Annuler
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {canEdit && alert.status !== 'CLOSED' && (
+            {canEdit && (
               <form onSubmit={handleNote} className="space-y-2">
                 <label className="block text-sm font-medium">Ajouter une note</label>
                 <textarea
@@ -287,10 +215,10 @@ export function AlertDetailModal({
                 />
                 <button
                   type="submit"
-                  disabled={!note.trim() || submitting !== null}
+                  disabled={!note.trim() || submitting}
                   className="btn-secondary text-sm"
                 >
-                  {submitting === 'note' ? 'Enregistrement…' : 'Enregistrer la note'}
+                  {submitting ? 'Enregistrement…' : 'Enregistrer la note'}
                 </button>
               </form>
             )}
@@ -299,7 +227,7 @@ export function AlertDetailModal({
 
             {!loading && historyEvents.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold">Historique & actions</h4>
+                <h4 className="text-sm font-semibold">Historique & notes</h4>
                 <ol className="relative space-y-0 border-l border-white/10 pl-4">
                   {historyEvents.map((e) => (
                     <li key={e.id} className="relative pb-4 last:pb-0">

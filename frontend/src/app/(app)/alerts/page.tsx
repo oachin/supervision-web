@@ -14,10 +14,9 @@ export default function AlertsPage() {
   const { summary, refresh } = useAlerts();
   const [loading, setLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'active' | 'acknowledged' | 'pendingClose' | 'closed'>('active');
+  const [tab, setTab] = useState<'active' | 'closed'>('active');
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
-  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<Alert['severity'] | ''>('');
 
@@ -54,17 +53,6 @@ export default function AlertsPage() {
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
 
-  async function handleAcknowledge(e: React.MouseEvent, alertId: string) {
-    e.stopPropagation();
-    setAcknowledgingId(alertId);
-    try {
-      await api.acknowledgeAlert(alertId);
-      await refresh();
-    } finally {
-      setAcknowledgingId(null);
-    }
-  }
-
   if (loading && !summary) {
     return (
       <div className="flex h-32 items-center justify-center">
@@ -91,16 +79,16 @@ export default function AlertsPage() {
 
   const tabs = [
     { id: 'active' as const, label: 'En cours', count: data.counts.active },
-    { id: 'acknowledged' as const, label: 'Acquittées (en cours)', count: data.counts.acknowledged },
-    { id: 'pendingClose' as const, label: 'En attente de clôture', count: data.counts.pendingClose },
-    { id: 'closed' as const, label: 'Acquittées (clôturées)', count: data.counts.closed },
+    { id: 'closed' as const, label: 'Clôturées', count: data.counts.closed },
   ];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Alertes</h1>
-        <p className="text-sm text-muted-foreground">Gestion du cycle de vie des alertes</p>
+        <p className="text-sm text-muted-foreground">
+          Alertes actives et historique — clôture automatique quand le problème disparaît
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -124,7 +112,7 @@ export default function AlertsPage() {
           <input
             type="search"
             className="input pl-10 pr-10"
-            placeholder="Rechercher (titre, site, serveur, sévérité, statut…)"
+            placeholder="Rechercher (titre, site, serveur, sévérité…)"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -185,59 +173,39 @@ export default function AlertsPage() {
           {filteredAlerts.map((a) => {
             const hostingServer = getAlertHostingServer(a);
             return (
-              <div
+              <button
                 key={a.id}
-                className="card transition-colors hover:border-primary/20"
+                type="button"
+                onClick={() => setSelectedAlert(a)}
+                className="card w-full text-left transition-colors hover:border-primary/20"
               >
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAlert(a)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <SeverityBadge severity={a.severity} />
-                        <h3 className="font-semibold">{a.title}</h3>
-                        {a.occurrenceCount > 1 && (
-                          <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{a.message}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{formatDate(a.createdAt)}</span>
-                        {hostingServer && (
-                          <span className="font-medium text-primary">
-                            Serveur : {hostingServer.name}
-                            {hostingServer.hostname && (
-                              <span className="font-mono font-normal text-muted-foreground">
-                                {' '}({hostingServer.hostname})
-                              </span>
-                            )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SeverityBadge severity={a.severity} />
+                    <h3 className="font-semibold">{a.title}</h3>
+                    {a.occurrenceCount > 1 && (
+                      <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{a.message}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{formatDate(a.createdAt)}</span>
+                    {hostingServer && (
+                      <span className="font-medium text-primary">
+                        Serveur : {hostingServer.name}
+                        {hostingServer.hostname && (
+                          <span className="font-mono font-normal text-muted-foreground">
+                            {' '}({hostingServer.hostname})
                           </span>
                         )}
-                        {a.acknowledgedBy && (
-                          <span>
-                            Acquittée par {a.acknowledgedBy.name} le {formatDate(a.acknowledgedAt)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {canEdit && a.status === 'ACTIVE' && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleAcknowledge(e, a.id)}
-                        disabled={acknowledgingId === a.id}
-                        className="btn-primary shrink-0 text-sm"
-                      >
-                        {acknowledgingId === a.id ? 'Acquittement…' : 'Acquitter'}
-                      </button>
+                      </span>
+                    )}
+                    {a.status === 'CLOSED' && a.closedAt && (
+                      <span>Clôturée le {formatDate(a.closedAt)}</span>
                     )}
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -253,7 +221,7 @@ export default function AlertsPage() {
           onUpdated={async () => {
             await refresh();
             const summary = await api.getAlertsSummary();
-            const updated = [...summary.active, ...summary.acknowledged, ...summary.pendingClose, ...summary.closed]
+            const updated = [...summary.active, ...summary.closed]
               .find((alert) => alert.id === selectedAlert.id);
             if (updated) setSelectedAlert(updated);
           }}

@@ -8,11 +8,9 @@ import { getAlertHostingServer } from '@/lib/alert-hosting';
 
 export function AlertPopup({
   alert,
-  onAcknowledge,
   onSnooze,
 }: {
   alert: Alert;
-  onAcknowledge: () => void;
   onSnooze: () => void;
 }) {
   return (
@@ -54,20 +52,13 @@ export function AlertPopup({
         <div className="border-t border-red-500/30 px-6 py-5 space-y-3">
           <button
             type="button"
-            onClick={onAcknowledge}
+            onClick={onSnooze}
             className="w-full rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-red-900 transition-all hover:bg-red-50 active:scale-[0.98]"
           >
-            Acquitter
-          </button>
-          <button
-            type="button"
-            onClick={onSnooze}
-            className="w-full rounded-xl border border-red-400/40 bg-red-950/50 px-6 py-3 text-sm font-medium text-red-100 transition-all hover:bg-red-900/60 active:scale-[0.98]"
-          >
-            Snooze 30 min
+            Masquer 30 min
           </button>
           <p className="text-center text-xs text-red-200/60">
-            Acquitter enregistre l&apos;alerte · Snooze masque toutes les popups pendant 30 min
+            L&apos;alerte reste active jusqu&apos;à disparition du problème
           </p>
         </div>
       </div>

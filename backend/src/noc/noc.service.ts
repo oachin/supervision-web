@@ -54,7 +54,7 @@ function isOpenAlertForServer(
     const title = alert.title.toLowerCase();
     if (title.includes('hors ligne')) {
       if (site && isMaintenance(site.status, site.lastStatusCode)) return false;
-      // Site already recovered — alert should be PENDING_CLOSE; don't drive NOC
+      // Site already recovered — alert should auto-close; don't drive NOC
       if (site && site.status !== 'DOWN') return false;
     }
     return true;

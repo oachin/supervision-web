@@ -8,14 +8,14 @@ export interface ServerWebsiteAlertContext {
   monitoringEnabled: boolean;
 }
 
-/** Alertes vraiment « en cours » (pas acquittées / pas en attente de clôture). */
+/** Alertes en cours. */
 export function flattenActiveAlerts(summary: AlertSummary): Alert[] {
   return [...summary.active];
 }
 
-/** Toutes les alertes non clôturées (actif + acquitté + clôture en attente). */
+/** Alertes non clôturées. */
 export function flattenOpenAlerts(summary: AlertSummary): Alert[] {
-  return [...summary.active, ...summary.acknowledged, ...summary.pendingClose];
+  return [...summary.active];
 }
 
 function isFalseOfflineAlert(alert: Alert, websites: ServerWebsiteAlertContext[]): boolean {
@@ -37,7 +37,6 @@ export function openAlertsForServer(
   );
 
   return alerts.filter((a) => {
-    // « En cours » = ACTIVE uniquement (acquittée / désactivée = hors liste)
     if (a.status !== 'ACTIVE') return false;
     if (isFalseOfflineAlert(a, websites)) return false;
 

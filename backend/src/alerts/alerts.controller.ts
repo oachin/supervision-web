@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AlertStatus } from '@prisma/client';
 import { AlertsService } from './alerts.service';
@@ -47,20 +47,5 @@ export class AlertsController {
     @Body() body: { message: string },
   ) {
     return this.alerts.addNote(id, userId, body.message);
-  }
-
-  @Patch(':id/acknowledge')
-  acknowledge(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.alerts.acknowledge(id, userId);
-  }
-
-  @Post(':id/close')
-  @Roles('ADMIN', 'OPERATOR')
-  close(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-    @Body() body: { origin: string; resolutionMethod: string },
-  ) {
-    return this.alerts.close(id, userId, body.origin, body.resolutionMethod);
   }
 }

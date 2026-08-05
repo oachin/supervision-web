@@ -10,4 +10,4 @@ export const alertActionLabels: Record<string, string> = {
   RESOURCE_DELETED: 'Ressource supprimée',
 };
 
-export const occurrenceActions = new Set(['CREATED', 'SNOOZE_EXPIRED', 'REOPENED', 'OCCURRENCE']);
+export const occurrenceActions = new Set(['CREATED', 'REOPENED', 'OCCURRENCE', 'SNOOZE_EXPIRED']);

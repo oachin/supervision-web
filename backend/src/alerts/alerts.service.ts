@@ -5,8 +5,6 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
-const SNOOZE_MS = 30 * 60 * 1000;
-
 const alertInclude = {
   server: { select: { id: true, name: true, hostname: true } },
   website: {
@@ -104,7 +102,7 @@ export class AlertsService {
         resourceType: params.resourceType,
       };
 
-      if (alert.status === 'ACKNOWLEDGED' || alert.status === 'PENDING_CLOSE') {
+      if (alert.status !== 'CLOSED') {
         await this.logEvent(
           alert.id,
           'CLOSED',
@@ -142,34 +140,44 @@ export class AlertsService {
     }
   }
 
+  /** Migre les anciens statuts d'acquittement vers le cycle simplifié ACTIVE / CLOSED. */
   @Cron(CronExpression.EVERY_MINUTE)
-  async processExpiredSnoozes() {
+  async migrateLegacyStatuses() {
     const now = new Date();
-    const expired = await this.prisma.alert.findMany({
-      where: {
-        status: 'ACKNOWLEDGED',
-        snoozedUntil: { lt: now },
-        issueResolvedAt: null,
+
+    await this.prisma.alert.updateMany({
+      where: { status: 'ACKNOWLEDGED' },
+      data: {
+        status: 'ACTIVE',
+        snoozedUntil: null,
+        acknowledged: false,
       },
     });
 
-    for (const alert of expired) {
-      const updated = await this.prisma.alert.update({
+    const pendingClose = await this.prisma.alert.findMany({
+      where: { status: 'PENDING_CLOSE' },
+    });
+
+    for (const alert of pendingClose) {
+      await this.prisma.alert.update({
         where: { id: alert.id },
         data: {
-          status: 'ACTIVE',
-          occurrenceCount: { increment: 1 },
+          status: 'CLOSED',
+          resolved: true,
+          resolvedAt: alert.resolvedAt ?? now,
+          closedAt: now,
+          issueResolvedAt: alert.issueResolvedAt ?? now,
+          origin: alert.origin ?? 'Résolution automatique',
+          resolutionMethod: alert.resolutionMethod ?? 'Condition plus détectée',
         },
-        include: alertInclude,
       });
       await this.logEvent(
         alert.id,
-        'SNOOZE_EXPIRED',
-        `Snooze expiré — réaffichage popup (occurrence ${updated.occurrenceCount})`,
+        'CLOSED',
+        'Clôture automatique — migration (fin du cycle d\'acquittement)',
         undefined,
-        { occurrenceCount: updated.occurrenceCount },
+        { auto: true, origin: 'migration' },
       );
-      void this.notifications.dispatchForAlert(updated, 'occurrence');
     }
   }
 
@@ -194,32 +202,20 @@ export class AlertsService {
     const existing = await this.prisma.alert.findFirst({
       where: {
         fingerprint: fp,
-        status: { not: 'CLOSED' },
+        status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE'] },
       },
     });
 
     if (existing) {
-      const now = new Date();
-      const snoozeActive =
-        existing.status === 'ACKNOWLEDGED' &&
-        existing.snoozedUntil &&
-        existing.snoozedUntil > now;
-
-      if (snoozeActive) {
-        return this.prisma.alert.update({
-          where: { id: existing.id },
-          data: { message: data.message, severity: data.severity },
-          include: alertInclude,
-        });
-      }
-
       const updated = await this.prisma.alert.update({
         where: { id: existing.id },
         data: {
           message: data.message,
           severity: data.severity,
           issueResolvedAt: null,
-          status: existing.status === 'PENDING_CLOSE' ? 'ACTIVE' : existing.status,
+          status: 'ACTIVE',
+          snoozedUntil: null,
+          acknowledged: false,
         },
         include: alertInclude,
       });
@@ -229,6 +225,43 @@ export class AlertsService {
         void this.notifications.dispatchForAlert(updated, 'occurrence');
       }
 
+      return updated;
+    }
+
+    const closed = await this.prisma.alert.findFirst({
+      where: { fingerprint: fp, status: 'CLOSED' },
+      orderBy: { closedAt: 'desc' },
+    });
+
+    if (closed) {
+      const updated = await this.prisma.alert.update({
+        where: { id: closed.id },
+        data: {
+          message: data.message,
+          severity: data.severity,
+          status: 'ACTIVE',
+          resolved: false,
+          resolvedAt: null,
+          closedAt: null,
+          closedById: null,
+          issueResolvedAt: null,
+          origin: null,
+          resolutionMethod: null,
+          snoozedUntil: null,
+          acknowledged: false,
+          occurrenceCount: { increment: 1 },
+        },
+        include: alertInclude,
+      });
+
+      await this.logEvent(
+        closed.id,
+        'REOPENED',
+        data.message,
+        undefined,
+        { occurrenceCount: updated.occurrenceCount },
+      );
+      void this.notifications.dispatchForAlert(updated, 'occurrence');
       return updated;
     }
 
@@ -248,26 +281,40 @@ export class AlertsService {
     return alert;
   }
 
+  /** Clôture automatique dès que la condition n'est plus détectée. */
   async onIssueResolved(params: { serverId?: string; websiteId?: string; titleContains?: string }) {
     const where: Prisma.AlertWhereInput = {
-      status: { in: ['ACTIVE', 'ACKNOWLEDGED'] },
-      issueResolvedAt: null,
+      status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE'] },
     };
     if (params.serverId) where.serverId = params.serverId;
     if (params.websiteId) where.websiteId = params.websiteId;
     if (params.titleContains) where.title = { contains: params.titleContains };
 
     const alerts = await this.prisma.alert.findMany({ where });
+    const now = new Date();
 
     for (const alert of alerts) {
       await this.prisma.alert.update({
         where: { id: alert.id },
         data: {
-          issueResolvedAt: new Date(),
-          status: 'PENDING_CLOSE',
+          status: 'CLOSED',
+          resolved: true,
+          resolvedAt: now,
+          closedAt: now,
+          issueResolvedAt: now,
+          snoozedUntil: null,
+          acknowledged: false,
+          origin: 'Résolution automatique',
+          resolutionMethod: 'Condition plus détectée',
         },
       });
-      await this.logEvent(alert.id, 'ISSUE_RESOLVED', 'Le problème semble résolu — en attente de clôture');
+      await this.logEvent(
+        alert.id,
+        'CLOSED',
+        'Problème plus détecté — clôture automatique',
+        undefined,
+        { auto: true, resolutionMethod: 'Condition plus détectée' },
+      );
     }
   }
 
@@ -354,20 +401,12 @@ export class AlertsService {
   }
 
   async getSummary() {
-    const [active, acknowledged, pendingClose, closed] = await Promise.all([
+    await this.migrateLegacyStatuses();
+
+    const [active, closed] = await Promise.all([
       this.prisma.alert.findMany({
         where: { status: 'ACTIVE' },
         orderBy: { createdAt: 'desc' },
-        include: alertInclude,
-      }),
-      this.prisma.alert.findMany({
-        where: { status: 'ACKNOWLEDGED' },
-        orderBy: { acknowledgedAt: 'desc' },
-        include: alertInclude,
-      }),
-      this.prisma.alert.findMany({
-        where: { status: 'PENDING_CLOSE' },
-        orderBy: { issueResolvedAt: 'desc' },
         include: alertInclude,
       }),
       this.prisma.alert.findMany({
@@ -381,13 +420,13 @@ export class AlertsService {
     return {
       counts: {
         active: active.length,
-        acknowledged: acknowledged.length,
-        pendingClose: pendingClose.length,
+        acknowledged: 0,
+        pendingClose: 0,
         closed: closed.length,
       },
       active,
-      acknowledged,
-      pendingClose,
+      acknowledged: [] as typeof active,
+      pendingClose: [] as typeof active,
       closed,
     };
   }
@@ -421,9 +460,6 @@ export class AlertsService {
   async addNote(id: string, userId: string, message: string) {
     const alert = await this.prisma.alert.findUnique({ where: { id } });
     if (!alert) throw new NotFoundException('Alerte introuvable');
-    if (alert.status === 'CLOSED') {
-      throw new BadRequestException('Impossible d\'ajouter une note à une alerte clôturée');
-    }
     const trimmed = message?.trim();
     if (!trimmed) throw new BadRequestException('La note ne peut pas être vide');
 
@@ -450,65 +486,5 @@ export class AlertsService {
         },
       },
     });
-  }
-
-  async acknowledge(id: string, userId: string) {
-    const alert = await this.prisma.alert.findUnique({ where: { id } });
-    if (!alert) throw new NotFoundException('Alerte introuvable');
-    if (alert.status !== 'ACTIVE') {
-      throw new BadRequestException('Cette alerte ne nécessite pas d\'acquittement');
-    }
-
-    const snoozedUntil = new Date(Date.now() + SNOOZE_MS);
-
-    const updated = await this.prisma.alert.update({
-      where: { id },
-      data: {
-        status: 'ACKNOWLEDGED',
-        acknowledged: true,
-        acknowledgedById: userId,
-        acknowledgedAt: new Date(),
-        snoozedUntil,
-      },
-      include: alertInclude,
-    });
-
-    await this.logEvent(
-      id,
-      'ACKNOWLEDGED',
-      `Acquittée par l'utilisateur — snooze 30 min`,
-      userId,
-      { snoozedUntil: snoozedUntil.toISOString(), occurrenceCount: alert.occurrenceCount },
-    );
-
-    return updated;
-  }
-
-  async close(id: string, userId: string, origin: string, resolutionMethod: string) {
-    const alert = await this.prisma.alert.findUnique({ where: { id } });
-    if (!alert) throw new NotFoundException('Alerte introuvable');
-    if (alert.status !== 'PENDING_CLOSE') {
-      throw new BadRequestException('Seules les alertes en attente de clôture peuvent être clôturées');
-    }
-    if (!origin?.trim() || !resolutionMethod?.trim()) {
-      throw new BadRequestException('Origine et méthode de résolution requises');
-    }
-
-    const updated = await this.prisma.alert.update({
-      where: { id },
-      data: {
-        status: 'CLOSED',
-        resolved: true,
-        resolvedAt: new Date(),
-        closedAt: new Date(),
-        closedById: userId,
-        origin: origin.trim(),
-        resolutionMethod: resolutionMethod.trim(),
-      },
-      include: alertInclude,
-    });
-
-    await this.logEvent(id, 'CLOSED', `Clôturée — ${origin}`, userId, { resolutionMethod });
-    return updated;
   }
 }

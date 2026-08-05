@@ -9,8 +9,9 @@ import { groupServerAlertsBySite } from '@/lib/server-alerts';
 
 const statusLabels: Record<string, string> = {
   ACTIVE: 'En cours',
-  ACKNOWLEDGED: 'Acquittée',
-  PENDING_CLOSE: 'Clôture en attente',
+  ACKNOWLEDGED: 'En cours',
+  PENDING_CLOSE: 'Clôturée',
+  CLOSED: 'Clôturée',
 };
 
 export function ServerAlertsBySitePanel({
@@ -70,11 +71,9 @@ export function ServerAlertsBySitePanel({
                   <span
                     className={cn(
                       'shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      alert.status === 'ACTIVE'
+                      alert.status === 'ACTIVE' || alert.status === 'ACKNOWLEDGED'
                         ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                        : alert.status === 'ACKNOWLEDGED'
-                          ? 'border-warning/30 bg-warning/10 text-warning'
-                          : 'border-primary/30 bg-primary/10 text-primary',
+                        : 'border-white/10 bg-secondary/30 text-muted-foreground',
                     )}
                   >
                     {statusLabels[alert.status] ?? alert.status}

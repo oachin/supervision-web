@@ -61,15 +61,6 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  async function handleAcknowledge() {
-    if (!currentPopup) return;
-    await api.acknowledgeAlert(currentPopup.id);
-    const remaining = popupAlerts.filter((a) => a.id !== currentPopup.id);
-    setPopupAlerts(remaining);
-    setCurrentPopup(remaining[0] ?? null);
-    refresh();
-  }
-
   function handleSnoozePopups() {
     snooze();
   }
@@ -89,7 +80,6 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       {currentPopup && !isSnoozed && (
         <AlertPopup
           alert={currentPopup}
-          onAcknowledge={handleAcknowledge}
           onSnooze={handleSnoozePopups}
         />
       )}

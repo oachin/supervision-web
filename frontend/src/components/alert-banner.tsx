@@ -44,7 +44,7 @@ export function AlertBanner() {
 
   const state = useMemo(() => {
     const counts = summary?.counts ?? { active: 0, acknowledged: 0, pendingClose: 0, closed: 0 };
-    const unresolvedAlerts = counts.active + counts.acknowledged + counts.pendingClose;
+    const unresolvedAlerts = counts.active;
     const hasCriticalActive = summary?.active.some((a) => a.severity === 'CRITICAL') ?? false;
 
     const serversOffline = dashboard?.summary.servers.offline ?? 0;

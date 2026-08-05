@@ -20,7 +20,6 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
-  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
 
   async function refreshOpenAlerts() {
     const summary = await api.getAlertsSummary();
@@ -67,25 +66,6 @@ export default function DashboardPage() {
   }, []);
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
-
-  async function handleAcknowledge(e: React.MouseEvent, alertId: string) {
-    e.stopPropagation();
-    setAcknowledgingId(alertId);
-    try {
-      await api.acknowledgeAlert(alertId);
-      const summary = await refreshOpenAlerts();
-      setData((current) =>
-        current
-          ? {
-              ...current,
-              summary: { ...current.summary, activeAlerts: summary.counts.active },
-            }
-          : current,
-      );
-    } finally {
-      setAcknowledgingId(null);
-    }
-  }
 
   if (loading) {
     return (
@@ -206,42 +186,28 @@ export default function DashboardPage() {
                   key={a.id}
                   className="rounded-lg border border-white/5 transition-colors hover:border-primary/20"
                 >
-                  <div className="flex items-start gap-3 p-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAlert(a)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <SeverityBadge severity={a.severity} />
-                        <p className="font-medium">{a.title}</p>
-                        {a.occurrenceCount > 1 && (
-                          <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{a.message}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{formatDate(a.createdAt)}</span>
-                        {hostingServer && (
-                          <span className="font-medium text-primary">
-                            Serveur : {hostingServer.name}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {canEdit && a.status === 'ACTIVE' && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleAcknowledge(e, a.id)}
-                          disabled={acknowledgingId === a.id}
-                          className="btn-primary shrink-0 text-sm"
-                        >
-                          {acknowledgingId === a.id ? 'Acquittement…' : 'Acquitter'}
-                        </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAlert(a)}
+                    className="w-full p-3 text-left"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SeverityBadge severity={a.severity} />
+                      <p className="font-medium">{a.title}</p>
+                      {a.occurrenceCount > 1 && (
+                        <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
                       )}
                     </div>
-                  </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{a.message}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>{formatDate(a.createdAt)}</span>
+                      {hostingServer && (
+                        <span className="font-medium text-primary">
+                          Serveur : {hostingServer.name}
+                        </span>
+                      )}
+                    </div>
+                  </button>
                 </div>
               );
             })}
