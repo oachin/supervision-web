@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createReadStream, existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { join } from 'path';
-import { ReadStream } from 'fs';
+import { createHash } from 'crypto';
 import { readFile } from 'fs/promises';
 import { AgentProfile } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -58,12 +58,19 @@ export class AgentInstallService {
       .replace(/__INSTALL_URL__/g, installUrl);
   }
 
-  async getAgentBinary(plainKey: string): Promise<ReadStream> {
+  getAgentBinaryPath(): string {
+    return this.binaryPath;
+  }
+
+  async assertAgentBinaryAvailable(plainKey: string): Promise<{ path: string; size: number; sha256: string }> {
     await this.findServerByPlainKey(plainKey);
     if (!existsSync(this.binaryPath)) {
       throw new NotFoundException('Binaire agent non disponible');
     }
-    return createReadStream(this.binaryPath);
+    const buf = await readFile(this.binaryPath);
+    const sha256 = createHash('sha256').update(buf).digest('hex');
+    const size = statSync(this.binaryPath).size;
+    return { path: this.binaryPath, size, sha256 };
   }
 
   private async findServerByPlainKey(plainKey: string) {

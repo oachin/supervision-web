@@ -74,9 +74,12 @@ type MetricsPayload struct {
 	ProxmoxBackups []ProxmoxBackupPayload `json:"proxmoxBackups,omitempty"`
 }
 
+// agentBuildMarker is embedded so install scripts can verify the downloaded binary.
+const agentBuildMarker = "havet-agent-build:2026-08-05-tag18"
+
 func main() {
 	cfg := loadConfig()
-	log.Printf("Havet Supervision Agent démarré (profil: %s, intervalle: %ds)", cfg.Profile, cfg.Interval)
+	log.Printf("Havet Supervision Agent démarré (profil: %s, intervalle: %ds, %s)", cfg.Profile, cfg.Interval, agentBuildMarker)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 

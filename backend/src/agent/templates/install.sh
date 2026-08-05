@@ -14,7 +14,9 @@ AGENT_KEY="__AGENT_KEY__"
 PROFILE="__PROFILE__"
 INSTALL_DIR="/opt/havet-supervision-agent"
 SERVICE_NAME="havet-supervision-agent"
-DOWNLOAD_URL="${API_URL}/agent/download/linux-amd64?key=${AGENT_KEY}"
+# Cache-buster: avoid stale binaries from proxies
+DOWNLOAD_URL="${API_URL}/agent/download/linux-amd64?key=${AGENT_KEY}&t=$(date +%s)"
+EXPECTED_MARKER="havet-agent-build:"
 
 echo "=== Havet Supervision Agent (${PROFILE}) ==="
 
@@ -37,11 +39,28 @@ fi
 TMP_AGENT="${INSTALL_DIR}/agent.new.$$"
 echo "→ Téléchargement de l'agent..."
 if command -v curl &>/dev/null; then
-  curl -fsSL "$DOWNLOAD_URL" -o "$TMP_AGENT"
+  curl -fsSL -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$DOWNLOAD_URL" -o "$TMP_AGENT"
 else
-  wget -qO "$TMP_AGENT" "$DOWNLOAD_URL"
+  wget -q --no-cache -O "$TMP_AGENT" "$DOWNLOAD_URL"
 fi
+
+if [[ ! -s "$TMP_AGENT" ]]; then
+  echo "❌ Téléchargement vide"
+  rm -f "$TMP_AGENT"
+  exit 1
+fi
+
+if ! grep -aqF "$EXPECTED_MARKER" "$TMP_AGENT"; then
+  echo "❌ Binaire invalide ou obsolète (marqueur ${EXPECTED_MARKER} introuvable)"
+  echo "   Rebuild le backend supervision puis réessaie."
+  rm -f "$TMP_AGENT"
+  exit 1
+fi
+
 chmod +x "$TMP_AGENT"
+if command -v sha256sum &>/dev/null; then
+  echo "→ SHA256: $(sha256sum "$TMP_AGENT" | awk '{print $1}')"
+fi
 mv -f "$TMP_AGENT" "${INSTALL_DIR}/agent"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF

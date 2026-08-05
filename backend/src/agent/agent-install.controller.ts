@@ -30,12 +30,14 @@ export class AgentInstallController {
     if (!key?.startsWith('sv_')) {
       throw new BadRequestException('Clé agent invalide');
     }
-    const stream = await this.install.getAgentBinary(key);
+    const meta = await this.install.assertAgentBinaryAvailable(key);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', 'attachment; filename="supervision-agent"');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
-    stream.pipe(res);
+    res.setHeader('X-Agent-Sha256', meta.sha256);
+    res.setHeader('Content-Length', String(meta.size));
+    return res.sendFile(meta.path);
   }
 
   private async serveInstall(profile: 'linux' | 'plesk' | 'proxmox', key: string, res: Response) {
