@@ -560,6 +560,50 @@ func proxmoxTagsContain(tags, needle string) bool {
 	return false
 }
 
+// proxmoxVmTagsByVMID resolves guest tags for VMs on the local node.
+// Prefer /cluster/resources (includes tags); fall back to each VM config.
+func proxmoxVmTagsByVMID(node string, vmids []int) map[int]string {
+	out := make(map[int]string, len(vmids))
+	raw, err := pveshJSON("/cluster/resources", "--type", "vm")
+	if err == nil {
+		var items []map[string]interface{}
+		if err := json.Unmarshal(raw, &items); err == nil {
+			for _, item := range items {
+				if jsonString(item, "node") != node {
+					continue
+				}
+				vmid, ok := jsonInt(item, "vmid")
+				if !ok {
+					continue
+				}
+				if tags := jsonString(item, "tags"); tags != "" {
+					out[vmid] = tags
+				}
+			}
+		}
+	} else {
+		log.Printf("Proxmox cluster resources (tags): %v", err)
+	}
+
+	for _, vmid := range vmids {
+		if out[vmid] != "" {
+			continue
+		}
+		cfgRaw, err := pveshJSON(fmt.Sprintf("/nodes/%s/qemu/%d/config", node, vmid))
+		if err != nil {
+			continue
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+			continue
+		}
+		if tags := jsonString(cfg, "tags"); tags != "" {
+			out[vmid] = tags
+		}
+	}
+	return out
+}
+
 func collectProxmoxVms(node string) []ProxmoxVmPayload {
 	raw, err := pveshJSON("/nodes/" + node + "/qemu")
 	if err != nil {
@@ -572,13 +616,26 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 		return nil
 	}
 
+	vmids := make([]int, 0, len(items))
+	for _, item := range items {
+		if vmid, ok := jsonInt(item, "vmid"); ok {
+			vmids = append(vmids, vmid)
+		}
+	}
+	tagsByVMID := proxmoxVmTagsByVMID(node, vmids)
+
 	vms := make([]ProxmoxVmPayload, 0, len(items))
 	for _, item := range items {
 		vmid, ok := jsonInt(item, "vmid")
 		if !ok {
 			continue
 		}
-		if proxmoxTagsContain(jsonString(item, "tags"), excludedProxmoxTag) {
+		tags := tagsByVMID[vmid]
+		if tags == "" {
+			tags = jsonString(item, "tags")
+		}
+		if proxmoxTagsContain(tags, excludedProxmoxTag) {
+			log.Printf("Proxmox: exclusion VM %d (%s) tag %s", vmid, jsonString(item, "name"), excludedProxmoxTag)
 			continue
 		}
 		maxmem, _ := jsonNumber(item, "maxmem")
