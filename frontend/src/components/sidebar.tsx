@@ -12,6 +12,8 @@ import {
   ScrollText,
   Settings,
   Activity,
+  Shield,
+  Crosshair,
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -30,6 +32,11 @@ const supervisionItems = [
   { href: '/websites', label: 'Sites web', icon: Globe, resource: 'websites' as const },
   { href: '/alerts', label: 'Alertes', icon: Bell, resource: 'alerts' as const },
   { href: '/events', label: 'Évènements', icon: ScrollText, resource: 'events' as const },
+];
+
+const cyberItems = [
+  { href: '/cybersecurite', label: 'Audit web', icon: Shield, resource: 'cybersecurity' as const },
+  { href: '/cybersecurite/cibles', label: 'Cibles', icon: Crosshair, resource: 'cybersecurity' as const },
 ];
 
 const bottomItems = [
@@ -66,6 +73,48 @@ function NavLink({
   );
 }
 
+function CollapsibleGroup({
+  label,
+  icon: Icon,
+  open,
+  onToggle,
+  active,
+  children,
+}: {
+  label: string;
+  icon: typeof LayoutDashboard;
+  open: boolean;
+  onToggle: () => void;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+          active
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground',
+        )}
+        aria-expanded={open}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 transition-transform',
+            open ? 'rotate-0' : '-rotate-90',
+          )}
+        />
+      </button>
+      {open && <div className="mt-1 space-y-1">{children}</div>}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { hasPermission, loading } = useAuthProfile();
@@ -79,14 +128,21 @@ export function Sidebar() {
 
   const visibleTop = topItems.filter((item) => canView(item.resource));
   const visibleSupervision = supervisionItems.filter((item) => canView(item.resource));
+  const visibleCyber = cyberItems.filter((item) => canView(item.resource));
   const visibleBottom = bottomItems.filter((item) => canView(item.resource));
 
   const supervisionActive = visibleSupervision.some((item) => pathname.startsWith(item.href));
+  const cyberActive = pathname.startsWith('/cybersecurite');
   const [supervisionOpen, setSupervisionOpen] = useState(supervisionActive);
+  const [cyberOpen, setCyberOpen] = useState(cyberActive);
 
   useEffect(() => {
     if (supervisionActive) setSupervisionOpen(true);
   }, [supervisionActive]);
+
+  useEffect(() => {
+    if (cyberActive) setCyberOpen(true);
+  }, [cyberActive]);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-white/5 bg-card/60 backdrop-blur-xl">
@@ -113,41 +169,45 @@ export function Sidebar() {
             ))}
 
             {visibleSupervision.length > 0 && (
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setSupervisionOpen((open) => !open)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                    supervisionActive
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground',
-                  )}
-                  aria-expanded={supervisionOpen}
-                >
-                  <Activity className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-left">Supervision</span>
-                  <ChevronDown
-                    className={cn(
-                      'h-4 w-4 shrink-0 transition-transform',
-                      supervisionOpen ? 'rotate-0' : '-rotate-90',
-                    )}
+              <CollapsibleGroup
+                label="Supervision"
+                icon={Activity}
+                open={supervisionOpen}
+                onToggle={() => setSupervisionOpen((o) => !o)}
+                active={supervisionActive}
+              >
+                {visibleSupervision.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    {...item}
+                    nested
+                    active={pathname.startsWith(item.href)}
                   />
-                </button>
+                ))}
+              </CollapsibleGroup>
+            )}
 
-                {supervisionOpen && (
-                  <div className="mt-1 space-y-1">
-                    {visibleSupervision.map((item) => (
-                      <NavLink
-                        key={item.href}
-                        {...item}
-                        nested
-                        active={pathname.startsWith(item.href)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+            {visibleCyber.length > 0 && (
+              <CollapsibleGroup
+                label="Cybersécurité"
+                icon={Shield}
+                open={cyberOpen}
+                onToggle={() => setCyberOpen((o) => !o)}
+                active={cyberActive}
+              >
+                {visibleCyber.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    {...item}
+                    nested
+                    active={
+                      item.href === '/cybersecurite'
+                        ? pathname === '/cybersecurite'
+                        : pathname.startsWith(item.href)
+                    }
+                  />
+                ))}
+              </CollapsibleGroup>
             )}
 
             {visibleBottom.map((item) => (

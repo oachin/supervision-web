@@ -180,6 +180,7 @@ model Website {
   expectedKeyword String?
   sslEnabled      Boolean           @default(true)
   monitoringEnabled Boolean         @default(true)
+  cyberScanEnabled  Boolean         @default(true)
   sslAlertDays    Int               @default(15)
   sslExpiresAt    DateTime?
   sslIssuer       String?
@@ -379,4 +380,17 @@ model ProxmoxBackup {
   @@unique([serverId, upid])
   @@index([serverId, startedAt])
   @@index([serverId, status])
+}
+
+/** Cibles web externes (hors inventaire Supervision) pour l’audit cybersécurité. */
+model CyberExternalTarget {
+  id        String   @id @default(uuid())
+  name      String
+  url       String   @unique
+  enabled   Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
 }

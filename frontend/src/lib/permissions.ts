@@ -5,6 +5,7 @@ export const PERMISSION_RESOURCES = [
   'websites',
   'alerts',
   'events',
+  'cybersecurity',
   'settings',
   'users',
   'profiles',
@@ -24,6 +25,7 @@ export const PERMISSION_RESOURCE_LABELS: Record<PermissionResource, string> = {
   websites: 'Sites web',
   alerts: 'Alertes',
   events: 'Évènements',
+  cybersecurity: 'Cybersécurité',
   settings: 'Configuration',
   users: 'Utilisateurs',
   profiles: 'Profils',
@@ -37,6 +39,7 @@ export const MENU_PERMISSION: Record<string, PermissionResource> = {
   '/websites': 'websites',
   '/alerts': 'alerts',
   '/events': 'events',
+  '/cybersecurite': 'cybersecurity',
   '/settings': 'settings',
 };
 

@@ -33,6 +33,24 @@ services:
     networks:
       - internal
 
+  websec:
+    build:
+      context: .
+      dockerfile: services/websec-bridge/Dockerfile.standalone
+    restart: unless-stopped
+    env_file:
+      - .env.secrets
+    environment:
+      AUDIT_DB_URL: sqlite:////data/audit.db
+      AUDIT_ENGINE_WORKERS: "4"
+      AUDIT_MIN_CONFIDENCE: confirmed
+      AUDIT_VERIFY_BACKPORTS: "true"
+      # WEBSEC_API_KEY and optional NVD_API_KEY come from .env.secrets
+    volumes:
+      - websec_data:/data
+    networks:
+      - internal
+
   backend:
     build:
       context: .
@@ -43,12 +61,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      websec:
+        condition: service_started
     env_file:
       - .env.secrets
     environment:
       NODE_ENV: production
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       FRONTEND_INTERNAL_URL: http://frontend:3000
+      WEBSEC_URL: http://websec:8000
+      # WEBSEC_API_KEY from .env.secrets
     networks:
       - internal
       - public
@@ -69,6 +91,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  websec_data:
 
 networks:
   internal:

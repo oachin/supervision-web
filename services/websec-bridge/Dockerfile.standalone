@@ -1,0 +1,42 @@
+# Standalone build: build EASM base then bridge in one Dockerfile.
+FROM python:3.12-slim AS easm
+
+ARG NUCLEI_VERSION=3.3.0
+ARG TESTSSL_VERSION=3.0.9
+ARG TARGETARCH=amd64
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 libcairo2 \
+        libffi8 shared-mime-info fonts-dejavu-core \
+        nmap curl unzip ca-certificates \
+        bash openssl dnsutils bsdmainutils procps \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSfL \
+        "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VERSION}/nuclei_${NUCLEI_VERSION}_linux_${TARGETARCH}.zip" \
+        -o /tmp/nuclei.zip \
+    && unzip -o /tmp/nuclei.zip -d /usr/local/bin nuclei \
+    && rm /tmp/nuclei.zip \
+    && nuclei -version \
+    && nuclei -update-templates -disable-update-check || true
+
+RUN curl -sSfL \
+        "https://github.com/drwetter/testssl.sh/archive/refs/tags/v${TESTSSL_VERSION}.tar.gz" \
+        -o /tmp/testssl.tgz \
+    && mkdir -p /opt/testssl \
+    && tar -xzf /tmp/testssl.tgz -C /opt/testssl --strip-components=1 \
+    && rm /tmp/testssl.tgz \
+    && ln -sf /opt/testssl/testssl.sh /usr/local/bin/testssl.sh
+
+WORKDIR /app
+COPY services/websec-audit/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt uvicorn
+
+COPY services/websec-audit/ /app/
+COPY services/websec-bridge/bridge_api.py /app/bridge_api.py
+
+ENV AUDIT_DB_URL=sqlite:////data/audit.db
+EXPOSE 8000
+VOLUME ["/data"]
+
+CMD ["uvicorn", "bridge_api:app", "--host", "0.0.0.0", "--port", "8000"]

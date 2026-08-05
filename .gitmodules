@@ -1,0 +1,3 @@
+[submodule "services/websec-audit"]
+	path = services/websec-audit
+	url = https://github.com/SalmaC79/easm-platform-.git

@@ -302,6 +302,37 @@ class ApiClient {
     });
   }
 
+  // Cybersécurité / WebSec
+  getCyberOverview() { return this.fetch<CyberOverview>('/cyber/overview'); }
+  getCyberTargets() { return this.fetch<CyberTargets>('/cyber/targets'); }
+  setCyberWebsiteScan(websiteId: string, enabled: boolean) {
+    return this.fetch(`/cyber/targets/supervision/${websiteId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+  }
+  addCyberExternalTarget(data: { name: string; url: string; notes?: string }) {
+    return this.fetch('/cyber/targets/external', { method: 'POST', body: JSON.stringify(data) });
+  }
+  updateCyberExternalTarget(id: string, data: { name?: string; enabled?: boolean; notes?: string | null }) {
+    return this.fetch(`/cyber/targets/external/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+  deleteCyberExternalTarget(id: string) {
+    return this.fetch(`/cyber/targets/external/${id}`, { method: 'DELETE' });
+  }
+  startCyberScan(data: { deep?: boolean; authorized?: boolean } = {}) {
+    return this.fetch<{ started: boolean; sites: number; deep: boolean }>('/cyber/scan', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+  getCyberScanStatus() {
+    return this.fetch<Record<string, unknown>>('/cyber/scan/status');
+  }
+  getCyberSiteResult(url: string) {
+    return this.fetch<Record<string, unknown>>(`/cyber/sites?url=${encodeURIComponent(url)}`);
+  }
+
   // Profiles
   getProfiles() { return this.fetch<AccessProfile[]>('/profiles'); }
   getProfileById(id: string) { return this.fetch<AccessProfile>(`/profiles/${id}`); }
@@ -600,6 +631,38 @@ export interface AccessProfile {
   usersCount: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface CyberTargetRow {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  source: 'supervision' | 'external';
+  status?: string;
+  notes?: string | null;
+  server?: { id: string; name: string; hostname?: string } | null;
+}
+
+export interface CyberTargets {
+  supervision: CyberTargetRow[];
+  external: CyberTargetRow[];
+}
+
+export interface CyberOverview {
+  healthy: boolean;
+  scan: Record<string, unknown>;
+  enabledTargets: number;
+  resultsCount: number;
+  grades: Record<string, number>;
+  sites: Array<{
+    name?: string;
+    url?: string;
+    score?: number;
+    grade?: string;
+    findings?: unknown[];
+  }>;
+  trend: unknown[];
 }
 
 export interface NocHostSites {
