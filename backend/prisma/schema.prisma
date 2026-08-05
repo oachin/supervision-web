@@ -394,3 +394,21 @@ model CyberExternalTarget {
 
   @@index([enabled])
 }
+
+/** Programmation des audits cybersécurité (singleton). */
+model CyberScanSchedule {
+  id              String    @id @default("default")
+  enabled         Boolean   @default(false)
+  /** 0 = intervalle désactivé. Combinable avec dailyTimes. */
+  intervalMinutes Int       @default(0)
+  /** Heures quotidiennes HH:MM (24h), fuseau timezone. */
+  dailyTimes      String[]  @default([])
+  deep            Boolean   @default(false)
+  timezone        String    @default("Europe/Paris")
+  lastRunAt       DateTime?
+  lastTrigger     String?
+  lastDailySlot   String?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

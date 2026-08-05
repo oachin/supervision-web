@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp } from 'lucide-react';
+import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarClock } from 'lucide-react';
 import { api, type CyberOverview } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
@@ -117,11 +117,17 @@ export default function CybersecuritePage() {
             Scan des sites Supervision et des cibles externes (EASM / Web Security Audit)
           </p>
           <div className="mt-2 flex flex-wrap gap-3 text-sm">
+            <Link href="/cybersecurite/cibles" className="inline-flex items-center gap-1 text-primary hover:underline">
+              Cibles
+            </Link>
             <Link href="/cybersecurite/evolution" className="inline-flex items-center gap-1 text-primary hover:underline">
               <TrendingUp className="h-3.5 w-3.5" /> Évolution du score
             </Link>
             <Link href="/cybersecurite/rapport" className="inline-flex items-center gap-1 text-primary hover:underline">
               <FileText className="h-3.5 w-3.5" /> Rapport HTML / PDF
+            </Link>
+            <Link href="/cybersecurite/automation" className="inline-flex items-center gap-1 text-sky-300 hover:underline">
+              <CalendarClock className="h-3.5 w-3.5" /> Automation
             </Link>
           </div>
         </div>
@@ -161,7 +167,7 @@ export default function CybersecuritePage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Service audit</p>
           <p className={cn('mt-2 text-lg font-semibold', data?.healthy ? 'text-emerald-400' : 'text-destructive')}>
@@ -192,6 +198,24 @@ export default function CybersecuritePage() {
             <p className="mt-1 text-xs text-destructive">{String(data.scan.error)}</p>
           ) : null}
         </div>
+        <Link
+          href="/cybersecurite/automation"
+          className="card border-sky-500/25 bg-sky-500/5 transition hover:border-sky-400/40"
+        >
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-sky-300">
+            <CalendarClock className="h-3.5 w-3.5" /> Automation
+          </p>
+          <p className="mt-2 text-sm font-semibold">
+            {data?.automation?.enabled ? 'Programmée' : 'Manuelle seule'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {data?.automation?.enabled
+              ? data.automation.nextRunAt
+                ? `Prochain : ${new Date(data.automation.nextRunAt).toLocaleString('fr-FR')}`
+                : 'Active'
+              : 'Configurer les scans auto'}
+          </p>
+        </Link>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

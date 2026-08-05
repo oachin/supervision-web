@@ -75,6 +75,27 @@ export class CyberController {
     return this.cyber.getScanStatus();
   }
 
+  @Get('automation')
+  @RequirePermission('cybersecurity', 'view')
+  getAutomation() {
+    return this.cyber.getAutomation();
+  }
+
+  @Patch('automation')
+  @RequirePermission('cybersecurity', 'modify')
+  updateAutomation(
+    @Body()
+    body: {
+      enabled?: boolean;
+      intervalMinutes?: number;
+      dailyTimes?: string[];
+      deep?: boolean;
+      timezone?: string;
+    },
+  ) {
+    return this.cyber.updateAutomation(body ?? {});
+  }
+
   @Get('sites')
   @RequirePermission('cybersecurity', 'view')
   siteResult(@Query('url') url: string) {

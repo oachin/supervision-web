@@ -326,6 +326,21 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+  getCyberAutomation() {
+    return this.fetch<CyberAutomation>('/cyber/automation');
+  }
+  updateCyberAutomation(data: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    dailyTimes?: string[];
+    deep?: boolean;
+    timezone?: string;
+  }) {
+    return this.fetch<CyberAutomation>('/cyber/automation', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
   getCyberScanStatus() {
     return this.fetch<Record<string, unknown>>('/cyber/scan/status');
   }
@@ -734,6 +749,23 @@ export interface CyberSiteResult {
   history?: CyberHistoryPoint[];
 }
 
+export interface CyberAutomation {
+  id: string;
+  enabled: boolean;
+  intervalMinutes: number;
+  dailyTimes: string[];
+  deep: boolean;
+  timezone: string;
+  lastRunAt?: string | null;
+  lastTrigger?: string | null;
+  lastDailySlot?: string | null;
+  lastError?: string | null;
+  scanRunning?: boolean;
+  nextIntervalAt?: string | null;
+  nextDailyAt?: string | null;
+  nextRunAt?: string | null;
+}
+
 export interface CyberOverview {
   healthy: boolean;
   scan: Record<string, unknown>;
@@ -742,6 +774,7 @@ export interface CyberOverview {
   grades: Record<string, number>;
   sites: CyberSiteResult[];
   trend: CyberTrendPoint[];
+  automation?: CyberAutomation | null;
 }
 
 export interface NocHostSites {
