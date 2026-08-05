@@ -255,7 +255,7 @@ export class AgentService {
     await this.prisma.proxmoxVm.deleteMany({
       where: {
         serverId,
-        name: { endsWith: '[18]' },
+        name: { endsWith: 'T18' },
       },
     });
   }

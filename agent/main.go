@@ -75,7 +75,7 @@ type MetricsPayload struct {
 }
 
 // agentBuildMarker is embedded so install scripts can verify the downloaded binary.
-const agentBuildMarker = "havet-agent-build:2026-08-05-name18"
+const agentBuildMarker = "havet-agent-build:2026-08-05-name-t18"
 
 func main() {
 	cfg := loadConfig()
@@ -547,7 +547,7 @@ func collectProxmoxDisk(node string) (usedGb, totalGb float64, ok bool) {
 }
 
 // excludedProxmoxVmNameSuffix marks VMs to skip from inventory (name ends with this).
-const excludedProxmoxVmNameSuffix = "[18]"
+const excludedProxmoxVmNameSuffix = "T18"
 
 func isExcludedProxmoxVmName(name string) bool {
 	return strings.HasSuffix(strings.TrimSpace(name), excludedProxmoxVmNameSuffix)

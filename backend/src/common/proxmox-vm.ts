@@ -1,5 +1,5 @@
 /** VMs whose Proxmox name ends with this marker are hidden from inventory. */
-export const EXCLUDED_PROXMOX_VM_NAME_SUFFIX = '[18]';
+export const EXCLUDED_PROXMOX_VM_NAME_SUFFIX = 'T18';
 
 export function isExcludedProxmoxVmName(name: string | null | undefined): boolean {
   if (!name) return false;

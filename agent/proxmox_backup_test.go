@@ -42,12 +42,12 @@ func TestIsExcludedProxmoxVmName(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"MYPLACE-AFFILIATION-105 [18]", true},
-		{"MYPLACE-AFFILIATION-105[18]", true},
-		{"foo [18] ", true},
+		{"MYPLACE-AFFILIATION-105-T18", true},
+		{"MYPLACE-AFFILIATION-105T18", true},
+		{"fooT18 ", true},
 		{"MYPLACE-AFFILIATION-105", false},
-		{"[18]prefix", false},
-		{"foo [180]", false},
+		{"T18prefix", false},
+		{"fooT180", false},
 		{"", false},
 	}
 	for _, tc := range cases {
