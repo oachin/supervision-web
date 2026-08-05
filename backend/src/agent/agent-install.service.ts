@@ -39,7 +39,11 @@ export class AgentInstallService {
     return 'linux';
   }
 
-  async getInstallScript(profile: 'linux' | 'plesk' | 'proxmox', plainKey: string): Promise<string> {
+  async getInstallScript(
+    profile: 'linux' | 'plesk' | 'proxmox',
+    plainKey: string,
+    publicOrigin?: string,
+  ): Promise<string> {
     const server = await this.findServerByPlainKey(plainKey);
     const expected: AgentProfile =
       profile === 'plesk' ? 'PLESK' : profile === 'proxmox' ? 'PROXMOX' : 'LINUX';
@@ -47,15 +51,21 @@ export class AgentInstallService {
       throw new NotFoundException('Profil agent incompatible');
     }
 
-    const apiUrl = this.getPublicApiUrl();
-    const installUrl = this.buildInstallUrl(profile, plainKey);
+    const origin = (publicOrigin || this.config.get<string>('CORS_ORIGIN', 'http://localhost:4000')).replace(
+      /\/$/,
+      '',
+    );
+    const apiUrl = `${origin}/api`;
+    const installUrl = `${apiUrl}/agent/install/${profile}?key=${encodeURIComponent(plainKey)}`;
+    const binary = await this.assertAgentBinaryAvailable(plainKey);
     const template = await readFile(this.templatePath, 'utf8');
 
     return template
       .replace(/__API_URL__/g, apiUrl)
       .replace(/__AGENT_KEY__/g, plainKey)
       .replace(/__PROFILE__/g, profile)
-      .replace(/__INSTALL_URL__/g, installUrl);
+      .replace(/__INSTALL_URL__/g, installUrl)
+      .replace(/__EXPECTED_SHA256__/g, binary.sha256);
   }
 
   getAgentBinaryPath(): string {

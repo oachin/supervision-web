@@ -17,8 +17,10 @@ SERVICE_NAME="havet-supervision-agent"
 # Cache-buster: avoid stale binaries from proxies
 DOWNLOAD_URL="${API_URL}/agent/download/linux-amd64?key=${AGENT_KEY}&t=$(date +%s)"
 EXPECTED_MARKER="havet-agent-build:"
+EXPECTED_SHA256="__EXPECTED_SHA256__"
 
 echo "=== Havet Supervision Agent (${PROFILE}) ==="
+echo "→ API: ${API_URL}"
 
 if ! command -v systemctl &>/dev/null; then
   echo "systemctl requis (systemd)"
@@ -50,17 +52,24 @@ if [[ ! -s "$TMP_AGENT" ]]; then
   exit 1
 fi
 
-if ! grep -aqF "$EXPECTED_MARKER" "$TMP_AGENT"; then
+if ! grep -aFq "$EXPECTED_MARKER" "$TMP_AGENT"; then
   echo "❌ Binaire invalide ou obsolète (marqueur ${EXPECTED_MARKER} introuvable)"
   echo "   Rebuild le backend supervision puis réessaie."
   rm -f "$TMP_AGENT"
   exit 1
 fi
 
-chmod +x "$TMP_AGENT"
 if command -v sha256sum &>/dev/null; then
-  echo "→ SHA256: $(sha256sum "$TMP_AGENT" | awk '{print $1}')"
+  GOT_SHA="$(sha256sum "$TMP_AGENT" | awk '{print $1}')"
+  echo "→ SHA256: ${GOT_SHA}"
+  if [[ -n "$EXPECTED_SHA256" && "$EXPECTED_SHA256" != "__EXPECTED_SHA256__" && "$GOT_SHA" != "$EXPECTED_SHA256" ]]; then
+    echo "❌ SHA256 mismatch (attendu ${EXPECTED_SHA256})"
+    rm -f "$TMP_AGENT"
+    exit 1
+  fi
 fi
+
+chmod +x "$TMP_AGENT"
 mv -f "$TMP_AGENT" "${INSTALL_DIR}/agent"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<EOF
