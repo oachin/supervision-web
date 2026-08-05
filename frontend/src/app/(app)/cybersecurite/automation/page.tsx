@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   CalendarClock,
@@ -12,12 +12,12 @@ import {
   Trash2,
   Info,
 } from 'lucide-react';
+import { api, type CyberAutomation, type CyberAutoTarget } from '@/lib/api';
+import { useAuthProfile } from '@/hooks/use-auth-profile';
+import { cn } from '@/lib/utils';
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
-import { api, type CyberAutomation } from '@/lib/api';
-import { useAuthProfile } from '@/hooks/use-auth-profile';
-import { cn } from '@/lib/utils';
 
 function formatWhen(iso?: string | null) {
   if (!iso) return '—';
@@ -49,6 +49,7 @@ export default function CyberAutomationPage() {
   const [dailyTimes, setDailyTimes] = useState<string[]>([]);
   const [deep, setDeep] = useState(false);
   const [timezone, setTimezone] = useState('Europe/Paris');
+  const [targets, setTargets] = useState<CyberAutoTarget[]>([]);
 
   const apply = useCallback((a: CyberAutomation) => {
     setData(a);
@@ -57,6 +58,7 @@ export default function CyberAutomationPage() {
     setDailyTimes(a.dailyTimes || []);
     setDeep(a.deep);
     setTimezone(a.timezone || 'Europe/Paris');
+    setTargets(a.autoTargets || []);
   }, []);
 
   const load = useCallback(async () => {
@@ -76,23 +78,25 @@ export default function CyberAutomationPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  async function save(partial?: Partial<{
-    enabled: boolean;
-    intervalMinutes: number;
-    dailyTimes: string[];
-    deep: boolean;
-    timezone: string;
-  }>) {
+  const excludeUrls = useMemo(
+    () => targets.filter((t) => !t.includedInAuto).map((t) => t.url),
+    [targets],
+  );
+  const includedCount = targets.filter((t) => t.includedInAuto).length;
+  const allIncluded = targets.length > 0 && includedCount === targets.length;
+
+  async function save() {
     if (!canModify) return;
     setSaving(true);
     setError(null);
     try {
       const updated = await api.updateCyberAutomation({
-        enabled: partial?.enabled ?? enabled,
-        intervalMinutes: partial?.intervalMinutes ?? intervalMinutes,
-        dailyTimes: partial?.dailyTimes ?? dailyTimes,
-        deep: partial?.deep ?? deep,
-        timezone: partial?.timezone ?? timezone,
+        enabled,
+        intervalMinutes,
+        dailyTimes,
+        autoExcludeUrls: excludeUrls,
+        deep,
+        timezone,
       });
       apply(updated);
     } catch (err) {
@@ -105,12 +109,21 @@ export default function CyberAutomationPage() {
   function addDailyTime() {
     const t = newTime.trim();
     if (!t || dailyTimes.includes(t)) return;
-    const next = [...dailyTimes, t].sort();
-    setDailyTimes(next);
+    setDailyTimes([...dailyTimes, t].sort());
   }
 
   function removeDailyTime(t: string) {
     setDailyTimes(dailyTimes.filter((x) => x !== t));
+  }
+
+  function setAllIncluded(included: boolean) {
+    setTargets((prev) => prev.map((t) => ({ ...t, includedInAuto: included })));
+  }
+
+  function toggleTarget(url: string, included: boolean) {
+    setTargets((prev) =>
+      prev.map((t) => (t.url === url ? { ...t, includedInAuto: included } : t)),
+    );
   }
 
   if (loading && !data) {
@@ -131,7 +144,7 @@ export default function CyberAutomationPage() {
           </div>
           <h1 className="text-2xl font-bold">Automation</h1>
           <p className="text-sm text-muted-foreground">
-            Scans automatiques des cibles actives — intervalle et/ou horaires quotidiens
+            Scans automatiques — planning, mode et sélection des cibles
           </p>
         </div>
         <button type="button" onClick={load} className="btn-secondary text-sm">
@@ -158,6 +171,13 @@ export default function CyberAutomationPage() {
           <p className="mt-2 text-sm font-medium">{formatWhen(data?.nextRunAt)}</p>
         </div>
         <div className="card">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Cibles auto</p>
+          <p className="mt-2 text-2xl font-bold">
+            {includedCount}
+            <span className="text-base font-normal text-muted-foreground">/{targets.length}</span>
+          </p>
+        </div>
+        <div className="card">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Dernier scan auto</p>
           <p className="mt-2 text-sm font-medium">{formatWhen(data?.lastRunAt)}</p>
           {data?.lastTrigger && (
@@ -165,12 +185,6 @@ export default function CyberAutomationPage() {
               Déclencheur : {data.lastTrigger === 'daily' ? 'quotidien' : 'intervalle'}
             </p>
           )}
-        </div>
-        <div className="card">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Scan en cours</p>
-          <p className="mt-2 text-sm font-medium">
-            {data?.scanRunning ? 'Oui' : 'Non'}
-          </p>
         </div>
       </div>
 
@@ -185,11 +199,11 @@ export default function CyberAutomationPage() {
           <div>
             <h2 className="font-semibold">Activation</h2>
             <p className="text-sm text-muted-foreground">
-              Les cibles utilisées sont celles activées dans{' '}
+              Base des cibles : sites activés dans{' '}
               <Link href="/cybersecurite/cibles" className="text-primary hover:underline">
                 Cibles
               </Link>
-              .
+              . Vous pouvez en exclure certaines du scan auto ci-dessous.
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -232,6 +246,72 @@ export default function CyberAutomationPage() {
             placeholder="Europe/Paris"
           />
         </div>
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Cibles du scan automatique</h2>
+            <p className="text-sm text-muted-foreground">
+              Par défaut toutes sont incluses. Décochez pour exclure du scan auto (le scan manuel reste complet).
+            </p>
+          </div>
+          {canModify && targets.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary px-2 py-1 text-xs"
+                disabled={saving || allIncluded}
+                onClick={() => setAllIncluded(true)}
+              >
+                Tout inclure
+              </button>
+              <button
+                type="button"
+                className="btn-secondary px-2 py-1 text-xs"
+                disabled={saving || includedCount === 0}
+                onClick={() => setAllIncluded(false)}
+              >
+                Tout exclure
+              </button>
+            </div>
+          )}
+        </div>
+
+        {targets.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Aucune cible active.{' '}
+            <Link href="/cybersecurite/cibles" className="text-primary hover:underline">
+              Activer des cibles
+            </Link>
+          </p>
+        ) : (
+          <ul className="divide-y divide-white/5 rounded-lg border border-white/5">
+            {targets.map((t) => (
+              <li key={t.url} className="flex items-center gap-3 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  className="accent-primary h-4 w-4 shrink-0"
+                  checked={t.includedInAuto}
+                  disabled={!canModify || saving}
+                  onChange={(e) => toggleTarget(t.url, e.target.checked)}
+                  aria-label={`Inclure ${t.name} dans le scan auto`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
+                    {t.name}
+                  </p>
+                  <p className="truncate font-mono text-xs text-muted-foreground">{t.url}</p>
+                </div>
+                {!t.includedInAuto && (
+                  <span className="shrink-0 rounded border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Exclue
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -319,12 +399,7 @@ export default function CyberAutomationPage() {
 
       {canModify && (
         <div className="flex justify-end">
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={saving}
-            onClick={() => save()}
-          >
+          <button type="button" className="btn-primary" disabled={saving} onClick={() => save()}>
             {saving ? 'Enregistrement…' : 'Enregistrer la programmation'}
           </button>
         </div>

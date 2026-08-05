@@ -403,6 +403,8 @@ model CyberScanSchedule {
   intervalMinutes Int       @default(0)
   /** Heures quotidiennes HH:MM (24h), fuseau timezone. */
   dailyTimes      String[]  @default([])
+  /** URLs exclues du scan automatique (les scans manuels restent complets). */
+  autoExcludeUrls String[]  @default([])
   deep            Boolean   @default(false)
   timezone        String    @default("Europe/Paris")
   lastRunAt       DateTime?

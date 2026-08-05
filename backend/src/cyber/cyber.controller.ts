@@ -89,6 +89,7 @@ export class CyberController {
       enabled?: boolean;
       intervalMinutes?: number;
       dailyTimes?: string[];
+      autoExcludeUrls?: string[];
       deep?: boolean;
       timezone?: string;
     },

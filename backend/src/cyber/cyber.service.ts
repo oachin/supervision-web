@@ -102,12 +102,23 @@ export class CyberService {
       nextRunAt = nextIntervalAt || nextDaily;
     }
 
+    const eligible = await this.collectScanTargets('manual');
+    const exclude = new Set(schedule.autoExcludeUrls.map((u) => u.trim()));
+    const autoTargets = eligible.map((t) => ({
+      ...t,
+      includedInAuto: !exclude.has(t.url),
+    }));
+    const autoIncludedCount = autoTargets.filter((t) => t.includedInAuto).length;
+
     return {
       ...schedule,
       scanRunning: Boolean((status as { running?: boolean }).running),
       nextIntervalAt,
       nextDailyAt: nextDaily,
       nextRunAt,
+      autoTargets,
+      autoIncludedCount,
+      autoEligibleCount: eligible.length,
     };
   }
 
@@ -115,6 +126,7 @@ export class CyberService {
     enabled?: boolean;
     intervalMinutes?: number;
     dailyTimes?: string[];
+    autoExcludeUrls?: string[];
     deep?: boolean;
     timezone?: string;
   }) {
@@ -136,11 +148,32 @@ export class CyberService {
         ? Math.max(0, Math.min(60 * 24 * 7, Math.floor(data.intervalMinutes)))
         : current.intervalMinutes;
 
+    let autoExcludeUrls = current.autoExcludeUrls;
+    if (data.autoExcludeUrls !== undefined) {
+      autoExcludeUrls = [
+        ...new Set(
+          data.autoExcludeUrls
+            .map((u) => u.trim())
+            .filter((u) => /^https?:\/\//i.test(u)),
+        ),
+      ].sort();
+    }
+
     const enabled = data.enabled !== undefined ? data.enabled : current.enabled;
     if (enabled && intervalMinutes <= 0 && dailyTimes.length === 0) {
       throw new BadRequestException(
         'Activez un intervalle (minutes) et/ou au moins une heure quotidienne',
       );
+    }
+
+    if (enabled) {
+      const eligible = await this.collectScanTargets('manual');
+      const included = eligible.filter((t) => !autoExcludeUrls.includes(t.url));
+      if (eligible.length > 0 && included.length === 0) {
+        throw new BadRequestException(
+          'Au moins une cible doit rester incluse dans le scan automatique',
+        );
+      }
     }
 
     await this.prisma.cyberScanSchedule.update({
@@ -149,6 +182,7 @@ export class CyberService {
         enabled,
         intervalMinutes,
         dailyTimes,
+        autoExcludeUrls,
         ...(data.deep !== undefined ? { deep: data.deep } : {}),
         ...(data.timezone !== undefined
           ? { timezone: data.timezone.trim() || 'Europe/Paris' }
@@ -249,8 +283,8 @@ export class CyberService {
     return { success: true };
   }
 
-  async collectScanTargets(): Promise<WebsecSiteTarget[]> {
-    const [websites, external] = await Promise.all([
+  async collectScanTargets(mode: 'manual' | 'auto' = 'manual'): Promise<WebsecSiteTarget[]> {
+    const [websites, external, schedule] = await Promise.all([
       this.prisma.website.findMany({
         where: { monitoringEnabled: true, cyberScanEnabled: true },
         select: { name: true, url: true },
@@ -259,11 +293,14 @@ export class CyberService {
         where: { enabled: true },
         select: { name: true, url: true },
       }),
+      mode === 'auto' ? this.ensureSchedule() : Promise.resolve(null),
     ]);
 
+    const exclude = new Set((schedule?.autoExcludeUrls ?? []).map((u) => u.trim()));
     const byUrl = new Map<string, WebsecSiteTarget>();
     for (const w of [...websites, ...external]) {
       const url = w.url.trim();
+      if (mode === 'auto' && exclude.has(url)) continue;
       if (!byUrl.has(url)) {
         byUrl.set(url, {
           name: w.name,
@@ -319,11 +356,11 @@ export class CyberService {
   }
 
   private async startScheduledScan(trigger: 'interval' | 'daily', deep: boolean, dailySlot?: string) {
-    const sites = await this.collectScanTargets();
+    const sites = await this.collectScanTargets('auto');
     if (sites.length === 0) {
       await this.prisma.cyberScanSchedule.update({
         where: { id: 'default' },
-        data: { lastError: 'Aucune cible activée pour le scan automatique' },
+        data: { lastError: 'Aucune cible incluse pour le scan automatique' },
       });
       return;
     }

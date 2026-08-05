@@ -333,6 +333,7 @@ class ApiClient {
     enabled?: boolean;
     intervalMinutes?: number;
     dailyTimes?: string[];
+    autoExcludeUrls?: string[];
     deep?: boolean;
     timezone?: string;
   }) {
@@ -749,11 +750,19 @@ export interface CyberSiteResult {
   history?: CyberHistoryPoint[];
 }
 
+export interface CyberAutoTarget {
+  name: string;
+  url: string;
+  domain?: string;
+  includedInAuto: boolean;
+}
+
 export interface CyberAutomation {
   id: string;
   enabled: boolean;
   intervalMinutes: number;
   dailyTimes: string[];
+  autoExcludeUrls: string[];
   deep: boolean;
   timezone: string;
   lastRunAt?: string | null;
@@ -764,6 +773,9 @@ export interface CyberAutomation {
   nextIntervalAt?: string | null;
   nextDailyAt?: string | null;
   nextRunAt?: string | null;
+  autoTargets?: CyberAutoTarget[];
+  autoIncludedCount?: number;
+  autoEligibleCount?: number;
 }
 
 export interface CyberOverview {
