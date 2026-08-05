@@ -6,8 +6,6 @@ import { AuditService } from '../audit/audit.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AgentInstallService } from '../agent/agent-install.service';
 import { CreateServerDto, UpdateServerDto } from '../common/dto';
-import { proxmoxVmVisibleWhere } from '../common/proxmox-vm';
-
 @Injectable()
 export class ServersService {
   constructor(
@@ -170,7 +168,6 @@ export class ServersService {
 
   async getAllProxmoxVms() {
     return this.prisma.proxmoxVm.findMany({
-      where: proxmoxVmVisibleWhere,
       include: {
         server: {
           select: {
@@ -208,7 +205,7 @@ export class ServersService {
   async getProxmoxVms(serverId: string) {
     await this.ensureServer(serverId);
     return this.prisma.proxmoxVm.findMany({
-      where: { serverId, ...proxmoxVmVisibleWhere },
+      where: { serverId },
       orderBy: { vmid: 'asc' },
     });
   }

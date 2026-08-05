@@ -36,6 +36,7 @@ type ProxmoxVmPayload struct {
 	Cpus       int      `json:"cpus"`
 	MaxmemMb   float64  `json:"maxmemMb"`
 	MaxdiskGb  float64  `json:"maxdiskGb"`
+	Tags       []string `json:"tags,omitempty"`
 	CPUPercent *float64 `json:"cpuPercent,omitempty"`
 	MemUsedMb  *float64 `json:"memUsedMb,omitempty"`
 }
@@ -75,7 +76,7 @@ type MetricsPayload struct {
 }
 
 // agentBuildMarker is embedded so install scripts can verify the downloaded binary.
-const agentBuildMarker = "havet-agent-build:2026-08-05-name-t18"
+const agentBuildMarker = "havet-agent-build:2026-08-05-tag18"
 
 func main() {
 	cfg := loadConfig()
@@ -546,11 +547,74 @@ func collectProxmoxDisk(node string) (usedGb, totalGb float64, ok bool) {
 	return usedBytes / (1024 * 1024 * 1024), totalBytes / (1024 * 1024 * 1024), true
 }
 
-// excludedProxmoxVmNameSuffix marks VMs to skip from inventory (name ends with this).
-const excludedProxmoxVmNameSuffix = "T18"
+// excludedProxmoxTag marks Proxmox guest tags to skip from inventory.
+const excludedProxmoxTag = "18"
 
-func isExcludedProxmoxVmName(name string) bool {
-	return strings.HasSuffix(strings.TrimSpace(name), excludedProxmoxVmNameSuffix)
+func parseProxmoxTags(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ";")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func proxmoxTagsContain(tags []string, needle string) bool {
+	for _, t := range tags {
+		if t == needle {
+			return true
+		}
+	}
+	return false
+}
+
+// proxmoxVmTagsByVMID resolves guest tags for VMs on the local node.
+func proxmoxVmTagsByVMID(node string, vmids []int) map[int][]string {
+	out := make(map[int][]string, len(vmids))
+	raw, err := pveshJSON("/cluster/resources", "--type", "vm")
+	if err == nil {
+		var items []map[string]interface{}
+		if err := json.Unmarshal(raw, &items); err == nil {
+			for _, item := range items {
+				if jsonString(item, "node") != node {
+					continue
+				}
+				vmid, ok := jsonInt(item, "vmid")
+				if !ok {
+					continue
+				}
+				if tags := parseProxmoxTags(jsonString(item, "tags")); len(tags) > 0 {
+					out[vmid] = tags
+				}
+			}
+		}
+	} else {
+		log.Printf("Proxmox cluster resources (tags): %v", err)
+	}
+
+	for _, vmid := range vmids {
+		if len(out[vmid]) > 0 {
+			continue
+		}
+		cfgRaw, err := pveshJSON(fmt.Sprintf("/nodes/%s/qemu/%d/config", node, vmid))
+		if err != nil {
+			continue
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(cfgRaw, &cfg); err != nil {
+			continue
+		}
+		if tags := parseProxmoxTags(jsonString(cfg, "tags")); len(tags) > 0 {
+			out[vmid] = tags
+		}
+	}
+	return out
 }
 
 func collectProxmoxVms(node string) []ProxmoxVmPayload {
@@ -565,15 +629,26 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 		return nil
 	}
 
+	vmids := make([]int, 0, len(items))
+	for _, item := range items {
+		if vmid, ok := jsonInt(item, "vmid"); ok {
+			vmids = append(vmids, vmid)
+		}
+	}
+	tagsByVMID := proxmoxVmTagsByVMID(node, vmids)
+
 	vms := make([]ProxmoxVmPayload, 0, len(items))
 	for _, item := range items {
 		vmid, ok := jsonInt(item, "vmid")
 		if !ok {
 			continue
 		}
-		name := jsonString(item, "name")
-		if isExcludedProxmoxVmName(name) {
-			log.Printf("Proxmox: exclusion VM %d (%s) suffix %s", vmid, name, excludedProxmoxVmNameSuffix)
+		tags := tagsByVMID[vmid]
+		if len(tags) == 0 {
+			tags = parseProxmoxTags(jsonString(item, "tags"))
+		}
+		if proxmoxTagsContain(tags, excludedProxmoxTag) {
+			log.Printf("Proxmox: exclusion VM %d (%s) tag %s", vmid, jsonString(item, "name"), excludedProxmoxTag)
 			continue
 		}
 		maxmem, _ := jsonNumber(item, "maxmem")
@@ -581,11 +656,12 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 		cpus, _ := jsonInt(item, "cpus")
 		vm := ProxmoxVmPayload{
 			VMID:      vmid,
-			Name:      name,
+			Name:      jsonString(item, "name"),
 			Status:    jsonString(item, "status"),
 			Cpus:      cpus,
 			MaxmemMb:  maxmem / (1024 * 1024),
 			MaxdiskGb: maxdisk / (1024 * 1024 * 1024),
+			Tags:      tags,
 		}
 		if vm.Status == "running" {
 			statusRaw, err := pveshJSON(fmt.Sprintf("/nodes/%s/qemu/%d/status/current", node, vmid))

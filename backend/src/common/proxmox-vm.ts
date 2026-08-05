@@ -1,12 +1,7 @@
-/** VMs whose Proxmox name ends with this marker are hidden from inventory. */
-export const EXCLUDED_PROXMOX_VM_NAME_SUFFIX = 'T18';
+/** Proxmox guest tag excluded from inventory / UI. */
+export const EXCLUDED_PROXMOX_TAG = '18';
 
-export function isExcludedProxmoxVmName(name: string | null | undefined): boolean {
-  if (!name) return false;
-  return name.trimEnd().endsWith(EXCLUDED_PROXMOX_VM_NAME_SUFFIX);
+export function hasExcludedProxmoxTag(tags: string[] | null | undefined): boolean {
+  if (!tags?.length) return false;
+  return tags.some((t) => t.trim() === EXCLUDED_PROXMOX_TAG);
 }
-
-/** Prisma where clause: keep only VMs that are not name-excluded. */
-export const proxmoxVmVisibleWhere = {
-  NOT: { name: { endsWith: EXCLUDED_PROXMOX_VM_NAME_SUFFIX } },
-} as const;

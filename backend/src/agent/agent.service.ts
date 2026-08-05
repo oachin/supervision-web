@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ServersService } from '../servers/servers.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AgentMetricsDto } from '../common/dto';
-import { isExcludedProxmoxVmName } from '../common/proxmox-vm';
+import { hasExcludedProxmoxTag } from '../common/proxmox-vm';
 
 const PLESK_CRITICAL_SERVICE_GROUPS = [
   ['sw-engine'],
@@ -207,8 +207,8 @@ export class AgentService {
   private async syncProxmoxVms(serverId: string, vms: NonNullable<AgentMetricsDto['proxmoxVms']>) {
     const now = new Date();
     const seenVmids: number[] = [];
-    // Drop name-excluded VMs even if an older agent still reports them.
-    const visible = vms.filter((vm) => !isExcludedProxmoxVmName(vm.name));
+    // Drop tag-excluded VMs (and prune them if an older agent still reports them without tags).
+    const visible = vms.filter((vm) => !hasExcludedProxmoxTag(vm.tags));
 
     for (const vm of visible) {
       seenVmids.push(vm.vmid);
@@ -250,12 +250,6 @@ export class AgentService {
       where: {
         serverId,
         ...(seenVmids.length ? { vmid: { notIn: seenVmids } } : {}),
-      },
-    });
-    await this.prisma.proxmoxVm.deleteMany({
-      where: {
-        serverId,
-        name: { endsWith: 'T18' },
       },
     });
   }

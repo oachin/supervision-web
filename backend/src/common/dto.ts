@@ -242,6 +242,11 @@ export class AgentProxmoxVmDto {
   maxdiskGb!: number;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsOptional()
   @IsNumber()
   cpuPercent?: number;
 

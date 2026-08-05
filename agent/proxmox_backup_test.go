@@ -37,24 +37,16 @@ func TestParseVmidFromVolid(t *testing.T) {
 	}
 }
 
-func TestIsExcludedProxmoxVmName(t *testing.T) {
-	cases := []struct {
-		name string
-		want bool
-	}{
-		{"MYPLACE-AFFILIATION-105-T18", true},
-		{"MYPLACE-AFFILIATION-105T18", true},
-		{"fooT18 ", true},
-		{"MYPLACE-AFFILIATION-105", false},
-		{"T18prefix", false},
-		{"fooT180", false},
-		{"", false},
+func TestParseProxmoxTags(t *testing.T) {
+	got := parseProxmoxTags("prod;18;internal")
+	if len(got) != 3 || got[1] != "18" {
+		t.Fatalf("parseProxmoxTags=%v", got)
 	}
-	for _, tc := range cases {
-		got := isExcludedProxmoxVmName(tc.name)
-		if got != tc.want {
-			t.Fatalf("isExcludedProxmoxVmName(%q)=%v want %v", tc.name, got, tc.want)
-		}
+	if !proxmoxTagsContain(got, "18") {
+		t.Fatal("expected tag 18")
+	}
+	if proxmoxTagsContain(got, "180") {
+		t.Fatal("did not expect tag 180")
 	}
 }
 
