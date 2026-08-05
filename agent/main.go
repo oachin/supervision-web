@@ -70,7 +70,7 @@ type MetricsPayload struct {
 	PleskDomains   *int                   `json:"pleskDomains,omitempty"`
 	PleskServices  map[string]string      `json:"pleskServices,omitempty"`
 	PleskWebsites  []PleskWebsitePayload  `json:"pleskWebsites,omitempty"`
-	ProxmoxVMs     []ProxmoxVmPayload     `json:"proxmoxVms,omitempty"`
+	ProxmoxVMs     *[]ProxmoxVmPayload    `json:"proxmoxVms,omitempty"`
 	ProxmoxBackups []ProxmoxBackupPayload `json:"proxmoxBackups,omitempty"`
 }
 
@@ -217,7 +217,12 @@ func collectMetrics(cfg Config) (*MetricsPayload, error) {
 					m.DiskPercent = (used / total) * 100
 				}
 			}
-			m.ProxmoxVMs = collectProxmoxVms(node)
+			vms := collectProxmoxVms(node)
+			// Pointer so an empty inventory still serializes as [] (not omitted),
+			// allowing the backend to prune VMs excluded by tag.
+			if vms != nil {
+				m.ProxmoxVMs = &vms
+			}
 			m.ProxmoxBackups = collectProxmoxBackups(node)
 		} else {
 			log.Printf("Proxmox: impossible de déterminer le nœud: %v", err)
@@ -538,6 +543,23 @@ func collectProxmoxDisk(node string) (usedGb, totalGb float64, ok bool) {
 	return usedBytes / (1024 * 1024 * 1024), totalBytes / (1024 * 1024 * 1024), true
 }
 
+// excludedProxmoxTag is skipped during inventory (e.g. internal/affiliate VMs).
+const excludedProxmoxTag = "18"
+
+// proxmoxTagsContain reports whether the Proxmox semicolon-separated tags field
+// includes the given tag (exact match after trim).
+func proxmoxTagsContain(tags, needle string) bool {
+	if needle == "" || tags == "" {
+		return false
+	}
+	for _, t := range strings.Split(tags, ";") {
+		if strings.TrimSpace(t) == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func collectProxmoxVms(node string) []ProxmoxVmPayload {
 	raw, err := pveshJSON("/nodes/" + node + "/qemu")
 	if err != nil {
@@ -554,6 +576,9 @@ func collectProxmoxVms(node string) []ProxmoxVmPayload {
 	for _, item := range items {
 		vmid, ok := jsonInt(item, "vmid")
 		if !ok {
+			continue
+		}
+		if proxmoxTagsContain(jsonString(item, "tags"), excludedProxmoxTag) {
 			continue
 		}
 		maxmem, _ := jsonNumber(item, "maxmem")

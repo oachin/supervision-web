@@ -78,7 +78,8 @@ export class AgentService {
     }
 
     if (server.profile === 'PROXMOX') {
-      if (dto.proxmoxVms?.length) {
+      // Empty array still syncs so VMs filtered out by the agent (e.g. tag 18) are pruned.
+      if (dto.proxmoxVms) {
         await this.syncProxmoxVms(server.id, dto.proxmoxVms);
       }
       if (dto.proxmoxBackups?.length) {
@@ -204,7 +205,10 @@ export class AgentService {
 
   private async syncProxmoxVms(serverId: string, vms: NonNullable<AgentMetricsDto['proxmoxVms']>) {
     const now = new Date();
+    const seenVmids: number[] = [];
+
     for (const vm of vms) {
+      seenVmids.push(vm.vmid);
       const row = await this.prisma.proxmoxVm.upsert({
         where: { serverId_vmid: { serverId, vmid: vm.vmid } },
         create: {
@@ -238,6 +242,13 @@ export class AgentService {
         });
       }
     }
+
+    await this.prisma.proxmoxVm.deleteMany({
+      where: {
+        serverId,
+        ...(seenVmids.length ? { vmid: { notIn: seenVmids } } : {}),
+      },
+    });
   }
 
   private async syncProxmoxBackups(
