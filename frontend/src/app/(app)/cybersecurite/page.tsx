@@ -481,7 +481,7 @@ export default function CybersecuritePage() {
                             {site.url ? (
                               <Link
                                 href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                                className="hover:text-primary hover:underline"
+                                className="text-primary hover:underline"
                               >
                                 {site.name}
                               </Link>

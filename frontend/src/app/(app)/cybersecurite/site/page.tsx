@@ -293,29 +293,71 @@ function SiteDetailInner() {
           <p className="py-8 text-center text-sm text-muted-foreground">Aucun constat pour ce filtre.</p>
         ) : (
           <ul className="space-y-3">
-            {filtered.map((f, idx) => (
-              <li
-                key={`${f.code || f.title}-${idx}`}
-                className="rounded-lg border border-white/5 bg-secondary/20 p-4"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className="rounded px-2 py-0.5 text-xs font-medium text-white"
-                    style={{ background: SEV_COLORS[f.severity || 'info'] }}
-                  >
-                    {SEV_LABELS[f.severity || 'info'] || f.severity}
-                  </span>
-                  <span className="font-medium">{f.title || f.code || 'Constats'}</span>
-                  {f.category && (
-                    <span className="text-xs text-muted-foreground">{f.category}</span>
+            {filtered.map((f, idx) => {
+              const headline = f.message || f.title || f.code || 'Constat';
+              const reco =
+                f.recommendation_fr || f.recommendation || f.recommendation_en || null;
+              const showCode = Boolean(f.code && headline !== f.code);
+              return (
+                <li
+                  key={`${f.code || f.title || f.message}-${idx}`}
+                  className="rounded-lg border border-white/5 bg-secondary/20 p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className="rounded px-2 py-0.5 text-xs font-medium text-white"
+                      style={{ background: SEV_COLORS[f.severity || 'info'] }}
+                    >
+                      {SEV_LABELS[f.severity || 'info'] || f.severity}
+                    </span>
+                    {f.category && (
+                      <span className="rounded border border-white/10 px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {f.category}
+                      </span>
+                    )}
+                    {typeof f.penalty === 'number' && f.penalty > 0 && (
+                      <span className="text-[11px] text-muted-foreground">−{f.penalty} pts</span>
+                    )}
+                  </div>
+                  <p className="mt-2 font-medium leading-snug">{headline}</p>
+                  {showCode && (
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">{f.code}</p>
                   )}
-                </div>
-                {f.detail && <p className="mt-2 text-sm text-muted-foreground">{f.detail}</p>}
-                {f.recommendation && (
-                  <p className="mt-2 text-sm text-sky-300/90">→ {f.recommendation}</p>
-                )}
-              </li>
-            ))}
+                  {f.detail && f.detail !== headline && (
+                    <p className="mt-2 text-sm text-muted-foreground">{f.detail}</p>
+                  )}
+                  {reco && (
+                    <p className="mt-2 text-sm text-sky-300/90">
+                      <span className="font-semibold">Correction :</span> {reco}
+                    </p>
+                  )}
+                  {Array.isArray(f.reference_links) && f.reference_links.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {f.reference_links.map((r, i) =>
+                        r.url ? (
+                          <a
+                            key={`${r.label}-${i}`}
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-300 hover:bg-sky-500/20"
+                          >
+                            {r.label || r.url}
+                          </a>
+                        ) : (
+                          <span
+                            key={`${r.label}-${i}`}
+                            className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground"
+                          >
+                            {r.label}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

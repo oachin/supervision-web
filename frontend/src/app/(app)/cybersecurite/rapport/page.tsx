@@ -146,7 +146,16 @@ export default function CyberRapportPage() {
                 <tr key={site.url ?? site.name} className="border-b border-white/5">
                   <td className="p-4">
                     <div className="flex items-center gap-1.5">
-                      <div className="font-medium">{site.name}</div>
+                      {site.url ? (
+                        <Link
+                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {site.name}
+                        </Link>
+                      ) : (
+                        <div className="font-medium">{site.name}</div>
+                      )}
                       <OpenExternalUrl url={site.url} />
                     </div>
                     <div className="max-w-md truncate font-mono text-xs text-muted-foreground">

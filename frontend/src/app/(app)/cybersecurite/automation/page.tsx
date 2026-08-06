@@ -340,9 +340,15 @@ export default function CyberAutomationPage() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
+                        <Link
+                          href={`/cybersecurite/site?url=${encodeURIComponent(t.url)}`}
+                          className={cn(
+                            'truncate text-sm font-medium hover:underline',
+                            t.includedInAuto ? 'text-primary' : 'text-muted-foreground',
+                          )}
+                        >
                           {t.name}
-                        </p>
+                        </Link>
                         <OpenExternalUrl url={t.url} />
                       </div>
                       <p className="truncate font-mono text-xs text-muted-foreground">{t.url}</p>

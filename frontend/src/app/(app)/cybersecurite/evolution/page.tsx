@@ -188,33 +188,31 @@ export default function CyberEvolutionPage() {
                 <th className="p-4 font-medium">Site</th>
                 <th className="p-4 font-medium">Score actuel</th>
                 <th className="p-4 font-medium">Note</th>
-                <th className="p-4 font-medium" />
               </tr>
             </thead>
             <tbody>
               {filteredSites.map((site) => (
                 <tr key={site.url ?? site.name} className="border-b border-white/5">
                   <td className="p-4">
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      {site.url ? (
+                        <Link
+                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                          className="font-medium hover:text-primary hover:underline"
+                        >
+                          {site.name}
+                        </Link>
+                      ) : (
                         <div className="font-medium">{site.name}</div>
-                        <OpenExternalUrl url={site.url} />
-                      </div>
-                      <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
-                        {site.url}
-                      </div>
-                    </td>
+                      )}
+                      <OpenExternalUrl url={site.url} />
+                    </div>
+                    <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                      {site.url}
+                    </div>
+                  </td>
                   <td className="p-4">{site.score ?? '—'}/100</td>
                   <td className="p-4">{site.grade ?? '?'}</td>
-                  <td className="p-4 text-right">
-                    {site.url && (
-                      <Link
-                        href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                        className="text-sm text-primary hover:underline"
-                      >
-                        Voir l’historique
-                      </Link>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>

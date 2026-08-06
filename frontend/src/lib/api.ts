@@ -756,12 +756,18 @@ export interface CyberHistoryPoint {
 export interface CyberFinding {
   code?: string;
   title?: string;
+  /** Primary human-readable finding text from WebSec. */
+  message?: string;
   detail?: string;
   severity?: string;
   category?: string;
   recommendation?: string;
+  recommendation_fr?: string;
+  recommendation_en?: string;
   penalty?: number;
   status?: string;
+  references?: string[];
+  reference_links?: { label?: string; url?: string }[];
 }
 
 export interface CyberSiteResult {

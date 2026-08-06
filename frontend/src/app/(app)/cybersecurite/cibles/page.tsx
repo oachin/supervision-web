@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, type CyberTargets } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 import { OpenExternalUrl } from '@/components/open-external-url';
+
+function cyberSiteHref(url: string) {
+  return `/cybersecurite/site?url=${encodeURIComponent(url)}`;
+}
 
 export default function CyberCiblesPage() {
   const { hasPermission } = useAuthProfile();
@@ -171,7 +176,12 @@ export default function CyberCiblesPage() {
                 <tr key={t.id} className="border-b border-white/5">
                   <td className="p-4 font-medium">
                     <div className="flex items-center gap-1.5">
-                      {t.name}
+                      <Link
+                        href={cyberSiteHref(t.url)}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {t.name}
+                      </Link>
                       <OpenExternalUrl url={t.url} />
                     </div>
                   </td>
@@ -221,7 +231,12 @@ export default function CyberCiblesPage() {
                 <tr key={t.id} className="border-b border-white/5">
                   <td className="p-4 font-medium">
                     <div className="flex items-center gap-1.5">
-                      {t.name}
+                      <Link
+                        href={cyberSiteHref(t.url)}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {t.name}
+                      </Link>
                       <OpenExternalUrl url={t.url} />
                     </div>
                   </td>
