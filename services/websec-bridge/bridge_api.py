@@ -22,7 +22,13 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from db.models import fleet_trend, get_site_state, latest_site_states, score_history
+from db.models import (
+    delete_site_results,
+    fleet_trend,
+    get_site_state,
+    latest_site_states,
+    score_history,
+)
 from reports.generator import generate_report, generate_site_report
 from websec_audit import CORE_SCANNERS, DEFAULT_SCANNERS, ENGINE_SCANNERS, AuditConfig
 
@@ -272,6 +278,15 @@ def site_by_url(url: str) -> dict[str, Any]:
     if not state:
         raise HTTPException(404, "Aucun résultat pour cette URL")
     return state
+
+
+@app.delete("/v1/sites", dependencies=[Depends(require_key)])
+def delete_site(url: str = Query(...)) -> dict[str, Any]:
+    """Purge scan history for a URL removed from Supervision targets."""
+    if not (url or "").strip():
+        raise HTTPException(400, "URL requise")
+    deleted = delete_site_results(url.strip())
+    return {"success": True, "url": url.strip(), **deleted}
 
 
 @app.get("/v1/trend", dependencies=[Depends(require_key)])

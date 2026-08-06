@@ -6,9 +6,10 @@ import { AgentInstallService } from './agent-install.service';
 import { ServersModule } from '../servers/servers.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
+import { CyberModule } from '../cyber/cyber.module';
 
 @Module({
-  imports: [forwardRef(() => ServersModule), AlertsModule, AuthModule],
+  imports: [forwardRef(() => ServersModule), AlertsModule, AuthModule, CyberModule],
   controllers: [AgentController, AgentInstallController],
   providers: [AgentService, AgentInstallService],
   exports: [AgentService, AgentInstallService],

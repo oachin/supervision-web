@@ -115,6 +115,15 @@ export class WebsecClient {
     );
   }
 
+  deleteSite(url: string) {
+    return this.request<{
+      success: boolean;
+      url: string;
+      site_results: number;
+      finding_status: number;
+    }>(`/v1/sites?url=${encodeURIComponent(url)}`, { method: 'DELETE' });
+  }
+
   getTrend(limit = 30) {
     return this.request<{ trend: unknown[] }>(`/v1/trend?limit=${limit}`);
   }

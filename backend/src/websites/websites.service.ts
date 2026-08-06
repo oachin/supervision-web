@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AlertsService } from '../alerts/alerts.service';
+import { CyberService } from '../cyber/cyber.service';
 import { CreateWebsiteDto, UpdateWebsiteDto } from '../common/dto';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class WebsitesService {
     private prisma: PrismaService,
     private audit: AuditService,
     private alerts: AlertsService,
+    private cyber: CyberService,
   ) {}
 
   async findAll() {
@@ -107,6 +109,7 @@ export class WebsitesService {
     });
 
     await this.prisma.website.delete({ where: { id } });
+    await this.cyber.onTargetRemoved(website.url);
     await this.audit.log(userId, 'WEBSITE_DELETED', 'websites', {
       websiteId: id,
       pleskExcluded: website.source === 'agent',

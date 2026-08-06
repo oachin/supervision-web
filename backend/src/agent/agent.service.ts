@@ -3,6 +3,7 @@ import { Server } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServersService } from '../servers/servers.service';
 import { AlertsService } from '../alerts/alerts.service';
+import { CyberService } from '../cyber/cyber.service';
 import { AgentMetricsDto } from '../common/dto';
 import { hasExcludedProxmoxTag } from '../common/proxmox-vm';
 import {
@@ -29,6 +30,7 @@ export class AgentService {
     private prisma: PrismaService,
     private servers: ServersService,
     private alerts: AlertsService,
+    private cyber: CyberService,
   ) {}
 
   async recordMetrics(server: Server, dto: AgentMetricsDto) {
@@ -235,6 +237,7 @@ export class AgentService {
         resourceType: 'website',
       });
       await this.prisma.website.delete({ where: { id: stale.id } });
+      await this.cyber.onTargetRemoved(stale.url);
     }
   }
 

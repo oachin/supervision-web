@@ -21,9 +21,11 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
+from urllib.parse import urlparse
+
 from sqlalchemy import (
     create_engine, event, inspect, text, Column, Integer, String, DateTime, Text,
-    ForeignKey, Index, UniqueConstraint, func,
+    ForeignKey, Index, UniqueConstraint, func, or_,
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -621,6 +623,69 @@ def fleet_trend(limit: int = 30, engine=None) -> list[dict]:
                 "site_count": len(scores),
             })
     return list(reversed(trend))
+
+
+def delete_site_results(identifier: str, engine=None) -> dict[str, int]:
+    """Remove all SiteResult + FindingStatus rows for a URL or domain.
+
+    Used when Supervision drops a website so Audit web no longer shows orphans.
+    Matches common URL variants (trailing slash, www, http/https).
+    """
+    raw = (identifier or "").strip()
+    if not raw:
+        return {"site_results": 0, "finding_status": 0}
+
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+    host = (parsed.hostname or raw).lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (parsed.path or "").rstrip("/")
+
+    candidates: set[str] = {raw, raw.rstrip("/"), raw.rstrip("/") + "/"}
+    for scheme in ("https", "http"):
+        for h in (host, f"www.{host}"):
+            candidates.add(f"{scheme}://{h}")
+            candidates.add(f"{scheme}://{h}/")
+            if path and path != "/":
+                candidates.add(f"{scheme}://{h}{path}")
+                candidates.add(f"{scheme}://{h}{path}/")
+
+    domains = {host, f"www.{host}"}
+    engine = init_db(engine)
+    Session = sessionmaker(bind=engine, future=True)
+
+    with Session() as session:
+        n_results = (
+            session.query(SiteResult)
+            .filter(
+                or_(
+                    SiteResult.url.in_(list(candidates)),
+                    SiteResult.domain.in_(list(domains)),
+                )
+            )
+            .delete(synchronize_session=False)
+        )
+        n_status = (
+            session.query(FindingStatus)
+            .filter(FindingStatus.url.in_(list(candidates)))
+            .delete(synchronize_session=False)
+        )
+        # Catch finding_status rows keyed by a URL variant we did not enumerate.
+        leftover = (
+            session.query(FindingStatus)
+            .filter(
+                or_(
+                    FindingStatus.url.contains(f"://{host}"),
+                    FindingStatus.url.contains(f"://www.{host}"),
+                )
+            )
+            .all()
+        )
+        for row in leftover:
+            session.delete(row)
+        n_status += len(leftover)
+        session.commit()
+        return {"site_results": int(n_results or 0), "finding_status": int(n_status or 0)}
 
 
 def prune_history(keep_runs: int | None = None, older_than_days: int | None = None,

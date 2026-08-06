@@ -17,6 +17,18 @@ function domainFromUrl(url: string): string | undefined {
   }
 }
 
+/** Canonical key for matching Supervision URLs to WebSec results. */
+function cyberUrlKey(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+    const path = (u.pathname || '/').replace(/\/+$/, '');
+    return `${u.protocol}//${host}${path === '/' ? '' : path}`.toLowerCase();
+  } catch {
+    return url.trim().replace(/\/+$/, '').toLowerCase();
+  }
+}
+
 function normalizeDailyTime(raw: string): string | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(raw.trim());
   if (!m) return null;
@@ -280,7 +292,104 @@ export class CyberService {
     const target = await this.prisma.cyberExternalTarget.findUnique({ where: { id } });
     if (!target) throw new NotFoundException('Cible introuvable');
     await this.prisma.cyberExternalTarget.delete({ where: { id } });
+    await this.onTargetRemoved(target.url);
     return { success: true };
+  }
+
+  /**
+   * Called when a Supervision website (or external target) is removed.
+   * Drops WebSec history + cleans automation exclude list so Audit web stays in sync.
+   */
+  async onTargetRemoved(url: string) {
+    const trimmed = url?.trim();
+    if (!trimmed) return;
+
+    try {
+      const schedule = await this.ensureSchedule();
+      const next = schedule.autoExcludeUrls.filter(
+        (u) => cyberUrlKey(u) !== cyberUrlKey(trimmed),
+      );
+      if (next.length !== schedule.autoExcludeUrls.length) {
+        await this.prisma.cyberScanSchedule.update({
+          where: { id: 'default' },
+          data: { autoExcludeUrls: next },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to clean autoExcludeUrls for ${trimmed}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
+    try {
+      await this.websec.deleteSite(trimmed);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to purge WebSec results for ${trimmed}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /** All known cyber inventory URLs (supervision + external), for result filtering. */
+  private async inventoryUrlKeys(): Promise<Set<string>> {
+    const [websites, external] = await Promise.all([
+      this.prisma.website.findMany({
+        where: { monitoringEnabled: true },
+        select: { url: true },
+      }),
+      this.prisma.cyberExternalTarget.findMany({ select: { url: true } }),
+    ]);
+    const keys = new Set<string>();
+    for (const row of [...websites, ...external]) {
+      keys.add(cyberUrlKey(row.url));
+      const domain = domainFromUrl(row.url);
+      if (domain) keys.add(domain.toLowerCase());
+    }
+    return keys;
+  }
+
+  private siteMatchesInventory(
+    site: { url?: unknown; domain?: unknown },
+    inventory: Set<string>,
+  ): boolean {
+    const url = typeof site.url === 'string' ? site.url : '';
+    const domain = typeof site.domain === 'string' ? site.domain : '';
+    if (url && inventory.has(cyberUrlKey(url))) return true;
+    if (domain) {
+      const bare = domain.replace(/^www\./i, '').toLowerCase();
+      if (inventory.has(bare) || inventory.has(domain.toLowerCase())) return true;
+    }
+    return false;
+  }
+
+  /** Purge WebSec rows that no longer belong to any current target. */
+  async syncResultsWithTargets() {
+    const [inventory, listed] = await Promise.all([
+      this.inventoryUrlKeys(),
+      this.websec.listSites().catch(() => ({ sites: [] as Record<string, unknown>[] })),
+    ]);
+    const orphans = (listed.sites || []).filter(
+      (s) => !this.siteMatchesInventory(s, inventory),
+    );
+    for (const orphan of orphans) {
+      const url = typeof orphan.url === 'string' ? orphan.url : '';
+      if (!url) continue;
+      try {
+        await this.websec.deleteSite(url);
+        this.logger.log(`Purged orphan WebSec site ${url}`);
+      } catch (err) {
+        this.logger.warn(
+          `Orphan purge failed for ${url}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+    return { purged: orphans.length };
   }
 
   async collectScanTargets(mode: 'manual' | 'auto' = 'manual'): Promise<WebsecSiteTarget[]> {
@@ -313,6 +422,13 @@ export class CyberService {
   }
 
   async overview() {
+    // Drop historical WebSec rows for sites no longer in Supervision/external inventory.
+    await this.syncResultsWithTargets().catch((err) => {
+      this.logger.warn(
+        `Cyber inventory sync failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+
     const [targets, status, sites, trend, healthy, automation] = await Promise.all([
       this.listTargets(),
       this.websec.getStatus().catch(() => ({ running: false, error: 'unavailable' })),
@@ -322,21 +438,30 @@ export class CyberService {
       this.getAutomation().catch(() => null),
     ]);
 
+    const inventory = new Set<string>();
+    for (const t of [...targets.supervision, ...targets.external]) {
+      inventory.add(cyberUrlKey(t.url));
+      const domain = domainFromUrl(t.url);
+      if (domain) inventory.add(domain.toLowerCase());
+    }
+
     const enabledCount =
       targets.supervision.filter((t) => t.enabled).length +
       targets.external.filter((t) => t.enabled).length;
 
-    const slimSites = (sites.sites as Array<Record<string, unknown>>).map((s) => {
-      const findings = Array.isArray(s.findings) ? s.findings : [];
-      return {
-        name: s.name,
-        url: s.url,
-        domain: s.domain,
-        score: s.score,
-        grade: s.grade,
-        findingsCount: findings.length,
-      };
-    });
+    const slimSites = (sites.sites as Array<Record<string, unknown>>)
+      .filter((s) => this.siteMatchesInventory(s, inventory))
+      .map((s) => {
+        const findings = Array.isArray(s.findings) ? s.findings : [];
+        return {
+          name: s.name,
+          url: s.url,
+          domain: s.domain,
+          score: s.score,
+          grade: s.grade,
+          findingsCount: findings.length,
+        };
+      });
 
     const grades = slimSites.reduce<Record<string, number>>((acc, s) => {
       const g = (s.grade as string) || '?';
@@ -367,7 +492,7 @@ export class CyberService {
       healthy,
       scan: status,
       enabledTargets: enabledCount,
-      resultsCount: sites.count,
+      resultsCount: slimSites.length,
       grades,
       sites: slimSites,
       trend: trend.trend,
