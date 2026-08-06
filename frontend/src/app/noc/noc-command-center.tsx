@@ -477,7 +477,7 @@ export function NocCommandCenter() {
         <div className="brand">
           <div className="logo">H</div>
           <div>
-            <h1>Havet Supervision</h1>
+            <h1>Centre de Supervision</h1>
             <span>NOC · Vue murale</span>
           </div>
         </div>
