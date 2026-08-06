@@ -367,9 +367,9 @@ function SiteDetailInner() {
   const isLatest =
     site?.run_id != null && selectedRunId != null && selectedRunId === site.run_id;
 
-  function renderDot(props: DotProps & { payload?: ChartPoint }) {
-    const { cx, cy, payload } = props;
-    if (cx == null || cy == null || !payload) return null;
+  function renderDot(props: DotProps) {
+    const { cx, cy, payload } = props as DotProps & { payload?: ChartPoint };
+    if (cx == null || cy == null || !payload) return <g />;
     const active = payload.run_id != null && payload.run_id === selectedRunId;
     return (
       <circle
@@ -379,6 +379,26 @@ function SiteDetailInner() {
         fill={active ? '#38bdf8' : '#0ea5e9'}
         stroke={active ? '#e0f2fe' : '#0284c7'}
         strokeWidth={active ? 2 : 1}
+        style={{ cursor: 'pointer' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          void selectAudit(payload);
+        }}
+      />
+    );
+  }
+
+  function renderActiveDot(props: DotProps) {
+    const { cx, cy, payload } = props as DotProps & { payload?: ChartPoint };
+    if (cx == null || cy == null || !payload) return <g />;
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={8}
+        fill="#38bdf8"
+        stroke="#e0f2fe"
+        strokeWidth={2}
         style={{ cursor: 'pointer' }}
         onClick={(e) => {
           e.stopPropagation();
@@ -504,13 +524,7 @@ function SiteDetailInner() {
                     stroke="#38bdf8"
                     strokeWidth={2}
                     dot={renderDot}
-                    activeDot={{
-                      r: 8,
-                      cursor: 'pointer',
-                      onClick: (_: unknown, dot: { payload?: ChartPoint }) => {
-                        if (dot?.payload) void selectAudit(dot.payload);
-                      },
-                    }}
+                    activeDot={renderActiveDot}
                   />
                 </LineChart>
               </ResponsiveContainer>
