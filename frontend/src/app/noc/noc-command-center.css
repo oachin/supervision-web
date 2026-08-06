@@ -68,8 +68,19 @@
 .noc-cc .sev-tag.info{
   color:#fff;background:#0ea5e9;border-color:rgba(56,189,248,.45);
 }
-.noc-cc .kpi .sev-tags{margin-top:4px}
-.noc-cc .kpi .sev-tag{font-size:10.5px;padding:3px 9px}
+.noc-cc .kpi .sub{min-width:0}
+.noc-cc .kpi .sev-tags{
+  margin-top:4px;
+  flex-wrap:nowrap;
+  gap:5px;
+  overflow:hidden;
+}
+.noc-cc .kpi .sev-tag{
+  font-size:9.5px;
+  letter-spacing:.2px;
+  padding:2px 7px;
+  flex-shrink:0;
+}
 .noc-cc .clockbox{margin-left:auto;text-align:right}
 .noc-cc .clockbox .time{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:1px}
 .noc-cc .clockbox .date{font-size:11.5px;color:var(--muted);text-transform:capitalize}
