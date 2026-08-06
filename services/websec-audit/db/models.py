@@ -426,6 +426,96 @@ def latest_site_states(engine=None, limit: int | None = None,
     return states
 
 
+def latest_site_summaries(engine=None, limit: int | None = None,
+                          offset: int = 0) -> list[dict]:
+    """Lightweight fleet list for Supervision overview.
+
+    Omits findings JSON / compliance / full history. Includes findings_count and
+    the previous score/grade (one SQL round-trip for previous runs).
+    """
+    engine = init_db(engine)
+    Session = sessionmaker(bind=engine, future=True)
+
+    with Session() as session:
+        latest_run = (
+            session.query(
+                SiteResult.url.label("url"),
+                func.max(SiteResult.run_id).label("run_id"),
+            )
+            .group_by(SiteResult.url)
+            .subquery()
+        )
+        rows = (
+            session.query(SiteResult, ScanRun)
+            .join(ScanRun, SiteResult.run_id == ScanRun.id)
+            .join(
+                latest_run,
+                (SiteResult.url == latest_run.c.url)
+                & (SiteResult.run_id == latest_run.c.run_id),
+            )
+            .all()
+        )
+
+        prev_run = (
+            session.query(
+                SiteResult.url.label("url"),
+                func.max(SiteResult.run_id).label("run_id"),
+            )
+            .join(
+                latest_run,
+                SiteResult.url == latest_run.c.url,
+            )
+            .filter(SiteResult.run_id < latest_run.c.run_id)
+            .group_by(SiteResult.url)
+            .subquery()
+        )
+        prev_rows = (
+            session.query(SiteResult, ScanRun)
+            .join(ScanRun, SiteResult.run_id == ScanRun.id)
+            .join(
+                prev_run,
+                (SiteResult.url == prev_run.c.url)
+                & (SiteResult.run_id == prev_run.c.run_id),
+            )
+            .all()
+        )
+        previous_by_url = {
+            site.url: {
+                "score": site.score,
+                "grade": site.grade,
+            }
+            for site, _run in prev_rows
+        }
+
+        summaries: list[dict] = []
+        for site, run in rows:
+            try:
+                findings_count = len(json.loads(site.findings_json)) if site.findings_json else 0
+            except (TypeError, json.JSONDecodeError):
+                findings_count = 0
+            prev = previous_by_url.get(site.url) or {}
+            summaries.append({
+                "name": site.name,
+                "url": site.url,
+                "domain": site.domain,
+                "score": site.score,
+                "grade": site.grade,
+                "findings_count": findings_count,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "previous_score": prev.get("score"),
+                "previous_grade": prev.get("grade"),
+            })
+
+    summaries.sort(
+        key=lambda s: (s["score"] if s["score"] is not None else 999, s["name"] or "")
+    )
+    if limit is not None:
+        summaries = summaries[offset:offset + limit]
+    elif offset:
+        summaries = summaries[offset:]
+    return summaries
+
+
 def get_site_state(identifier: str, engine=None) -> dict | None:
     """Latest scored state for a single site (by URL, then domain), with history."""
     engine = init_db(engine)

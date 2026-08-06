@@ -105,8 +105,13 @@ export class WebsecClient {
     return this.request<Record<string, unknown>>('/v1/status');
   }
 
-  listSites() {
-    return this.request<{ sites: Record<string, unknown>[]; count: number }>('/v1/sites?limit=500');
+  listSites(options: { slim?: boolean; limit?: number } = {}) {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 500));
+    if (options.slim) params.set('slim', 'true');
+    return this.request<{ sites: Record<string, unknown>[]; count: number }>(
+      `/v1/sites?${params.toString()}`,
+    );
   }
 
   getSite(url: string) {

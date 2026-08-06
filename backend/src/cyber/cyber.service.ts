@@ -77,6 +77,8 @@ function nextDailyAt(
 export class CyberService {
   private readonly logger = new Logger(CyberService.name);
   private scheduleTickRunning = false;
+  private inventorySyncRunning = false;
+  private lastInventorySyncAt = 0;
 
   constructor(
     private prisma: PrismaService,
@@ -370,7 +372,9 @@ export class CyberService {
   async syncResultsWithTargets() {
     const [inventory, listed] = await Promise.all([
       this.inventoryUrlKeys(),
-      this.websec.listSites().catch(() => ({ sites: [] as Record<string, unknown>[] })),
+      this.websec
+        .listSites({ slim: true })
+        .catch(() => ({ sites: [] as Record<string, unknown>[] })),
     ]);
     const orphans = (listed.sites || []).filter(
       (s) => !this.siteMatchesInventory(s, inventory),
@@ -390,6 +394,93 @@ export class CyberService {
       }
     }
     return { purged: orphans.length };
+  }
+
+  /** Background inventory sync at most once every 5 minutes — never blocks overview. */
+  private scheduleInventorySync() {
+    const now = Date.now();
+    if (this.inventorySyncRunning || now - this.lastInventorySyncAt < 5 * 60_000) {
+      return;
+    }
+    this.inventorySyncRunning = true;
+    void this.syncResultsWithTargets()
+      .catch((err) => {
+        this.logger.warn(
+          `Cyber inventory sync failed: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      })
+      .finally(() => {
+        this.lastInventorySyncAt = Date.now();
+        this.inventorySyncRunning = false;
+      });
+  }
+
+  /** Lightweight automation snapshot for overview cards (no full target list). */
+  private async overviewAutomation() {
+    const schedule = await this.ensureSchedule();
+    const status = await this.websec.getStatus().catch(() => ({ running: false }));
+    const now = new Date();
+    const nextIntervalAt =
+      schedule.enabled && schedule.intervalMinutes > 0
+        ? new Date(
+            (schedule.lastRunAt?.getTime() ?? now.getTime()) +
+              schedule.intervalMinutes * 60_000,
+          )
+        : null;
+    const nextDaily =
+      schedule.enabled && schedule.dailyTimes.length
+        ? nextDailyAt(schedule.dailyTimes, schedule.timezone, now)
+        : null;
+
+    let nextRunAt: Date | null = null;
+    if (nextIntervalAt && nextDaily) {
+      nextRunAt = nextIntervalAt < nextDaily ? nextIntervalAt : nextDaily;
+    } else {
+      nextRunAt = nextIntervalAt || nextDaily;
+    }
+
+    const [websiteCount, externalCount] = await Promise.all([
+      this.prisma.website.count({
+        where: { monitoringEnabled: true, cyberScanEnabled: true },
+      }),
+      this.prisma.cyberExternalTarget.count({ where: { enabled: true } }),
+    ]);
+    const exclude = new Set(schedule.autoExcludeUrls.map((u) => u.trim()));
+    // Approximate included count without loading all URLs when excludes are few.
+    const [websiteUrls, externalUrls] = exclude.size
+      ? await Promise.all([
+          this.prisma.website.findMany({
+            where: { monitoringEnabled: true, cyberScanEnabled: true },
+            select: { url: true },
+          }),
+          this.prisma.cyberExternalTarget.findMany({
+            where: { enabled: true },
+            select: { url: true },
+          }),
+        ])
+      : [[], []];
+    const eligible = websiteCount + externalCount;
+    const included = exclude.size
+      ? [...websiteUrls, ...externalUrls].filter((t) => !exclude.has(t.url.trim())).length
+      : eligible;
+
+    return {
+      id: schedule.id,
+      enabled: schedule.enabled,
+      intervalMinutes: schedule.intervalMinutes,
+      dailyTimes: schedule.dailyTimes,
+      deep: schedule.deep,
+      timezone: schedule.timezone,
+      lastRunAt: schedule.lastRunAt,
+      lastTrigger: schedule.lastTrigger,
+      lastError: schedule.lastError,
+      scanRunning: Boolean((status as { running?: boolean }).running),
+      nextRunAt,
+      autoIncludedCount: included,
+      autoEligibleCount: eligible,
+    };
   }
 
   async collectScanTargets(mode: 'manual' | 'auto' = 'manual'): Promise<WebsecSiteTarget[]> {
@@ -422,20 +513,16 @@ export class CyberService {
   }
 
   async overview() {
-    // Drop historical WebSec rows for sites no longer in Supervision/external inventory.
-    await this.syncResultsWithTargets().catch((err) => {
-      this.logger.warn(
-        `Cyber inventory sync failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    });
+    // Orphan purge in background (debounced) — do not block the page load.
+    this.scheduleInventorySync();
 
     const [targets, status, sites, trend, healthy, automation] = await Promise.all([
       this.listTargets(),
       this.websec.getStatus().catch(() => ({ running: false, error: 'unavailable' })),
-      this.websec.listSites().catch(() => ({ sites: [], count: 0 })),
+      this.websec.listSites({ slim: true }).catch(() => ({ sites: [], count: 0 })),
       this.websec.getTrend().catch(() => ({ trend: [] })),
       this.websec.health(),
-      this.getAutomation().catch(() => null),
+      this.overviewAutomation().catch(() => null),
     ]);
 
     const inventory = new Set<string>();
@@ -452,28 +539,26 @@ export class CyberService {
     const slimSites = (sites.sites as Array<Record<string, unknown>>)
       .filter((s) => this.siteMatchesInventory(s, inventory))
       .map((s) => {
-        const findings = Array.isArray(s.findings) ? s.findings : [];
-        const history = Array.isArray(s.history)
-          ? (s.history as Array<Record<string, unknown>>)
-          : [];
-        const previous = history.length >= 2 ? history[history.length - 2] : null;
-        const latestHist = history.length >= 1 ? history[history.length - 1] : null;
-        const startedAt =
-          (typeof s.started_at === 'string' && s.started_at) ||
-          (typeof latestHist?.started_at === 'string' && latestHist.started_at) ||
-          null;
+        const findingsCount =
+          typeof s.findings_count === 'number'
+            ? s.findings_count
+            : typeof s.findingsCount === 'number'
+              ? s.findingsCount
+              : Array.isArray(s.findings)
+                ? s.findings.length
+                : 0;
         return {
           name: s.name,
           url: s.url,
           domain: s.domain,
           score: s.score,
           grade: s.grade,
-          findingsCount: findings.length,
-          startedAt,
+          findingsCount,
+          startedAt: typeof s.started_at === 'string' ? s.started_at : null,
           previousScore:
-            typeof previous?.score === 'number' ? previous.score : null,
+            typeof s.previous_score === 'number' ? s.previous_score : null,
           previousGrade:
-            typeof previous?.grade === 'string' ? previous.grade : null,
+            typeof s.previous_grade === 'string' ? s.previous_grade : null,
         };
       });
 
@@ -483,25 +568,6 @@ export class CyberService {
       return acc;
     }, {});
 
-    // Keep overview payload small (full findings live on /cyber/sites?url=…).
-    const slimAutomation = automation
-      ? {
-          id: automation.id,
-          enabled: automation.enabled,
-          intervalMinutes: automation.intervalMinutes,
-          dailyTimes: automation.dailyTimes,
-          deep: automation.deep,
-          timezone: automation.timezone,
-          lastRunAt: automation.lastRunAt,
-          lastTrigger: automation.lastTrigger,
-          lastError: automation.lastError,
-          scanRunning: automation.scanRunning,
-          nextRunAt: automation.nextRunAt,
-          autoIncludedCount: automation.autoIncludedCount,
-          autoEligibleCount: automation.autoEligibleCount,
-        }
-      : null;
-
     return {
       healthy,
       scan: status,
@@ -510,7 +576,7 @@ export class CyberService {
       grades,
       sites: slimSites,
       trend: trend.trend,
-      automation: slimAutomation,
+      automation,
     };
   }
 

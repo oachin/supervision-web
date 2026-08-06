@@ -27,6 +27,7 @@ from db.models import (
     fleet_trend,
     get_site_state,
     latest_site_states,
+    latest_site_summaries,
     score_history,
 )
 from reports.generator import generate_report, generate_site_report
@@ -267,8 +268,16 @@ def status() -> dict[str, Any]:
 
 
 @app.get("/v1/sites", dependencies=[Depends(require_key)])
-def list_sites(limit: int = 500, offset: int = 0) -> dict[str, Any]:
-    states = latest_site_states(limit=limit, offset=offset)
+def list_sites(
+    limit: int = 500,
+    offset: int = 0,
+    slim: bool = False,
+) -> dict[str, Any]:
+    """Fleet sites. ``slim=1`` skips findings/history (for Supervision overview)."""
+    if slim:
+        states = latest_site_summaries(limit=limit, offset=offset)
+    else:
+        states = latest_site_states(limit=limit, offset=offset)
     return {"sites": states, "count": len(states)}
 
 

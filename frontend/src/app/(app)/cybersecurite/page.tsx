@@ -122,7 +122,7 @@ export default function CybersecuritePage() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000);
+    const id = setInterval(load, 30000);
     return () => clearInterval(id);
   }, [load]);
 
