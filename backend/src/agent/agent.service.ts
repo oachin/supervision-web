@@ -111,7 +111,7 @@ export class AgentService {
       ) {
         await this.alerts.onIssueResolved({
           serverId: server.id,
-          titleContains: 'hors ligne',
+          titleContains: 'Serveur hors ligne',
         });
       }
     }
@@ -133,7 +133,7 @@ export class AgentService {
     } else if (previousStatus === 'DEGRADED' && status === 'ONLINE') {
       await this.alerts.onIssueResolved({
         serverId: server.id,
-        titleContains: 'dégradé',
+        titleContains: 'Serveur dégradé',
       });
     }
 

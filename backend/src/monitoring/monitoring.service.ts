@@ -170,10 +170,13 @@ export class MonitoringService {
           websiteId: website.id,
         });
       }
-    } else if (recoverStreak >= ALERT_RECOVER_STREAK) {
+    } else if (
+      (status === 'UP' || isMaintenance) &&
+      recoverStreak >= ALERT_RECOVER_STREAK
+    ) {
       await this.alerts.onIssueResolved({
         websiteId: website.id,
-        titleContains: 'hors ligne',
+        titleContains: 'Site hors ligne',
       });
     }
 
