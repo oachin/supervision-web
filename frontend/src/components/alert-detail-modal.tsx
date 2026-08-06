@@ -297,16 +297,15 @@ export function AlertDetailModal({
                   </span>
                 )}
               </div>
-              <div className="mt-2.5 flex items-start gap-2">
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                 <h2
                   id="alert-modal-title"
-                  className="min-w-0 flex-1 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
+                  className="text-lg font-semibold leading-snug tracking-tight sm:text-xl"
                 >
                   {alert.title}
                 </h2>
                 <OpenExternalUrl
                   url={website?.url}
-                  className="mt-0.5"
                   iconClassName="h-4 w-4"
                 />
               </div>
