@@ -67,35 +67,35 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
   );
 
   return (
-    <div className="card space-y-4">
+    <div className="card space-y-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Shield className="h-4 w-4 text-primary" />
-          <h2 className="text-lg font-semibold">Audit cyber</h2>
+          <Shield className="h-3.5 w-3.5 text-primary" />
+          <h2 className="text-sm font-semibold">Cybersécurité</h2>
         </div>
-        <Link href="/cybersecurite" className="text-sm text-primary hover:underline">
+        <Link href="/cybersecurite" className="text-xs text-primary hover:underline">
           Voir l’audit
         </Link>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-2 lg:grid-cols-3">
         <Link
           href="/cybersecurite/automation"
-          className="rounded-lg border border-white/10 bg-secondary/20 p-4 transition hover:border-sky-500/30"
+          className="rounded-lg border border-white/10 bg-secondary/20 p-3 transition hover:border-sky-500/30"
         >
-          <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground">
-            <CalendarClock className="h-3.5 w-3.5" />
+          <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            <CalendarClock className="h-3 w-3" />
             État
           </p>
           <p
             className={cn(
-              'mt-2 text-lg font-semibold',
+              'mt-1 text-sm font-semibold',
               automationOn ? 'text-emerald-400' : 'text-muted-foreground',
             )}
           >
             {automationOn ? 'Automatisation active' : 'Manuelle seule'}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             {automationOn
               ? nextRun
                 ? `Prochain : ${new Date(nextRun).toLocaleString('fr-FR')}`
@@ -104,19 +104,19 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
           </p>
         </Link>
 
-        <div className="rounded-lg border border-white/10 bg-secondary/20 p-4 lg:col-span-1">
-          <h3 className="mb-3 text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="rounded-lg border border-white/10 bg-secondary/20 p-3">
+          <h3 className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
             Répartition des notes
           </h3>
           {gradeEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun score disponible</p>
+            <p className="text-xs text-muted-foreground">Aucun score disponible</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {gradeEntries.map(([grade, count]) => (
                 <span
                   key={grade}
                   className={cn(
-                    'rounded-md border px-3 py-1.5 text-sm font-medium',
+                    'rounded-md border px-2 py-0.5 text-xs font-medium',
                     gradeClass(grade),
                   )}
                 >
@@ -127,43 +127,45 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
           )}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-secondary/20 p-4">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="rounded-lg border border-white/10 bg-secondary/20 p-3">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Évolution du score
             </h3>
             <Link
               href="/cybersecurite/evolution"
-              className="text-xs text-primary hover:underline"
+              className="text-[10px] text-primary hover:underline"
             >
               Voir plus
             </Link>
           </div>
           {trendData.length < 2 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-4 text-center text-xs text-muted-foreground">
               Historique insuffisant
             </p>
           ) : (
-            <div className="h-28">
+            <div className="h-16">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <LineChart data={trendData} margin={{ top: 2, right: 2, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                   <XAxis
                     dataKey="label"
-                    tick={{ fill: '#94a3b8', fontSize: 9 }}
+                    tick={{ fill: '#94a3b8', fontSize: 8 }}
                     interval="preserveStartEnd"
-                    minTickGap={36}
+                    minTickGap={40}
+                    height={18}
                   />
                   <YAxis
                     domain={[0, 100]}
-                    width={24}
-                    tick={{ fill: '#94a3b8', fontSize: 9 }}
+                    width={20}
+                    tick={{ fill: '#94a3b8', fontSize: 8 }}
                   />
                   <Tooltip
                     contentStyle={{
                       background: '#0f172a',
                       border: '1px solid rgba(255,255,255,0.1)',
                       borderRadius: 8,
+                      fontSize: 11,
                     }}
                     labelFormatter={(label) => `Audit · ${label}`}
                     formatter={(value: number) => [`${value}/100`, 'Score moyen']}

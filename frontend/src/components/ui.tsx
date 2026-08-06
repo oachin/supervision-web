@@ -143,6 +143,7 @@ export function MetricCard({
   icon: Icon,
   trend,
   href,
+  compact = false,
 }: {
   title: string;
   value: string | number;
@@ -150,40 +151,61 @@ export function MetricCard({
   icon: React.ComponentType<{ className?: string }>;
   trend?: 'up' | 'down' | 'neutral';
   href?: string;
+  compact?: boolean;
 }) {
   const content = (
     <>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight">{value}</p>
-          {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className={cn('text-muted-foreground', compact ? 'text-[11px]' : 'text-sm')}>{title}</p>
+          <p
+            className={cn(
+              'font-bold tracking-tight',
+              compact ? 'mt-0.5 text-xl' : 'mt-1 text-3xl',
+            )}
+          >
+            {value}
+          </p>
+          {subtitle && (
+            <p className={cn('text-muted-foreground', compact ? 'mt-0.5 text-[10px]' : 'mt-1 text-xs')}>
+              {subtitle}
+            </p>
+          )}
         </div>
-        <div className={cn(
-          'flex h-10 w-10 items-center justify-center rounded-lg',
-          trend === 'up' ? 'bg-accent/15 text-accent' :
-          trend === 'down' ? 'bg-destructive/15 text-destructive' :
-          'bg-primary/15 text-primary',
-        )}>
-          <Icon className="h-5 w-5" />
+        <div
+          className={cn(
+            'flex shrink-0 items-center justify-center rounded-lg',
+            compact ? 'h-8 w-8' : 'h-10 w-10',
+            trend === 'up'
+              ? 'bg-accent/15 text-accent'
+              : trend === 'down'
+                ? 'bg-destructive/15 text-destructive'
+                : 'bg-primary/15 text-primary',
+          )}
+        >
+          <Icon className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
         </div>
       </div>
     </>
   );
 
+  const className = cn(
+    'group block transition-colors hover:border-primary/20',
+    compact
+      ? 'rounded-lg border border-white/10 bg-secondary/20 p-3'
+      : 'card cursor-pointer',
+    href && 'cursor-pointer',
+  );
+
   if (href) {
     return (
-      <Link href={href} className="card group block hover:border-primary/20 transition-colors cursor-pointer">
+      <Link href={href} className={className}>
         {content}
       </Link>
     );
   }
 
-  return (
-    <div className="card group hover:border-primary/20 transition-colors">
-      {content}
-    </div>
-  );
+  return <div className={className}>{content}</div>;
 }
 
 export function SeverityBadge({ severity }: { severity: string }) {

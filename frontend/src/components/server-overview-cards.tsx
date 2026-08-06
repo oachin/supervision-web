@@ -365,8 +365,8 @@ export function ServerOverviewCards({
   return (
     <section className={nocMode ? 'h-full' : undefined}>
       {showHeader && (
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight">Serveurs</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold tracking-tight">Serveurs</h2>
           <div className="flex items-center gap-2">
             <Link
               href="/noc"

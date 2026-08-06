@@ -97,11 +97,11 @@ export default function DashboardPage() {
   const websitesDisabled = summary.websites.disabled ?? 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tableau de bord</h1>
-          <p className="text-sm text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
+          <h1 className="text-xl font-bold tracking-tight">Tableau de bord</h1>
+          <p className="text-xs text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
         </div>
         <button
           type="button"
@@ -114,47 +114,55 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <MetricCard
-          title="Serveurs en ligne"
-          value={`${summary.servers.online}/${summary.servers.total}`}
-          subtitle={serversInAlert > 0 ? `${serversInAlert} en alerte` : 'Tous opérationnels'}
-          icon={ServerIcon}
-          trend={serversInAlert > 0 ? 'down' : 'up'}
-          href={serversInAlert > 0 ? '/servers?filter=alert' : '/servers'}
-        />
-        <MetricCard
-          title="Sites en ligne"
-          value={`${summary.websites.up}/${summary.websites.total}`}
-          subtitle={websitesInAlert > 0 ? `${websitesInAlert} en alerte` : 'Tous accessibles'}
-          icon={Globe}
-          trend={websitesInAlert > 0 ? 'down' : 'up'}
-          href={websitesInAlert > 0 ? '/websites?filter=alert' : '/websites'}
-        />
-        <MetricCard
-          title="Alertes actives"
-          value={openAlerts.length}
-          subtitle="Non résolues"
-          icon={Bell}
-          trend={openAlerts.length > 0 ? 'down' : 'neutral'}
-          href="/alerts"
-        />
-        <MetricCard
-          title="Serveurs dégradés"
-          value={summary.servers.degraded}
-          subtitle="Ressources élevées"
-          icon={AlertTriangle}
-          trend={summary.servers.degraded > 0 ? 'down' : 'up'}
-          href={summary.servers.degraded > 0 ? '/servers?filter=degraded' : '/servers'}
-        />
-        <MetricCard
-          title="Supervision off"
-          value={websitesDisabled}
-          subtitle={websitesDisabled > 0 ? 'Sites non surveillés' : 'Tous surveillés'}
-          icon={EyeOff}
-          trend="neutral"
-          href={websitesDisabled > 0 ? '/websites?filter=disabled' : '/websites'}
-        />
+      <div className="card space-y-3 p-4">
+        <h2 className="text-sm font-semibold">Supervision</h2>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricCard
+            compact
+            title="Serveurs en ligne"
+            value={`${summary.servers.online}/${summary.servers.total}`}
+            subtitle={serversInAlert > 0 ? `${serversInAlert} en alerte` : 'Tous opérationnels'}
+            icon={ServerIcon}
+            trend={serversInAlert > 0 ? 'down' : 'up'}
+            href={serversInAlert > 0 ? '/servers?filter=alert' : '/servers'}
+          />
+          <MetricCard
+            compact
+            title="Sites en ligne"
+            value={`${summary.websites.up}/${summary.websites.total}`}
+            subtitle={websitesInAlert > 0 ? `${websitesInAlert} en alerte` : 'Tous accessibles'}
+            icon={Globe}
+            trend={websitesInAlert > 0 ? 'down' : 'up'}
+            href={websitesInAlert > 0 ? '/websites?filter=alert' : '/websites'}
+          />
+          <MetricCard
+            compact
+            title="Alertes actives"
+            value={openAlerts.length}
+            subtitle="Non résolues"
+            icon={Bell}
+            trend={openAlerts.length > 0 ? 'down' : 'neutral'}
+            href="/alerts"
+          />
+          <MetricCard
+            compact
+            title="Serveurs dégradés"
+            value={summary.servers.degraded}
+            subtitle="Ressources élevées"
+            icon={AlertTriangle}
+            trend={summary.servers.degraded > 0 ? 'down' : 'up'}
+            href={summary.servers.degraded > 0 ? '/servers?filter=degraded' : '/servers'}
+          />
+          <MetricCard
+            compact
+            title="Supervision off"
+            value={websitesDisabled}
+            subtitle={websitesDisabled > 0 ? 'Sites non surveillés' : 'Tous surveillés'}
+            icon={EyeOff}
+            trend="neutral"
+            href={websitesDisabled > 0 ? '/websites?filter=disabled' : '/websites'}
+          />
+        </div>
       </div>
 
       {canViewCyber && cyberOverview && <CyberDashboardSummary data={cyberOverview} />}
