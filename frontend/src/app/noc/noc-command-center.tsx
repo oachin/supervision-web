@@ -488,14 +488,6 @@ export function NocCommandCenter() {
           >
             <div className="dot" />
             <b>{bannerLabel}</b>
-            <SeverityTags critical={bannerCrit} warning={bannerWarn} />
-            {bannerLevel === 'crit' && state.global.criticalHosts > 0 && (
-              <small>
-                {state.global.criticalHosts} serveur
-                {state.global.criticalHosts > 1 ? 's' : ''} critique
-                {state.global.criticalHosts > 1 ? 's' : ''}
-              </small>
-            )}
           </div>
         ) : (
           <div className="global-status" style={{ opacity: 0.5 }}>
