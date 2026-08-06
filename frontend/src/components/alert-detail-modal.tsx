@@ -169,6 +169,7 @@ export function AlertDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [listPanel, setListPanel] = useState<'occurrences' | 'events' | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -184,16 +185,22 @@ export function AlertDetailModal({
     if (!open) return;
     load();
     setNote('');
+    setListPanel(null);
   }, [open, load, summary.status]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (listPanel) {
+        setListPanel(null);
+        return;
+      }
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, listPanel]);
 
   useEffect(() => {
     if (!open) return;
@@ -241,7 +248,13 @@ export function AlertDetailModal({
   return (
     <div
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
-      onClick={onClose}
+      onClick={() => {
+        if (listPanel) {
+          setListPanel(null);
+          return;
+        }
+        onClose();
+      }}
     >
       <div
         className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl"
@@ -305,22 +318,36 @@ export function AlertDetailModal({
               </p>
               <p className="mt-1 font-mono text-sm">{formatDate(alert.createdAt)}</p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setListPanel('occurrences')}
+              disabled={loading && !detail}
+              className="rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-3.5 text-left transition hover:border-amber-400/45 hover:bg-amber-500/15 disabled:opacity-60"
+              title="Voir les occurrences"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80">
                 Occurrences
               </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums leading-none">
-                {alert.occurrenceCount}
+              <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-amber-100">
+                {loading && !detail ? '—' : occurrenceEvents.length || alert.occurrenceCount}
               </p>
-            </div>
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="mt-1.5 text-[11px] text-amber-200/60">Cliquer pour ouvrir</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setListPanel('events')}
+              disabled={loading && !detail}
+              className="rounded-xl border border-sky-500/25 bg-sky-500/[0.07] p-3.5 text-left transition hover:border-sky-400/45 hover:bg-sky-500/15 disabled:opacity-60"
+              title="Voir les événements"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-200/80">
                 Événements
               </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums leading-none">
+              <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-sky-100">
                 {loading && !detail ? '—' : historyEvents.length}
               </p>
-            </div>
+              <p className="mt-1.5 text-[11px] text-sky-200/60">Cliquer pour ouvrir</p>
+            </button>
             <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {alert.status === 'CLOSED' ? 'Clôturée' : 'Statut'}
@@ -430,56 +457,75 @@ export function AlertDetailModal({
             <p className="mt-3 text-sm text-destructive">{error}</p>
           )}
 
-          {loading && !detail ? (
-            <div className="mt-8 flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+          {loading && !detail && (
+            <div className="mt-6 flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Chargement de l&apos;historique…
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              <section>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold tracking-tight">Occurrences</h3>
-                  <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-200">
-                    {occurrenceEvents.length}
-                  </span>
-                </div>
-                {occurrenceEvents.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                    Aucune occurrence
-                  </p>
-                ) : (
-                  <div className="grid gap-2.5 sm:grid-cols-1">
-                    {occurrenceEvents.map((e, i) => (
-                      <EventTile key={e.id} event={e} index={i + 1} />
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold tracking-tight">Événements & notes</h3>
-                  <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-medium text-sky-200">
-                    {historyEvents.length}
-                  </span>
-                </div>
-                {historyEvents.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted-foreground">
-                    Aucun événement
-                  </p>
-                ) : (
-                  <div className="grid gap-2.5">
-                    {[...historyEvents].reverse().map((e) => (
-                      <EventTile key={e.id} event={e} />
-                    ))}
-                  </div>
-                )}
-              </section>
+              Chargement…
             </div>
           )}
         </div>
       </div>
+
+      {listPanel && (
+        <div
+          className="absolute inset-0 z-[90] flex items-center justify-center bg-black/60 p-3 backdrop-blur-[2px] sm:p-6"
+          onClick={() => setListPanel(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="alert-list-panel-title"
+          >
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
+              <div>
+                <h3 id="alert-list-panel-title" className="text-base font-semibold">
+                  {listPanel === 'occurrences' ? 'Occurrences' : 'Événements & notes'}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {listPanel === 'occurrences'
+                    ? `${occurrenceEvents.length} entrée${occurrenceEvents.length !== 1 ? 's' : ''}`
+                    : `${historyEvents.length} entrée${historyEvents.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setListPanel(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {listPanel === 'occurrences' ? (
+                occurrenceEvents.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-muted-foreground">
+                    Aucune occurrence
+                  </p>
+                ) : (
+                  <div className="grid gap-2.5">
+                    {occurrenceEvents.map((e, i) => (
+                      <EventTile key={e.id} event={e} index={i + 1} />
+                    ))}
+                  </div>
+                )
+              ) : historyEvents.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Aucun événement
+                </p>
+              ) : (
+                <div className="grid gap-2.5">
+                  {[...historyEvents].reverse().map((e) => (
+                    <EventTile key={e.id} event={e} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
