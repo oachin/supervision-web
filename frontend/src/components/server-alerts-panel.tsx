@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
-import type { Alert } from '@/lib/api';
+import { api, type Alert, type User } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
 import { SeverityCountTags } from '@/components/severity-count-tags';
+import { AlertDetailModal } from '@/components/alert-detail-modal';
+import { useAlerts } from '@/components/alert-provider';
 import { formatDate, cn } from '@/lib/utils';
 import { groupServerAlertsBySite } from '@/lib/server-alerts';
 import {
@@ -37,15 +39,23 @@ export function ServerAlertsBySitePanel({
   initialSeverity?: DisplaySeverityKey | '';
 }) {
   const router = useRouter();
+  const { refresh } = useAlerts();
   const [severityFilter, setSeverityFilter] = useState<DisplaySeverityKey | ''>(
     initialSeverity,
   );
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [profile, setProfile] = useState<User | null>(null);
 
   useEffect(() => {
     setSeverityFilter(initialSeverity);
   }, [initialSeverity]);
 
+  useEffect(() => {
+    api.getProfile().then(setProfile).catch(() => {});
+  }, []);
+
   const severityCounts = useMemo(() => countAlertsBySeverity(alerts), [alerts]);
+  const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
 
   const filteredAlerts = useMemo(() => {
     if (!severityFilter) return alerts;
@@ -121,41 +131,44 @@ export function ServerAlertsBySitePanel({
                 {group.alerts.map((alert) => {
                   const displaySev = displaySeverityOf(alert);
                   return (
-                    <li
-                      key={alert.id}
-                      className="flex flex-wrap items-start justify-between gap-3 px-4 py-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {displaySev === 'EXPIRATION_SSL' ? (
-                            <span className="inline-flex items-center rounded-md border border-violet-400/40 bg-violet-600/90 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-white">
-                              EXPIRATION SSL
-                            </span>
-                          ) : (
-                            <SeverityBadge severity={alert.severity} />
-                          )}
-                          <span className="font-medium">{alert.title}</span>
-                          {alert.occurrenceCount > 1 && (
-                            <span className="rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
-                              ×{alert.occurrenceCount}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{alert.message}</p>
-                        <p className="mt-1.5 font-mono text-xs text-muted-foreground">
-                          {formatDate(alert.createdAt)}
-                        </p>
-                      </div>
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                          alert.status === 'ACTIVE' || alert.status === 'ACKNOWLEDGED'
-                            ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                            : 'border-white/10 bg-secondary/30 text-muted-foreground',
-                        )}
+                    <li key={alert.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAlert(alert)}
+                        className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]"
                       >
-                        {statusLabels[alert.status] ?? alert.status}
-                      </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {displaySev === 'EXPIRATION_SSL' ? (
+                              <span className="inline-flex items-center rounded-md border border-violet-400/40 bg-violet-600/90 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+                                EXPIRATION SSL
+                              </span>
+                            ) : (
+                              <SeverityBadge severity={alert.severity} />
+                            )}
+                            <span className="font-medium">{alert.title}</span>
+                            {alert.occurrenceCount > 1 && (
+                              <span className="rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+                                ×{alert.occurrenceCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{alert.message}</p>
+                          <p className="mt-1.5 font-mono text-xs text-muted-foreground">
+                            {formatDate(alert.createdAt)}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-md border px-2 py-0.5 text-[11px] font-medium',
+                            alert.status === 'ACTIVE' || alert.status === 'ACKNOWLEDGED'
+                              ? 'border-destructive/30 bg-destructive/10 text-destructive'
+                              : 'border-white/10 bg-secondary/30 text-muted-foreground',
+                          )}
+                        >
+                          {statusLabels[alert.status] ?? alert.status}
+                        </span>
+                      </button>
                     </li>
                   );
                 })}
@@ -163,6 +176,25 @@ export function ServerAlertsBySitePanel({
             </div>
           ))}
         </div>
+      )}
+
+      {selectedAlert && (
+        <AlertDetailModal
+          open
+          alertId={selectedAlert.id}
+          summary={selectedAlert}
+          canEdit={canEdit}
+          onClose={() => setSelectedAlert(null)}
+          onUpdated={async () => {
+            await refresh();
+            const summary = await api.getAlertsSummary();
+            const updated = [...summary.active, ...summary.closed].find(
+              (a) => a.id === selectedAlert.id,
+            );
+            if (updated) setSelectedAlert(updated);
+            else setSelectedAlert(null);
+          }}
+        />
       )}
     </div>
   );
