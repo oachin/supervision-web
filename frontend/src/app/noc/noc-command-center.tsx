@@ -651,7 +651,7 @@ export function NocCommandCenter() {
               </div>
             ) : (
               <div className="ok-grid">
-                {okHosts.slice(0, 5).map((h) => (
+                {okHosts.map((h) => (
                   <OkHostCard key={h.id} host={h} />
                 ))}
               </div>
