@@ -126,6 +126,8 @@ model Server {
   hasPlesk      Boolean       @default(false)
   pleskUrl      String?
   pleskApiKey   String?
+  /// URLs/hosts exclus de la resynchro Plesk (sites retirés manuellement).
+  pleskExcludedUrls String[]  @default([])
   agentKey      String        @unique
   status        ServerStatus  @default(UNKNOWN)
   lastSeenAt    DateTime?

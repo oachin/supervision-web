@@ -137,14 +137,44 @@ export class AgentService {
     return url.replace(/\/$/, '') + '/';
   }
 
+  private websiteHost(raw: string): string {
+    try {
+      return new URL(this.normalizeWebsiteUrl(raw)).hostname.toLowerCase();
+    } catch {
+      return raw.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+    }
+  }
+
+  private isPleskExcluded(url: string, excluded: string[]): boolean {
+    if (!excluded.length) return false;
+    const normalized = this.normalizeWebsiteUrl(url);
+    const host = this.websiteHost(url);
+    return excluded.some((entry) => {
+      const e = entry.trim();
+      if (!e) return false;
+      return this.normalizeWebsiteUrl(e) === normalized || this.websiteHost(e) === host;
+    });
+  }
+
   private async syncPleskWebsites(
     serverId: string,
     sites: { name: string; url: string }[],
   ) {
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+      select: { pleskExcludedUrls: true },
+    });
+    const excluded = server?.pleskExcludedUrls ?? [];
     const seen = new Set<string>();
 
     for (const site of sites) {
       const normalized = this.normalizeWebsiteUrl(site.url);
+
+      if (this.isPleskExcluded(normalized, excluded)) {
+        this.logger.debug(`Plesk sync: skip excluded ${normalized}`);
+        continue;
+      }
+
       seen.add(normalized);
 
       const existing = await this.prisma.website.findFirst({
@@ -184,7 +214,9 @@ export class AgentService {
     });
 
     for (const stale of agentSites) {
-      if (seen.has(this.normalizeWebsiteUrl(stale.url))) continue;
+      const normalized = this.normalizeWebsiteUrl(stale.url);
+      // Keep only sites still present in Plesk and not manually excluded.
+      if (seen.has(normalized)) continue;
 
       this.logger.log(
         `Pruning Plesk website removed from server inventory: ${stale.name} (${stale.url})`,

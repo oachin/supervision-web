@@ -81,6 +81,24 @@ export class WebsitesService {
     const website = await this.prisma.website.findUnique({ where: { id } });
     if (!website) throw new NotFoundException('Site introuvable');
 
+    // Agent/Plesk sites: remember exclusion so the next inventory sync does not recreate them.
+    if (website.serverId && website.source === 'agent') {
+      const normalized = website.url.startsWith('http')
+        ? website.url.replace(/\/$/, '') + '/'
+        : `https://${website.url}`.replace(/\/$/, '') + '/';
+      const server = await this.prisma.server.findUnique({
+        where: { id: website.serverId },
+        select: { pleskExcludedUrls: true },
+      });
+      const excluded = server?.pleskExcludedUrls ?? [];
+      if (!excluded.includes(normalized)) {
+        await this.prisma.server.update({
+          where: { id: website.serverId },
+          data: { pleskExcludedUrls: [...excluded, normalized] },
+        });
+      }
+    }
+
     await this.alerts.onResourceDeleted({
       websiteId: id,
       resourceName: website.name,
@@ -89,7 +107,10 @@ export class WebsitesService {
     });
 
     await this.prisma.website.delete({ where: { id } });
-    await this.audit.log(userId, 'WEBSITE_DELETED', 'websites', { websiteId: id });
+    await this.audit.log(userId, 'WEBSITE_DELETED', 'websites', {
+      websiteId: id,
+      pleskExcluded: website.source === 'agent',
+    });
     return { success: true };
   }
 
