@@ -670,6 +670,12 @@ export class CyberService {
     return this.websec.getSite(url.trim());
   }
 
+  getSiteResultAtRun(url: string, runId: number) {
+    if (!url?.trim()) throw new BadRequestException('URL requise');
+    if (!Number.isFinite(runId)) throw new BadRequestException('run_id invalide');
+    return this.websec.getSite(url.trim(), runId);
+  }
+
   getTrend(limit = 30) {
     return this.websec.getTrend(limit);
   }

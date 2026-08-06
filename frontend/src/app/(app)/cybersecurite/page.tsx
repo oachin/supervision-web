@@ -394,11 +394,16 @@ export default function CybersecuritePage() {
               Historique insuffisant — plusieurs audits sont nécessaires.
             </p>
           ) : (
-            <div className="h-40">
+            <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData}>
+                <LineChart data={trendData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="label" hide />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: '#94a3b8', fontSize: 10 }}
+                    interval="preserveStartEnd"
+                    minTickGap={28}
+                  />
                   <YAxis domain={[0, 100]} width={28} tick={{ fill: '#94a3b8', fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{
@@ -406,6 +411,8 @@ export default function CybersecuritePage() {
                       border: '1px solid rgba(255,255,255,0.1)',
                       borderRadius: 8,
                     }}
+                    labelFormatter={(label) => `Audit · ${label}`}
+                    formatter={(value: number) => [`${value}/100`, 'Score moyen']}
                   />
                   <Line type="monotone" dataKey="score" stroke="#38bdf8" strokeWidth={2} dot={false} />
                 </LineChart>

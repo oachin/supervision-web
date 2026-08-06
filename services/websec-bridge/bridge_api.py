@@ -282,8 +282,11 @@ def list_sites(
 
 
 @app.get("/v1/sites/by-url", dependencies=[Depends(require_key)])
-def site_by_url(url: str) -> dict[str, Any]:
-    state = get_site_state(url)
+def site_by_url(
+    url: str,
+    run_id: int | None = Query(default=None),
+) -> dict[str, Any]:
+    state = get_site_state(url, run_id=run_id)
     if not state:
         raise HTTPException(404, "Aucun résultat pour cette URL")
     return state

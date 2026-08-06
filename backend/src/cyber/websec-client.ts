@@ -114,9 +114,13 @@ export class WebsecClient {
     );
   }
 
-  getSite(url: string) {
+  getSite(url: string, runId?: number) {
+    const params = new URLSearchParams({ url });
+    if (runId != null && Number.isFinite(runId)) {
+      params.set('run_id', String(runId));
+    }
     return this.request<Record<string, unknown>>(
-      `/v1/sites/by-url?url=${encodeURIComponent(url)}`,
+      `/v1/sites/by-url?${params.toString()}`,
     );
   }
 

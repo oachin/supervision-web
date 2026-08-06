@@ -348,8 +348,12 @@ class ApiClient {
   getCyberScanStatus() {
     return this.fetch<CyberScanStatus>('/cyber/scan/status');
   }
-  getCyberSiteResult(url: string) {
-    return this.fetch<CyberSiteResult>(`/cyber/sites?url=${encodeURIComponent(url)}`);
+  getCyberSiteResult(url: string, runId?: number) {
+    const params = new URLSearchParams({ url });
+    if (runId != null && Number.isFinite(runId)) {
+      params.set('run_id', String(runId));
+    }
+    return this.fetch<CyberSiteResult>(`/cyber/sites?${params.toString()}`);
   }
   getCyberTrend(limit = 30) {
     return this.fetch<{ trend: CyberTrendPoint[] }>(`/cyber/trend?limit=${limit}`);
@@ -776,6 +780,8 @@ export interface CyberSiteResult {
   domain?: string;
   score?: number;
   grade?: string;
+  run_id?: number;
+  started_at?: string | null;
   findings?: CyberFinding[];
   findingsCount?: number;
   history?: CyberHistoryPoint[];

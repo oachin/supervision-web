@@ -516,24 +516,36 @@ def latest_site_summaries(engine=None, limit: int | None = None,
     return summaries
 
 
-def get_site_state(identifier: str, engine=None) -> dict | None:
-    """Latest scored state for a single site (by URL, then domain), with history."""
+def get_site_state(
+    identifier: str,
+    engine=None,
+    run_id: int | None = None,
+) -> dict | None:
+    """Scored state for a site (by URL/domain).
+
+    Without ``run_id``, returns the latest run + score history.
+    With ``run_id``, returns that specific audit (findings included, no history).
+    """
     engine = init_db(engine)
     Session = sessionmaker(bind=engine, future=True)
 
     with Session() as session:
-        row = (
+        q = (
             session.query(SiteResult, ScanRun)
             .join(ScanRun, SiteResult.run_id == ScanRun.id)
             .filter((SiteResult.url == identifier) | (SiteResult.domain == identifier))
-            .order_by(ScanRun.started_at.desc())
-            .first()
         )
+        if run_id is not None:
+            q = q.filter(SiteResult.run_id == int(run_id))
+            row = q.first()
+        else:
+            row = q.order_by(ScanRun.started_at.desc()).first()
         if not row:
             return None
         state = _site_state(*row)
 
-    state["history"] = score_history(identifier, limit=30, engine=engine)
+    if run_id is None:
+        state["history"] = score_history(identifier, limit=30, engine=engine)
     return state
 
 

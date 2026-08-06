@@ -99,7 +99,11 @@ export class CyberController {
 
   @Get('sites')
   @RequirePermission('cybersecurity', 'view')
-  siteResult(@Query('url') url: string) {
+  siteResult(@Query('url') url: string, @Query('run_id') runId?: string) {
+    if (runId != null && runId !== '') {
+      const n = Number(runId);
+      return this.cyber.getSiteResultAtRun(url, n);
+    }
     return this.cyber.getSiteResult(url);
   }
 
