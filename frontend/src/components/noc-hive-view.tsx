@@ -2,13 +2,14 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Server as ServerIcon } from 'lucide-react';
 import { cn, isMaintenanceStatus, statusLabel } from '@/lib/utils';
 import { useServerTileOrder } from '@/hooks/use-server-tile-order';
 import { buildServerOverview } from '@/components/server-overview-cards';
 import { openAlertsForServer } from '@/lib/server-alerts';
 import { SeverityCountTags } from '@/components/severity-count-tags';
-import { countAlertsBySeverity } from '@/lib/alert-severity';
+import { countAlertsBySeverity, serverAlertsHref } from '@/lib/alert-severity';
 import type { Alert, ProxmoxVmWithServer, ServerWithHistory, WebsiteWithHistory } from '@/lib/api';
 
 const HEX_SIZE = 11;
@@ -198,6 +199,7 @@ function ServerHivePanel({
   alerts: Alert[];
   websites: WebsiteWithHistory[];
 }) {
+  const router = useRouter();
   const isProxmox = server.profile === 'PROXMOX';
   const overview = buildServerOverview(server, websites, alerts);
   const level = isProxmox ? proxmoxHealthLevel(server, vms, websites, alerts) : overview.level;
@@ -252,7 +254,14 @@ function ServerHivePanel({
           <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-medium', styles.border, styles.bg)}>
             {styles.label}
           </span>
-          <SeverityCountTags counts={overview.severityCounts} showInfo={false} stacked />
+          <SeverityCountTags
+            counts={overview.severityCounts}
+            showInfo={false}
+            stacked
+            onSelect={(sev) => {
+              router.push(serverAlertsHref(server.id, sev));
+            }}
+          />
         </div>
       </header>
 

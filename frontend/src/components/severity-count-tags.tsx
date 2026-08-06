@@ -96,7 +96,11 @@ export function SeverityCountTags({
               key={sev}
               type="button"
               disabled={disabled}
-              onClick={() => onSelect(sev)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelect(sev);
+              }}
               title={
                 isSelected
                   ? 'Retirer le filtre'

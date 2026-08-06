@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Server as ServerIcon,
   AlertTriangle,
@@ -15,7 +16,11 @@ import { TagList } from '@/components/tag-editor';
 import { useServerTileOrder } from '@/hooks/use-server-tile-order';
 import type { Alert, ServerWithHistory, WebsiteWithHistory } from '@/lib/api';
 import { openAlertsForServer } from '@/lib/server-alerts';
-import { countAlertsBySeverity, type SeverityCounts } from '@/lib/alert-severity';
+import {
+  countAlertsBySeverity,
+  serverAlertsHref,
+  type SeverityCounts,
+} from '@/lib/alert-severity';
 import { SeverityCountTags } from '@/components/severity-count-tags';
 
 export type ServerHealthLevel = 'ok' | 'warning' | 'critical';
@@ -167,6 +172,7 @@ function ServerOverviewCard({
   const { server, level, summaryLines, alertCount, severityCounts, sitesTotal } = data;
   const styles = levelStyles[level];
   const hostname = server.hostname === 'en-attente' ? 'Hostname en attente' : server.hostname;
+  const router = useRouter();
 
   const maxSummaryLines = nocMode ? 4 : 3;
   const paddedSummaryLines = [...summaryLines.slice(0, maxSummaryLines)];
@@ -299,7 +305,10 @@ function ServerOverviewCard({
               showInfo={false}
               stacked
               size="sm"
-              className="shrink-0 pb-0.5"
+              className="relative z-10 shrink-0 pb-0.5"
+              onSelect={(sev) => {
+                router.push(serverAlertsHref(server.id, sev));
+              }}
             />
           </div>
         </div>

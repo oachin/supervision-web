@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import type { Alert } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
@@ -13,6 +14,7 @@ import {
   countAlertsBySeverity,
   DISPLAY_SEVERITY_LABELS,
   displaySeverityOf,
+  serverAlertsHref,
   type DisplaySeverityKey,
 } from '@/lib/alert-severity';
 
@@ -26,11 +28,22 @@ const statusLabels: Record<string, string> = {
 export function ServerAlertsBySitePanel({
   alerts,
   serverName,
+  serverId,
+  initialSeverity = '',
 }: {
   alerts: Alert[];
   serverName: string;
+  serverId: string;
+  initialSeverity?: DisplaySeverityKey | '';
 }) {
-  const [severityFilter, setSeverityFilter] = useState<DisplaySeverityKey | ''>('');
+  const router = useRouter();
+  const [severityFilter, setSeverityFilter] = useState<DisplaySeverityKey | ''>(
+    initialSeverity,
+  );
+
+  useEffect(() => {
+    setSeverityFilter(initialSeverity);
+  }, [initialSeverity]);
 
   const severityCounts = useMemo(() => countAlertsBySeverity(alerts), [alerts]);
 
@@ -50,8 +63,13 @@ export function ServerAlertsBySitePanel({
     );
   }
 
+  function applySeverity(sev: DisplaySeverityKey | '') {
+    setSeverityFilter(sev);
+    router.replace(serverAlertsHref(serverId, sev), { scroll: false });
+  }
+
   function toggleSeverity(sev: DisplaySeverityKey) {
-    setSeverityFilter((current) => (current === sev ? '' : sev));
+    applySeverity(severityFilter === sev ? '' : sev);
   }
 
   return (
@@ -77,7 +95,7 @@ export function ServerAlertsBySitePanel({
         {severityFilter && (
           <button
             type="button"
-            onClick={() => setSeverityFilter('')}
+            onClick={() => applySeverity('')}
             className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
           >
             Toutes sévérités

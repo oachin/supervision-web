@@ -52,3 +52,27 @@ export function alertMatchesDisplaySeverity(
 ): boolean {
   return displaySeverityOf(alert) === filter;
 }
+
+export function parseDisplaySeverityParam(
+  raw: string | null | undefined,
+): DisplaySeverityKey | '' {
+  if (
+    raw === 'CRITICAL' ||
+    raw === 'WARNING' ||
+    raw === 'EXPIRATION_SSL' ||
+    raw === 'INFO'
+  ) {
+    return raw;
+  }
+  return '';
+}
+
+/** Deep-link to server alerts panel, optionally filtered by display severity. */
+export function serverAlertsHref(
+  serverId: string,
+  severity?: DisplaySeverityKey | '',
+): string {
+  const params = new URLSearchParams({ alerts: '1' });
+  if (severity) params.set('severity', severity);
+  return `/servers/${serverId}?${params.toString()}`;
+}

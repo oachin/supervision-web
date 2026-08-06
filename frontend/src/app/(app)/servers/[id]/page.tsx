@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Trash2, Pencil, Check, Copy, Terminal, Bell } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { api, type ServerDetail, type ServerMetric, type Alert, type ProxmoxVm, type ProxmoxBackup } from '@/lib/api';
@@ -13,7 +13,11 @@ import { ServerAlertsBySitePanel } from '@/components/server-alerts-panel';
 import { ProxmoxVmsPanel } from '@/components/proxmox-vms-panel';
 import { ProxmoxBackupsPanel } from '@/components/proxmox-backups-panel';
 import { flattenActiveAlerts, openAlertsForServer } from '@/lib/server-alerts';
-import { countAlertsBySeverity } from '@/lib/alert-severity';
+import {
+  countAlertsBySeverity,
+  parseDisplaySeverityParam,
+  serverAlertsHref,
+} from '@/lib/alert-severity';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
@@ -84,6 +88,15 @@ export default function ServerDetailPage() {
   const [showAlertsPanel, setShowAlertsPanel] = useState(false);
   const [proxmoxVms, setProxmoxVms] = useState<ProxmoxVm[]>([]);
   const [proxmoxBackups, setProxmoxBackups] = useState<ProxmoxBackup[]>([]);
+  const searchParams = useSearchParams();
+  const alertsParam = searchParams.get('alerts');
+  const severityParam = parseDisplaySeverityParam(searchParams.get('severity'));
+
+  useEffect(() => {
+    if (alertsParam === '1' || severityParam) {
+      setShowAlertsPanel(true);
+    }
+  }, [alertsParam, severityParam]);
 
   useEffect(() => {
     if (!id) return;
@@ -340,7 +353,17 @@ export default function ServerDetailPage() {
           ))}
           <button
             type="button"
-            onClick={() => setShowAlertsPanel((open) => !open)}
+            onClick={() => {
+              setShowAlertsPanel((open) => {
+                const next = !open;
+                if (next) {
+                  router.replace(serverAlertsHref(server.id), { scroll: false });
+                } else {
+                  router.replace(`/servers/${server.id}`, { scroll: false });
+                }
+                return next;
+              });
+            }}
             className={cn(
               'card text-center transition-colors hover:border-primary/30',
               showAlertsPanel && 'border-primary/50 ring-1 ring-primary/30 bg-primary/5',
@@ -367,7 +390,12 @@ export default function ServerDetailPage() {
       </div>
 
       {showAlertsPanel && (
-        <ServerAlertsBySitePanel alerts={serverOpenAlerts} serverName={server.name} />
+        <ServerAlertsBySitePanel
+          alerts={serverOpenAlerts}
+          serverName={server.name}
+          serverId={server.id}
+          initialSeverity={severityParam}
+        />
       )}
 
       <div className="card">
