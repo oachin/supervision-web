@@ -261,6 +261,9 @@ function ServerOverviewCard({
             {server.profile === 'PLESK' && (
               <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Plesk</span>
             )}
+            {server.profile === 'PROXMOX' && (
+              <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Proxmox</span>
+            )}
           </div>
 
           <div className="mt-auto flex items-end justify-between gap-3">
