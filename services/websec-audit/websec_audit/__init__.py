@@ -133,7 +133,7 @@ class AuditConfig:
     # with `sites`. Lets a host skip config/targets.yaml entirely.
     discover_domains: list[str] | None = None
 
-    def run(self, on_progress=None, run_uuid: str | None = None) -> dict:
+    def run(self, on_progress=None, on_site_event=None, run_uuid: str | None = None) -> dict:
         """Executes the sweep and returns the :func:`run_audit` outcome dict."""
         engine = self.engine or (get_engine(self.db_url) if self.db_url else None)
         return run_audit(
@@ -153,6 +153,7 @@ class AuditConfig:
             min_confidence=self.min_confidence,
             discover_domains=self.discover_domains,
             on_progress=on_progress,
+            on_site_event=on_site_event,
             run_uuid=run_uuid,
             engine=engine,
         )

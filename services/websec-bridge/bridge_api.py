@@ -3,7 +3,7 @@ JSON bridge between Havet Supervision and the Web Security Audit Tool (EASM).
 
 Authenticated with header ``X-Websec-Key`` (shared secret with Nest).
 Runs scans via ``websec_audit.AuditConfig`` and exposes latest results from
-the audit database.
+the audit database, including live per-site progress while a scan runs.
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ from __future__ import annotations
 import os
 import secrets
 import threading
-from typing import Any
-
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -28,7 +28,7 @@ REPORT_OUT = Path(os.getenv("AUDIT_REPORT_DIR", "/data/reports"))
 API_KEY = os.getenv("WEBSEC_API_KEY", "")
 DB_URL = os.getenv("AUDIT_DB_URL", "sqlite:////data/audit.db")
 
-app = FastAPI(title="Havet WebSec Bridge", version="1.0.0")
+app = FastAPI(title="Havet WebSec Bridge", version="1.1.0")
 
 _scan_lock = threading.Lock()
 _scan_state: dict[str, Any] = {
@@ -39,6 +39,11 @@ _scan_state: dict[str, Any] = {
     "error": None,
     "stats": None,
     "run_uuid": None,
+    "progress": None,
+    "total": 0,
+    "done": 0,
+    "percent": 0,
+    "sites": [],
 }
 
 
@@ -68,14 +73,90 @@ def _enabled(deep: bool) -> list[str]:
         for s in ENGINE_SCANNERS:
             if s not in enabled:
                 enabled.append(s)
-    # Prefer core when DEFAULT is empty for safety
     return enabled or list(CORE_SCANNERS)
+
+
+def _seed_progress(sites: list[dict]) -> list[dict]:
+    return [
+        {
+            "url": s.get("url"),
+            "name": s.get("name"),
+            "status": "queued",
+            "check": None,
+            "checks_done": 0,
+            "checks_total": 0,
+            "percent": 0,
+            "score": None,
+            "grade": None,
+            "findings": None,
+            "error": None,
+        }
+        for s in sites
+    ]
+
+
+def _recompute_global_percent(locked: bool = False) -> None:
+    """Weighted global % from per-site percent (call with lock held if locked=True)."""
+
+    def _update() -> None:
+        rows = _scan_state.get("sites") or []
+        total = len(rows)
+        _scan_state["total"] = total
+        _scan_state["done"] = sum(1 for s in rows if s.get("status") in ("done", "error"))
+        if total <= 0:
+            _scan_state["percent"] = 0
+            return
+        _scan_state["percent"] = int(round(sum(int(s.get("percent") or 0) for s in rows) / total))
+
+    if locked:
+        _update()
+    else:
+        with _scan_lock:
+            _update()
+
+
+def _on_site_event(event: dict) -> None:
+    url = event.get("url")
+    etype = event.get("type")
+    with _scan_lock:
+        site = next((s for s in _scan_state["sites"] if s.get("url") == url), None)
+        if site is None:
+            return
+        if etype == "site_start":
+            site["status"] = "scanning"
+            site["checks_total"] = event.get("total") or site["checks_total"]
+        elif etype == "check":
+            site["status"] = "scanning"
+            site["check"] = event.get("check")
+            total = event.get("total") or site["checks_total"]
+            index = event.get("index") or 0
+            site["checks_total"] = total
+            site["checks_done"] = max(0, index - 1)
+            site["percent"] = int(100 * (index - 1) / total) if total else 0
+        elif etype == "site_done":
+            site["check"] = None
+            site["percent"] = 100
+            site["checks_done"] = site["checks_total"]
+            if event.get("error"):
+                site["status"] = "error"
+                site["error"] = event.get("error")
+            else:
+                site["status"] = "done"
+                site["score"] = event.get("score")
+                site["grade"] = event.get("grade")
+                site["findings"] = event.get("findings")
+        _recompute_global_percent(locked=True)
 
 
 def _run_scan(payload: ScanRequest) -> None:
     global _scan_state
     try:
         sites = [s.model_dump() for s in payload.sites]
+
+        def on_progress(msg: str) -> None:
+            with _scan_lock:
+                _scan_state["progress"] = msg
+
         outcome = AuditConfig(
             sites=sites,
             enabled=_enabled(payload.deep),
@@ -86,15 +167,19 @@ def _run_scan(payload: ScanRequest) -> None:
             min_confidence=os.getenv("AUDIT_MIN_CONFIDENCE") or None,
             verify_backports=os.getenv("AUDIT_VERIFY_BACKPORTS", "true").lower()
             in ("1", "true", "yes"),
-        ).run()
+        ).run(on_progress=on_progress, on_site_event=_on_site_event)
+
         with _scan_lock:
             _scan_state.update(
                 {
                     "running": False,
-                    "finished_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+                    "finished_at": datetime.utcnow().isoformat() + "Z",
                     "error": None,
                     "stats": outcome.get("stats"),
                     "run_uuid": outcome.get("run_uuid"),
+                    "progress": "Terminé",
+                    "percent": 100,
+                    "done": _scan_state.get("total") or 0,
                 }
             )
     except Exception as exc:  # noqa: BLE001 — surface to API
@@ -102,8 +187,9 @@ def _run_scan(payload: ScanRequest) -> None:
             _scan_state.update(
                 {
                     "running": False,
-                    "finished_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+                    "finished_at": datetime.utcnow().isoformat() + "Z",
                     "error": str(exc),
+                    "progress": "Échec",
                 }
             )
 
@@ -116,7 +202,9 @@ def health() -> dict[str, str]:
 @app.get("/v1/status", dependencies=[Depends(require_key)])
 def status() -> dict[str, Any]:
     with _scan_lock:
-        return dict(_scan_state)
+        snapshot = dict(_scan_state)
+        snapshot["sites"] = [dict(s) for s in _scan_state.get("sites", [])]
+        return snapshot
 
 
 @app.get("/v1/sites", dependencies=[Depends(require_key)])
@@ -194,15 +282,21 @@ def start_scan(payload: ScanRequest) -> dict[str, Any]:
     with _scan_lock:
         if _scan_state["running"]:
             raise HTTPException(409, "Un scan est déjà en cours")
+        seeded = _seed_progress([s.model_dump() for s in payload.sites])
         _scan_state.update(
             {
                 "running": True,
                 "trigger": "api",
-                "started_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+                "started_at": datetime.utcnow().isoformat() + "Z",
                 "finished_at": None,
                 "error": None,
                 "stats": None,
                 "run_uuid": None,
+                "progress": "Démarrage…",
+                "total": len(seeded),
+                "done": 0,
+                "percent": 0,
+                "sites": seeded,
             }
         )
     thread = threading.Thread(target=_run_scan, args=(payload,), daemon=True)

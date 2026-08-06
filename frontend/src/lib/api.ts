@@ -343,7 +343,7 @@ class ApiClient {
     });
   }
   getCyberScanStatus() {
-    return this.fetch<Record<string, unknown>>('/cyber/scan/status');
+    return this.fetch<CyberScanStatus>('/cyber/scan/status');
   }
   getCyberSiteResult(url: string) {
     return this.fetch<CyberSiteResult>(`/cyber/sites?url=${encodeURIComponent(url)}`);
@@ -779,9 +779,38 @@ export interface CyberAutomation {
   autoEligibleCount?: number;
 }
 
+export interface CyberScanSiteProgress {
+  url?: string;
+  name?: string;
+  status?: 'queued' | 'scanning' | 'done' | 'error' | string;
+  check?: string | null;
+  checks_done?: number;
+  checks_total?: number;
+  percent?: number;
+  score?: number | null;
+  grade?: string | null;
+  findings?: number | null;
+  error?: string | null;
+}
+
+export interface CyberScanStatus {
+  running?: boolean;
+  trigger?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: string | null;
+  stats?: Record<string, unknown> | null;
+  run_uuid?: string | null;
+  progress?: string | null;
+  total?: number;
+  done?: number;
+  percent?: number;
+  sites?: CyberScanSiteProgress[];
+}
+
 export interface CyberOverview {
   healthy: boolean;
-  scan: Record<string, unknown>;
+  scan: CyberScanStatus;
   enabledTargets: number;
   resultsCount: number;
   grades: Record<string, number>;

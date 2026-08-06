@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   LineChart,
@@ -15,7 +15,13 @@ import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarC
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
-import { api, type CyberOverview } from '@/lib/api';
+import {
+  api,
+  type CyberOverview,
+  type CyberScanSiteProgress,
+  type CyberScanStatus,
+  type CyberSiteResult,
+} from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
 
@@ -51,19 +57,58 @@ function gradeClass(grade?: string) {
   }
 }
 
+function normalizeUrl(url?: string | null) {
+  return (url || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function ProgressBar({
+  percent,
+  className,
+  barClassName,
+}: {
+  percent: number;
+  className?: string;
+  barClassName?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-white/10', className)}>
+      <div
+        className={cn('h-full rounded-full bg-sky-400 transition-[width] duration-500', barClassName)}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+function siteProgressLabel(p?: CyberScanSiteProgress | null) {
+  if (!p) return null;
+  if (p.status === 'queued') return 'En file';
+  if (p.status === 'done') return 'Terminé';
+  if (p.status === 'error') return p.error ? `Erreur` : 'Erreur';
+  if (p.status === 'scanning') {
+    if (p.check) return p.check;
+    return 'Scan…';
+  }
+  return p.status || null;
+}
+
 export default function CybersecuritePage() {
   const { hasPermission } = useAuthProfile();
   const canScan = hasPermission('cybersecurity', 'modify');
   const [data, setData] = useState<CyberOverview | null>(null);
+  const [scanLive, setScanLive] = useState<CyberScanStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [deep, setDeep] = useState(false);
+  const wasRunning = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const overview = await api.getCyberOverview();
       setData(overview);
+      setScanLive(overview.scan ?? null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de chargement');
@@ -78,11 +123,40 @@ export default function CybersecuritePage() {
     return () => clearInterval(id);
   }, [load]);
 
+  const scan = scanLive ?? data?.scan ?? null;
+  const scanRunning = Boolean(scan?.running) || scanning;
+
+  useEffect(() => {
+    if (!scanRunning) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const st = await api.getCyberScanStatus();
+        if (cancelled) return;
+        setScanLive(st);
+        if (!st.running && wasRunning.current) {
+          await load();
+        }
+        wasRunning.current = Boolean(st.running);
+      } catch {
+        /* ignore transient poll errors */
+      }
+    };
+    wasRunning.current = true;
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [scanRunning, load]);
+
   async function handleScan() {
     setScanning(true);
     setError(null);
     try {
       await api.startCyberScan({ deep });
+      wasRunning.current = true;
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de démarrer le scan');
@@ -100,6 +174,39 @@ export default function CybersecuritePage() {
     [data?.trend],
   );
 
+  const progressByUrl = useMemo(() => {
+    const map = new Map<string, CyberScanSiteProgress>();
+    for (const s of scan?.sites || []) {
+      const key = normalizeUrl(s.url);
+      if (key) map.set(key, s);
+    }
+    return map;
+  }, [scan?.sites]);
+
+  const displaySites = useMemo(() => {
+    const results = data?.sites ?? [];
+    if (!scanRunning || !scan?.sites?.length) {
+      return results.map((s) => ({ result: s, progress: progressByUrl.get(normalizeUrl(s.url)) ?? null }));
+    }
+    // Pendant un scan : une ligne par cible du scan (ordre file), enrichie des derniers scores connus.
+    const byUrl = new Map(results.map((s) => [normalizeUrl(s.url), s]));
+    return (scan.sites || []).map((p) => {
+      const prior = byUrl.get(normalizeUrl(p.url));
+      const result: CyberSiteResult = prior ?? {
+        name: p.name || p.url || '—',
+        url: p.url,
+        score: p.score ?? undefined,
+        grade: p.grade ?? undefined,
+        findingsCount: typeof p.findings === 'number' ? p.findings : undefined,
+      };
+      return { result, progress: p };
+    });
+  }, [data?.sites, scanRunning, scan?.sites, progressByUrl]);
+
+  const globalPercent = typeof scan?.percent === 'number' ? scan.percent : 0;
+  const globalDone = typeof scan?.done === 'number' ? scan.done : 0;
+  const globalTotal = typeof scan?.total === 'number' ? scan.total : 0;
+
   if (loading && !data) {
     return (
       <div className="flex h-32 items-center justify-center">
@@ -107,9 +214,6 @@ export default function CybersecuritePage() {
       </div>
     );
   }
-
-  const scanRunning = Boolean(data?.scan?.running);
-  const sites = data?.sites ?? [];
 
   return (
     <div className="space-y-6">
@@ -159,11 +263,11 @@ export default function CybersecuritePage() {
               <button
                 type="button"
                 onClick={handleScan}
-                disabled={scanning || scanRunning}
+                disabled={scanning || Boolean(scan?.running)}
                 className="btn-primary text-sm"
               >
                 <Play className="h-4 w-4" />
-                {scanRunning || scanning ? 'Scan en cours…' : 'Lancer un scan'}
+                {scan?.running || scanning ? 'Scan en cours…' : 'Lancer un scan'}
               </button>
             </>
           )}
@@ -174,6 +278,22 @@ export default function CybersecuritePage() {
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
+        </div>
+      )}
+
+      {scan?.running && (
+        <div className="card border-sky-500/25 bg-sky-500/5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-sky-200">Scan en cours</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {scan?.progress || 'Analyse des cibles…'}
+                {globalTotal > 0 ? ` · ${globalDone}/${globalTotal} cibles` : null}
+              </p>
+            </div>
+            <p className="text-2xl font-bold tabular-nums text-sky-300">{globalPercent}%</p>
+          </div>
+          <ProgressBar percent={globalPercent} className="mt-3 h-2" barClassName="bg-sky-400" />
         </div>
       )}
 
@@ -198,15 +318,15 @@ export default function CybersecuritePage() {
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Dernier scan</p>
           <p className="mt-2 text-sm font-medium">
-            {scanRunning
-              ? 'En cours…'
-              : data?.scan?.finished_at
-                ? String(data.scan.finished_at)
+            {scan?.running
+              ? globalTotal > 0
+                ? `${globalPercent}% · ${globalDone}/${globalTotal}`
+                : 'En cours…'
+              : scan?.finished_at
+                ? String(scan.finished_at)
                 : 'Aucun'}
           </p>
-          {data?.scan?.error ? (
-            <p className="mt-1 text-xs text-destructive">{String(data.scan.error)}</p>
-          ) : null}
+          {scan?.error ? <p className="mt-1 text-xs text-destructive">{String(scan.error)}</p> : null}
         </div>
         <Link
           href="/cybersecurite/automation"
@@ -284,58 +404,113 @@ export default function CybersecuritePage() {
           <Shield className="h-4 w-4 text-primary" />
           <h2 className="font-semibold">Résultats par site</h2>
         </div>
-        {sites.length === 0 ? (
+        {displaySites.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
             Aucun résultat pour l’instant. Activez des cibles puis lancez un scan.
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-left text-muted-foreground">
-                <th className="p-4 font-medium">Site</th>
-                <th className="p-4 font-medium">URL</th>
-                <th className="p-4 font-medium">Score</th>
-                <th className="p-4 font-medium">Note</th>
-                <th className="p-4 font-medium">Constats</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...sites]
-                .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
-                .map((site) => (
-                  <tr key={site.url ?? site.name} className="border-b border-white/5">
-                    <td className="p-4 font-medium">
-                      {site.url ? (
-                        <Link
-                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                          className="hover:text-primary hover:underline"
-                        >
-                          {site.name}
-                        </Link>
-                      ) : (
-                        site.name
-                      )}
-                    </td>
-                    <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
-                      {site.url}
-                    </td>
-                    <td className="p-4">{site.score ?? '—'}</td>
-                    <td className="p-4">
-                      <span className={cn('rounded border px-2 py-0.5 text-xs font-medium', gradeClass(site.grade))}>
-                        {site.grade ?? '?'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-muted-foreground">
-                      {typeof site.findingsCount === 'number'
-                        ? site.findingsCount
-                        : Array.isArray(site.findings)
-                          ? site.findings.length
-                          : '—'}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5 text-left text-muted-foreground">
+                  <th className="p-4 font-medium">Site</th>
+                  <th className="p-4 font-medium">URL</th>
+                  <th className="p-4 font-medium">Score</th>
+                  <th className="p-4 font-medium">Note</th>
+                  <th className="p-4 font-medium">Constats</th>
+                  <th className="min-w-[140px] p-4 font-medium">Progression</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...displaySites]
+                  .sort((a, b) => {
+                    if (scanRunning) return 0;
+                    return (a.result.score ?? 0) - (b.result.score ?? 0);
+                  })
+                  .map(({ result: site, progress }) => {
+                    const pct = typeof progress?.percent === 'number' ? progress.percent : null;
+                    const label = siteProgressLabel(progress);
+                    const liveScore =
+                      progress?.status === 'done' && progress.score != null ? progress.score : site.score;
+                    const liveGrade =
+                      progress?.status === 'done' && progress.grade ? progress.grade : site.grade;
+                    const liveFindings =
+                      progress?.status === 'done' && typeof progress.findings === 'number'
+                        ? progress.findings
+                        : typeof site.findingsCount === 'number'
+                          ? site.findingsCount
+                          : Array.isArray(site.findings)
+                            ? site.findings.length
+                            : '—';
+
+                    return (
+                      <tr key={site.url ?? site.name} className="border-b border-white/5">
+                        <td className="p-4 font-medium">
+                          {site.url ? (
+                            <Link
+                              href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {site.name}
+                            </Link>
+                          ) : (
+                            site.name
+                          )}
+                        </td>
+                        <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
+                          {site.url}
+                        </td>
+                        <td className="p-4">{liveScore ?? '—'}</td>
+                        <td className="p-4">
+                          <span
+                            className={cn(
+                              'rounded border px-2 py-0.5 text-xs font-medium',
+                              gradeClass(liveGrade),
+                            )}
+                          >
+                            {liveGrade ?? '?'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-muted-foreground">{liveFindings}</td>
+                        <td className="p-4">
+                          {scan?.running ? (
+                            <div className="min-w-[120px] space-y-1">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span
+                                  className={cn(
+                                    'truncate text-muted-foreground',
+                                    progress?.status === 'scanning' && 'text-sky-300',
+                                    progress?.status === 'done' && 'text-emerald-400',
+                                    progress?.status === 'error' && 'text-destructive',
+                                  )}
+                                  title={label || undefined}
+                                >
+                                  {label || (pct != null ? `${pct}%` : '—')}
+                                </span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">
+                                  {pct != null ? `${pct}%` : '—'}
+                                </span>
+                              </div>
+                              <ProgressBar
+                                percent={pct ?? 0}
+                                barClassName={cn(
+                                  progress?.status === 'error' && 'bg-destructive',
+                                  progress?.status === 'done' && 'bg-emerald-400',
+                                  progress?.status === 'scanning' && 'bg-sky-400',
+                                  progress?.status === 'queued' && 'bg-white/30',
+                                )}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
