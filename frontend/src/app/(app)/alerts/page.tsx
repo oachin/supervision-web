@@ -45,6 +45,14 @@ export default function AlertsPage() {
   }, [tab, searchQuery, severityFilter]);
 
   const tabAlerts = summary?.[tab] ?? [];
+  const severityCounts = useMemo(() => {
+    const counts = { CRITICAL: 0, WARNING: 0, INFO: 0 };
+    for (const a of tabAlerts) {
+      if (a.severity in counts) counts[a.severity] += 1;
+    }
+    return counts;
+  }, [tabAlerts]);
+
   const filteredAlerts = useMemo(
     () => filterAlerts(tabAlerts, searchQuery, severityFilter),
     [tabAlerts, searchQuery, severityFilter],
@@ -52,6 +60,10 @@ export default function AlertsPage() {
   const hasSearch = searchQuery.trim().length > 0 || severityFilter !== '';
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
+
+  function toggleSeverity(sev: Alert['severity']) {
+    setSeverityFilter((current) => (current === sev ? '' : sev));
+  }
 
   if (loading && !summary) {
     return (
@@ -106,38 +118,87 @@ export default function AlertsPage() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative min-w-0 flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            className="input pl-10 pr-10"
-            placeholder="Rechercher (titre, site, serveur, sévérité…)"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-              title="Effacer la recherche"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        <select
-          className="input w-full sm:w-44"
-          value={severityFilter}
-          onChange={(e) => setSeverityFilter(e.target.value as Alert['severity'] | '')}
-          aria-label="Filtrer par sévérité"
-        >
-          <option value="">Toutes sévérités</option>
-          <option value="CRITICAL">Critique</option>
-          <option value="WARNING">Avertissement</option>
-          <option value="INFO">Info</option>
-        </select>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Synthèse
+        </span>
+        {(
+          [
+            {
+              sev: 'CRITICAL' as const,
+              count: severityCounts.CRITICAL,
+              className:
+                'border-red-400/40 bg-red-600 text-white hover:bg-red-500',
+              activeClassName: 'ring-2 ring-red-300 ring-offset-2 ring-offset-background',
+            },
+            {
+              sev: 'WARNING' as const,
+              count: severityCounts.WARNING,
+              className:
+                'border-amber-500/50 bg-amber-400 text-amber-950 hover:bg-amber-300',
+              activeClassName: 'ring-2 ring-amber-200 ring-offset-2 ring-offset-background',
+            },
+            {
+              sev: 'INFO' as const,
+              count: severityCounts.INFO,
+              className:
+                'border-sky-400/40 bg-sky-500/90 text-white hover:bg-sky-400',
+              activeClassName: 'ring-2 ring-sky-200 ring-offset-2 ring-offset-background',
+            },
+          ] as const
+        ).map(({ sev, count, className, activeClassName }) => (
+          <button
+            key={sev}
+            type="button"
+            onClick={() => toggleSeverity(sev)}
+            disabled={count === 0 && severityFilter !== sev}
+            title={
+              severityFilter === sev
+                ? 'Retirer le filtre'
+                : count === 0
+                  ? `Aucune alerte ${sev}`
+                  : `Filtrer : ${sev}`
+            }
+            className={[
+              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide transition',
+              className,
+              severityFilter === sev ? activeClassName : '',
+              count === 0 && severityFilter !== sev ? 'opacity-40' : '',
+            ].join(' ')}
+          >
+            {sev} · {count}
+          </button>
+        ))}
+        {severityFilter && (
+          <button
+            type="button"
+            onClick={() => setSeverityFilter('')}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Toutes sévérités
+          </button>
+        )}
+      </div>
+
+      <div className="relative min-w-0">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          type="search"
+          className="input pl-10 pr-10"
+          placeholder="Rechercher (titre, site, serveur, sévérité…)"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+            title="Effacer la recherche"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {hasSearch && (
