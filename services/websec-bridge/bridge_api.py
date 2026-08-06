@@ -11,9 +11,12 @@ from __future__ import annotations
 import os
 import secrets
 import threading
+import time
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -27,6 +30,52 @@ REPORT_OUT = Path(os.getenv("AUDIT_REPORT_DIR", "/data/reports"))
 
 API_KEY = os.getenv("WEBSEC_API_KEY", "")
 DB_URL = os.getenv("AUDIT_DB_URL", "sqlite:////data/audit.db")
+
+# Conservative defaults: scanning all sites at once (AUDIT_WORKERS=auto) triggers
+# Fail2Ban/CSF on shared hosting. Cap parallel sites + heavy engines.
+def _env_int(name: str, default: int) -> int:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _parse_site_workers(raw: str | None, default: int = 3) -> int:
+    """Positive = cap; auto/max/0 = one worker per site (legacy aggressive mode)."""
+    if raw is None or not str(raw).strip():
+        return default
+    v = str(raw).strip().lower()
+    if v in ("auto", "max"):
+        return 0
+    try:
+        n = int(v)
+    except ValueError:
+        return default
+    return n if n > 0 else 0
+
+
+AUDIT_SITE_WORKERS = _parse_site_workers(os.getenv("AUDIT_WORKERS"), default=3)
+AUDIT_ENGINE_WORKERS = max(1, _env_int("AUDIT_ENGINE_WORKERS", 2))
+# Pause before each site starts (seconds). Softens burstiness toward the same IP.
+AUDIT_SITE_STAGGER_SEC = max(0.0, float(os.getenv("AUDIT_SITE_STAGGER_SEC") or "0.4"))
+
+
+def _spread_sites_by_host(sites: list[dict]) -> list[dict]:
+    """Round-robin sites by hostname so parallel workers hit different hosts."""
+    buckets: dict[str, list[dict]] = defaultdict(list)
+    for s in sites:
+        host = (s.get("domain") or urlparse(s.get("url") or "").hostname or "").lower()
+        buckets[host or "_"].append(s)
+    out: list[dict] = []
+    while buckets:
+        for host in list(buckets.keys()):
+            out.append(buckets[host].pop(0))
+            if not buckets[host]:
+                del buckets[host]
+    return out
 
 app = FastAPI(title="Havet WebSec Bridge", version="1.1.0")
 
@@ -118,6 +167,8 @@ def _recompute_global_percent(locked: bool = False) -> None:
 def _on_site_event(event: dict) -> None:
     url = event.get("url")
     etype = event.get("type")
+    if etype == "site_start" and AUDIT_SITE_STAGGER_SEC > 0:
+        time.sleep(AUDIT_SITE_STAGGER_SEC)
     with _scan_lock:
         site = next((s for s in _scan_state["sites"] if s.get("url") == url), None)
         if site is None:
@@ -151,17 +202,19 @@ def _on_site_event(event: dict) -> None:
 def _run_scan(payload: ScanRequest) -> None:
     global _scan_state
     try:
-        sites = [s.model_dump() for s in payload.sites]
+        sites = _spread_sites_by_host([s.model_dump() for s in payload.sites])
 
         def on_progress(msg: str) -> None:
             with _scan_lock:
                 _scan_state["progress"] = msg
 
+        workers = AUDIT_SITE_WORKERS
         outcome = AuditConfig(
             sites=sites,
             enabled=_enabled(payload.deep),
             authorized=payload.authorized,
-            engine_workers=int(os.getenv("AUDIT_ENGINE_WORKERS", "4") or 4),
+            max_workers=workers,
+            engine_workers=AUDIT_ENGINE_WORKERS,
             db_url=DB_URL,
             generate_reports=False,
             min_confidence=os.getenv("AUDIT_MIN_CONFIDENCE") or None,
@@ -279,10 +332,12 @@ def report_site(
 def start_scan(payload: ScanRequest) -> dict[str, Any]:
     if not payload.sites:
         raise HTTPException(400, "Aucune cible à scanner")
+    ordered = _spread_sites_by_host([s.model_dump() for s in payload.sites])
     with _scan_lock:
         if _scan_state["running"]:
             raise HTTPException(409, "Un scan est déjà en cours")
-        seeded = _seed_progress([s.model_dump() for s in payload.sites])
+        seeded = _seed_progress(ordered)
+        workers_label = "auto" if AUDIT_SITE_WORKERS <= 0 else str(AUDIT_SITE_WORKERS)
         _scan_state.update(
             {
                 "running": True,
@@ -292,13 +347,27 @@ def start_scan(payload: ScanRequest) -> dict[str, Any]:
                 "error": None,
                 "stats": None,
                 "run_uuid": None,
-                "progress": "Démarrage…",
+                "progress": f"Démarrage… (workers={workers_label}, engine={AUDIT_ENGINE_WORKERS})",
                 "total": len(seeded),
                 "done": 0,
                 "percent": 0,
                 "sites": seeded,
+                "workers": AUDIT_SITE_WORKERS,
+                "engine_workers": AUDIT_ENGINE_WORKERS,
             }
         )
+    # Rebuild payload sites in spread order for the worker thread.
+    payload = ScanRequest(
+        sites=[SiteIn(**s) for s in ordered],
+        deep=payload.deep,
+        authorized=payload.authorized,
+    )
     thread = threading.Thread(target=_run_scan, args=(payload,), daemon=True)
     thread.start()
-    return {"started": True, "sites": len(payload.sites), "deep": payload.deep}
+    return {
+        "started": True,
+        "sites": len(ordered),
+        "deep": payload.deep,
+        "workers": AUDIT_SITE_WORKERS,
+        "engine_workers": AUDIT_ENGINE_WORKERS,
+    }

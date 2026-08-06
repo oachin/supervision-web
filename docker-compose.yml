@@ -42,7 +42,10 @@ services:
       - .env.secrets
     environment:
       AUDIT_DB_URL: sqlite:////data/audit.db
-      AUDIT_ENGINE_WORKERS: "4"
+      # Keep concurrency low to avoid Fail2Ban/CSF bans on shared hosting.
+      AUDIT_WORKERS: "${AUDIT_WORKERS:-3}"
+      AUDIT_ENGINE_WORKERS: "${AUDIT_ENGINE_WORKERS:-2}"
+      AUDIT_SITE_STAGGER_SEC: "${AUDIT_SITE_STAGGER_SEC:-0.4}"
       AUDIT_MIN_CONFIDENCE: confirmed
       AUDIT_VERIFY_BACKPORTS: "true"
       # WEBSEC_API_KEY and optional NVD_API_KEY come from .env.secrets
