@@ -77,14 +77,150 @@ function isOpenAlertGlobally(alert: NocAlert, websitesById: Map<string, NocWebsi
   return true;
 }
 
+const MS_HOUR = 60 * 60 * 1000;
+const MS_30D = 30 * 24 * MS_HOUR;
+
+function mergeIntervals(intervals: Array<[number, number]>): Array<[number, number]> {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a[0] - b[0]);
+  const out: Array<[number, number]> = [[sorted[0][0], sorted[0][1]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const [start, end] = sorted[i];
+    const last = out[out.length - 1];
+    if (start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      out.push([start, end]);
+    }
+  }
+  return out;
+}
+
+function downtimeMs(intervals: Array<[number, number]>): number {
+  return mergeIntervals(intervals).reduce((sum, [a, b]) => sum + Math.max(0, b - a), 0);
+}
+
 @Injectable()
 export class NocService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Global availability over 30 days for servers + Proxmox VMs (sites excluded).
+   * - Servers: downtime from « Serveur hors ligne » alerts (+ current OFFLINE from lastSeenAt)
+   * - VMs: hourly metric presence (metrics are only written while running);
+   *   parked VMs with no metrics in the window are excluded
+   */
+  private async computeAvailability30d(): Promise<number | null> {
+    const nowMs = Date.now();
+    const since = new Date(nowMs - MS_30D);
+
+    const [servers, offlineAlerts, vms, vmHourRows] = await Promise.all([
+      this.prisma.server.findMany({
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          lastSeenAt: true,
+        },
+      }),
+      this.prisma.alert.findMany({
+        where: {
+          websiteId: null,
+          serverId: { not: null },
+          title: { startsWith: 'Serveur hors ligne' },
+          OR: [
+            { createdAt: { gte: since } },
+            { closedAt: { gte: since } },
+            { status: { in: ['ACTIVE', 'ACKNOWLEDGED', 'PENDING_CLOSE'] } },
+          ],
+        },
+        select: {
+          serverId: true,
+          createdAt: true,
+          closedAt: true,
+          status: true,
+        },
+      }),
+      this.prisma.proxmoxVm.findMany({
+        select: { id: true, status: true, createdAt: true },
+      }),
+      this.prisma.$queryRaw<Array<{ vmId: string; hours: bigint }>>`
+        SELECT "vmId", COUNT(DISTINCT date_trunc('hour', "collectedAt"))::bigint AS hours
+        FROM "ProxmoxVmMetric"
+        WHERE "collectedAt" >= ${since}
+        GROUP BY "vmId"
+      `,
+    ]);
+
+    const alertsByServer = new Map<string, typeof offlineAlerts>();
+    for (const a of offlineAlerts) {
+      if (!a.serverId) continue;
+      const list = alertsByServer.get(a.serverId) ?? [];
+      list.push(a);
+      alertsByServer.set(a.serverId, list);
+    }
+
+    const vmHours = new Map(
+      vmHourRows.map((r) => [r.vmId, Number(r.hours)]),
+    );
+
+    let totalWindowMs = 0;
+    let totalUpMs = 0;
+
+    for (const server of servers) {
+      const windowStart = Math.max(server.createdAt.getTime(), since.getTime());
+      const windowMs = Math.max(0, nowMs - windowStart);
+      if (windowMs <= 0) continue;
+
+      const intervals: Array<[number, number]> = [];
+      for (const a of alertsByServer.get(server.id) ?? []) {
+        const start = Math.max(a.createdAt.getTime(), windowStart);
+        const end = Math.min(
+          a.status === 'CLOSED' && a.closedAt
+            ? a.closedAt.getTime()
+            : nowMs,
+          nowMs,
+        );
+        if (end > start) intervals.push([start, end]);
+      }
+
+      if (server.status === 'OFFLINE' && server.lastSeenAt) {
+        const start = Math.max(server.lastSeenAt.getTime(), windowStart);
+        if (nowMs > start) intervals.push([start, nowMs]);
+      }
+
+      const down = Math.min(windowMs, downtimeMs(intervals));
+      totalWindowMs += windowMs;
+      totalUpMs += windowMs - down;
+    }
+
+    for (const vm of vms) {
+      const hoursUp = vmHours.get(vm.id) ?? 0;
+      const isRunning = vm.status.toLowerCase() === 'running';
+      // Parked / never-seen guests: do not drag the SLA down
+      if (!isRunning && hoursUp === 0) continue;
+
+      const windowStart = Math.max(vm.createdAt.getTime(), since.getTime());
+      const windowMs = Math.max(0, nowMs - windowStart);
+      if (windowMs <= 0) continue;
+
+      const expectedHours = Math.max(1, Math.ceil(windowMs / MS_HOUR));
+      const upHours = Math.min(expectedHours, hoursUp);
+      // If currently running but metrics lag, don't report below current pulse
+      const effectiveUp = isRunning && hoursUp === 0 ? expectedHours : upHours;
+
+      totalWindowMs += expectedHours * MS_HOUR;
+      totalUpMs += effectiveUp * MS_HOUR;
+    }
+
+    if (totalWindowMs <= 0) return null;
+    return Math.round((totalUpMs / totalWindowMs) * 1000) / 10; // 1 decimal
+  }
+
   async getState() {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const [servers, websites, vms, activeAlerts, recentClosed, created24h] =
+    const [servers, websites, vms, activeAlerts, recentClosed, created24h, availability30d] =
       await Promise.all([
         this.prisma.server.findMany({
           orderBy: { name: 'asc' },
@@ -142,6 +278,7 @@ export class NocService {
           },
           select: { createdAt: true, severity: true },
         }),
+        this.computeAvailability30d(),
       ]);
 
     const sitesByServer = new Map<string, typeof websites>();
@@ -378,7 +515,7 @@ export class NocService {
           warning: warnAlerts,
         },
         vms: { ok: vmsRunning, total: vms.length },
-        availability30d: null as number | null,
+        availability30d,
       },
       hosts,
       alerts: feedAlerts,

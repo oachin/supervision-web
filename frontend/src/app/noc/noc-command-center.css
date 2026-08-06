@@ -48,6 +48,25 @@
 .noc-cc .global-status .dot{width:12px;height:12px;border-radius:50%;background:var(--crit);animation:pulse 1.6s infinite}
 .noc-cc .global-status b{color:var(--crit);font-size:16px;font-weight:800;letter-spacing:.5px}
 .noc-cc .global-status small{color:var(--muted);font-size:12px;font-family:var(--mono)}
+.noc-cc .sev-tags{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.noc-cc .sev-tag{
+  display:inline-flex;align-items:center;font-family:var(--mono);
+  font-size:11px;font-weight:800;letter-spacing:.4px;
+  padding:4px 10px;border-radius:999px;border:1px solid transparent;
+  white-space:nowrap;
+}
+.noc-cc .sev-tag.crit{
+  color:#fff;background:#e11d48;border-color:rgba(244,63,94,.55);
+  box-shadow:0 0 0 1px rgba(244,63,94,.15);
+}
+.noc-cc .sev-tag.warn{
+  color:#451a03;background:#fbbf24;border-color:rgba(245,158,11,.55);
+}
+.noc-cc .sev-tag.info{
+  color:#fff;background:#0ea5e9;border-color:rgba(56,189,248,.45);
+}
+.noc-cc .kpi .sev-tags{margin-top:4px}
+.noc-cc .kpi .sev-tag{font-size:10.5px;padding:3px 9px}
 .noc-cc .clockbox{margin-left:auto;text-align:right}
 .noc-cc .clockbox .time{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:1px}
 .noc-cc .clockbox .date{font-size:11.5px;color:var(--muted);text-transform:capitalize}
@@ -164,11 +183,11 @@
 .noc-cc .alert .body{min-width:0}
 .noc-cc .alert .body .h{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .noc-cc .alert .body .d{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.noc-cc .alert .sev{margin-left:auto;flex-shrink:0;font-size:9.5px;font-weight:800;letter-spacing:.8px;padding:2px 7px;border-radius:5px}
-.noc-cc .alert.crit .sev{color:var(--crit);background:var(--crit-dim)}
-.noc-cc .alert.warn .sev{color:var(--warn);background:var(--warn-dim)}
-.noc-cc .alert.info .sev{color:var(--info);background:rgba(56,189,248,.12)}
-.noc-cc .alert.ok .sev{color:var(--ok);background:var(--ok-dim)}
+.noc-cc .alert .sev{margin-left:auto;flex-shrink:0;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:999px;border:1px solid transparent}
+.noc-cc .alert.crit .sev{color:#fff;background:#e11d48;border-color:rgba(244,63,94,.55)}
+.noc-cc .alert.warn .sev{color:#451a03;background:#fbbf24;border-color:rgba(245,158,11,.55)}
+.noc-cc .alert.info .sev{color:#fff;background:#0ea5e9;border-color:rgba(56,189,248,.45)}
+.noc-cc .alert.ok .sev{color:var(--ok);background:var(--ok-dim);border-color:rgba(16,185,129,.35)}
 
 .noc-cc .histo{height:190px;flex-shrink:0}
 .noc-cc .histo canvas{width:100%;height:120px;margin-top:6px}
@@ -198,6 +217,15 @@ footer .ticker b{color:var(--ok)}
 }
 .noc-cc .global-status.ok .dot{background:var(--ok);animation:none;box-shadow:0 0 8px var(--ok)}
 .noc-cc .global-status.ok b{color:var(--ok)}
+.noc-cc .global-status.warn{
+  background:var(--warn-dim);border-color:rgba(245,158,11,.5);
+}
+.noc-cc .global-status.warn .dot{
+  background:var(--warn);
+  animation:pulse-warn 1.6s infinite;
+}
+.noc-cc .global-status.warn b{color:var(--warn)}
+@keyframes pulse-warn{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.55)}50%{box-shadow:0 0 0 8px rgba(245,158,11,0)}}
 .noc-cc .ok-card.warn::before{background:linear-gradient(90deg,var(--warn),transparent 80%)}
 .noc-cc .ok-card.warn .name i{background:var(--warn);box-shadow:0 0 8px var(--warn)}
 .noc-cc .ok-card.warn .stat{color:var(--warn)}

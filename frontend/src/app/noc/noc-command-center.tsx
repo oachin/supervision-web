@@ -7,7 +7,35 @@ import { formatUptime } from '@/lib/utils';
 import './noc-command-center.css';
 
 const POLL_MS = 30_000;
-const SEV_LABEL = { crit: 'CRIT', warn: 'WARN', info: 'INFO', ok: 'RESOLU' } as const;
+const SEV_LABEL = {
+  crit: 'CRITICAL',
+  warn: 'WARNING',
+  info: 'INFO',
+  ok: 'RESOLU',
+} as const;
+
+function SeverityTags({
+  critical,
+  warning,
+  info = 0,
+}: {
+  critical: number;
+  warning: number;
+  info?: number;
+}) {
+  if (critical <= 0 && warning <= 0 && info <= 0) return null;
+  return (
+    <div className="sev-tags">
+      {critical > 0 && (
+        <span className="sev-tag crit">CRITICAL · {critical}</span>
+      )}
+      {warning > 0 && (
+        <span className="sev-tag warn">WARNING · {warning}</span>
+      )}
+      {info > 0 && <span className="sev-tag info">INFO · {info}</span>}
+    </div>
+  );
+}
 
 function formatIncidentDuration(sinceIso: string | null, now: number) {
   if (!sinceIso) return '—';
@@ -240,8 +268,8 @@ function CriticalHostCard({ host, now }: { host: NocHost; now: number }) {
             </div>
           )}
         </div>
-        <div className={`badge ${host.status === 'critical' ? 'crit' : 'warn'}`}>
-          {host.status === 'critical' ? 'Critique' : 'Dégradé'}
+        <div className={`sev-tag ${host.status === 'critical' ? 'crit' : 'warn'}`}>
+          {host.status === 'critical' ? 'CRITICAL' : 'WARNING'}
         </div>
         <div className="since">{formatIncidentDuration(host.incidentSince, now)}</div>
       </div>
@@ -418,6 +446,23 @@ export function NocCommandCenter() {
       ? ((kpis.sites.ok / kpis.sites.total) * 100).toFixed(1).replace('.', ',')
       : null;
 
+  const bannerCrit = state?.global.criticalAlerts ?? 0;
+  const bannerWarn = state?.global.warningAlerts ?? 0;
+  const bannerLevel =
+    !state
+      ? null
+      : state.global.criticalHosts > 0 || bannerCrit > 0
+        ? 'crit'
+        : bannerWarn > 0
+          ? 'warn'
+          : 'ok';
+  const bannerLabel =
+    bannerLevel === 'crit'
+      ? 'INCIDENT EN COURS'
+      : bannerLevel === 'warn'
+        ? 'AVERTISSEMENTS ACTIFS'
+        : 'Tout est opérationnel';
+
   if (!state && !error) {
     return (
       <div className="noc-cc" style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -437,15 +482,20 @@ export function NocCommandCenter() {
           </div>
         </div>
 
-        {state ? (
-          <div className={`global-status ${state.global.status === 'ok' ? 'ok' : ''}`}>
+        {state && bannerLevel ? (
+          <div
+            className={`global-status ${bannerLevel === 'ok' ? 'ok' : bannerLevel === 'warn' ? 'warn' : ''}`}
+          >
             <div className="dot" />
-            <b>{state.global.status === 'incident' ? 'INCIDENT EN COURS' : 'Tout est opérationnel'}</b>
-            <small>
-              {state.global.status === 'incident'
-                ? `${state.global.criticalHosts} serveur${state.global.criticalHosts > 1 ? 's' : ''} critique${state.global.criticalHosts > 1 ? 's' : ''} · ${state.global.alerts} alertes actives`
-                : `${state.global.alerts} alerte${state.global.alerts !== 1 ? 's' : ''} active${state.global.alerts !== 1 ? 's' : ''}`}
-            </small>
+            <b>{bannerLabel}</b>
+            <SeverityTags critical={bannerCrit} warning={bannerWarn} />
+            {bannerLevel === 'crit' && state.global.criticalHosts > 0 && (
+              <small>
+                {state.global.criticalHosts} serveur
+                {state.global.criticalHosts > 1 ? 's' : ''} critique
+                {state.global.criticalHosts > 1 ? 's' : ''}
+              </small>
+            )}
           </div>
         ) : (
           <div className="global-status" style={{ opacity: 0.5 }}>
@@ -504,12 +554,24 @@ export function NocCommandCenter() {
                 {kpis.sites.degraded} dégradés
               </div>
             </div>
-            <div className={`kpi ${kpis.alerts.active > 0 ? 'crit' : 'ok'}`}>
+            <div
+              className={`kpi ${
+                kpis.alerts.critical > 0
+                  ? 'crit'
+                  : kpis.alerts.warning > 0
+                    ? 'warn'
+                    : 'ok'
+              }`}
+            >
               <div className="bar" />
               <div className="label">Alertes actives</div>
               <div className="value">{kpis.alerts.active}</div>
               <div className="sub">
-                {kpis.alerts.critical} critiques · {kpis.alerts.warning} avertissements
+                <SeverityTags
+                  critical={kpis.alerts.critical}
+                  warning={kpis.alerts.warning}
+                />
+                {kpis.alerts.active === 0 && 'Aucune alerte'}
               </div>
             </div>
             <div className={`kpi ${kpis.vms.ok < kpis.vms.total ? 'warn' : 'ok'}`}>
@@ -526,7 +588,17 @@ export function NocCommandCenter() {
                   .join(' · ') || 'Aucun hyperviseur'}
               </div>
             </div>
-            <div className="kpi info">
+            <div
+              className={`kpi ${
+                kpis.availability30d == null
+                  ? 'info'
+                  : kpis.availability30d >= 99.5
+                    ? 'ok'
+                    : kpis.availability30d >= 99
+                      ? 'warn'
+                      : 'crit'
+              }`}
+            >
               <div className="bar" />
               <div className="label">Disponibilité 30 j</div>
               <div className="value">
@@ -536,7 +608,9 @@ export function NocCommandCenter() {
                 <span className="unit">%</span>
               </div>
               <div className="sub">
-                {kpis.availability30d != null ? 'SLA cible 99,5 %' : 'Métrique non disponible'}
+                {kpis.availability30d != null
+                  ? 'Serveurs + VM · hors sites · cible 99,5 %'
+                  : 'Métrique non disponible'}
               </div>
             </div>
           </>
