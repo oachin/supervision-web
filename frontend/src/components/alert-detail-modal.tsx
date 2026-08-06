@@ -2,12 +2,25 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, ExternalLink, Loader2, Server, X } from 'lucide-react';
-import { api, type Alert, type AlertDetail } from '@/lib/api';
+import {
+  ChevronRight,
+  Clock3,
+  ExternalLink,
+  FileText,
+  Loader2,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  X,
+  Zap,
+} from 'lucide-react';
+import { api, type Alert, type AlertDetail, type AlertEvent } from '@/lib/api';
 import { alertActionLabels, occurrenceActions } from '@/lib/alert-event-labels';
 import { SeverityBadge } from '@/components/ui';
 import { cn, formatDate } from '@/lib/utils';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
+import { displaySeverityOf, isSslExpirationAlert } from '@/lib/alert-severity';
 
 const statusLabels: Record<string, string> = {
   ACTIVE: 'En cours',
@@ -16,12 +29,63 @@ const statusLabels: Record<string, string> = {
   CLOSED: 'Clôturée',
 };
 
+const ACTION_TILE: Record<
+  string,
+  { icon: typeof Zap; tone: string; chip: string }
+> = {
+  CREATED: {
+    icon: Sparkles,
+    tone: 'border-rose-500/35 bg-rose-500/10',
+    chip: 'bg-rose-500/20 text-rose-200',
+  },
+  REOPENED: {
+    icon: RotateCcw,
+    tone: 'border-amber-500/35 bg-amber-500/10',
+    chip: 'bg-amber-500/20 text-amber-100',
+  },
+  OCCURRENCE: {
+    icon: Zap,
+    tone: 'border-amber-500/30 bg-amber-500/[0.08]',
+    chip: 'bg-amber-500/15 text-amber-200',
+  },
+  SNOOZE_EXPIRED: {
+    icon: Clock3,
+    tone: 'border-orange-400/30 bg-orange-400/10',
+    chip: 'bg-orange-400/15 text-orange-100',
+  },
+  ACKNOWLEDGED: {
+    icon: ShieldCheck,
+    tone: 'border-sky-500/35 bg-sky-500/10',
+    chip: 'bg-sky-500/20 text-sky-200',
+  },
+  ISSUE_RESOLVED: {
+    icon: Sparkles,
+    tone: 'border-emerald-500/30 bg-emerald-500/10',
+    chip: 'bg-emerald-500/15 text-emerald-200',
+  },
+  CLOSED: {
+    icon: ShieldCheck,
+    tone: 'border-emerald-500/35 bg-emerald-500/10',
+    chip: 'bg-emerald-500/20 text-emerald-200',
+  },
+  NOTE: {
+    icon: FileText,
+    tone: 'border-blue-500/30 bg-blue-500/10',
+    chip: 'bg-blue-500/15 text-blue-200',
+  },
+  RESOURCE_DELETED: {
+    icon: X,
+    tone: 'border-white/15 bg-secondary/40',
+    chip: 'bg-secondary text-muted-foreground',
+  },
+};
+
 function StatusBadge({ status }: { status: Alert['status'] }) {
   const isActive = status === 'ACTIVE' || status === 'ACKNOWLEDGED';
   return (
     <span
       className={cn(
-        'rounded-md border px-2.5 py-1 text-xs font-medium',
+        'rounded-full border px-2.5 py-1 text-xs font-medium',
         isActive
           ? 'border-destructive/30 bg-destructive/10 text-destructive'
           : 'border-white/10 bg-secondary/30 text-muted-foreground',
@@ -29,6 +93,59 @@ function StatusBadge({ status }: { status: Alert['status'] }) {
     >
       {statusLabels[status] ?? status}
     </span>
+  );
+}
+
+function EventTile({
+  event,
+  index,
+}: {
+  event: AlertEvent;
+  index?: number;
+}) {
+  const style = ACTION_TILE[event.action] ?? ACTION_TILE.NOTE;
+  const Icon = style.icon;
+
+  return (
+    <article
+      className={cn(
+        'flex flex-col gap-2 rounded-xl border p-3.5 transition-colors',
+        style.tone,
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {index != null ? (
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-black/25 text-xs font-bold tabular-nums text-warning">
+              {index}
+            </span>
+          ) : (
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-black/20">
+              <Icon className="h-3.5 w-3.5 opacity-90" />
+            </span>
+          )}
+          <span
+            className={cn(
+              'rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+              style.chip,
+            )}
+          >
+            {alertActionLabels[event.action] ?? event.action}
+          </span>
+        </div>
+        <time className="shrink-0 font-mono text-[10px] text-muted-foreground">
+          {formatDate(event.createdAt)}
+        </time>
+      </div>
+      {event.message && (
+        <p className="line-clamp-4 text-sm leading-snug text-foreground/90">
+          {event.message}
+        </p>
+      )}
+      {event.user && (
+        <p className="text-[11px] text-muted-foreground">par {event.user.name}</p>
+      )}
+    </article>
   );
 }
 
@@ -111,37 +228,68 @@ export function AlertDetailModal({
   const events = detail?.events ?? [];
   const occurrenceEvents = events.filter((e) => occurrenceActions.has(e.action));
   const historyEvents = events.filter((e) => !occurrenceActions.has(e.action));
+  const displaySev = displaySeverityOf(alert);
+  const accent =
+    displaySev === 'CRITICAL'
+      ? 'from-rose-600/40 via-rose-500/10 to-transparent'
+      : displaySev === 'WARNING'
+        ? 'from-amber-500/35 via-amber-500/10 to-transparent'
+        : displaySev === 'EXPIRATION_SSL'
+          ? 'from-violet-500/35 via-violet-500/10 to-transparent'
+          : 'from-sky-500/30 via-sky-500/10 to-transparent';
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-card shadow-2xl"
+        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="alert-modal-title"
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/5 px-6 py-4">
+        <div
+          className={cn('pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b', accent)}
+          aria-hidden
+        />
+
+        <header className="relative flex shrink-0 items-start justify-between gap-4 px-5 pb-3 pt-5 sm:px-6">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <SeverityBadge severity={alert.severity} />
+              {isSslExpirationAlert(alert) ? (
+                <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-600/90 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+                  EXPIRATION SSL
+                </span>
+              ) : (
+                <SeverityBadge severity={alert.severity} />
+              )}
               {alert.occurrenceCount > 1 && (
-                <span className="badge-warning">{alert.occurrenceCount} occurrences</span>
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-100">
+                  {alert.occurrenceCount} occurrences
+                </span>
+              )}
+              {alert.acknowledged && (
+                <span className="rounded-full border border-sky-400/30 bg-sky-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-sky-200">
+                  Acquittée
+                </span>
               )}
             </div>
-            <h2 id="alert-modal-title" className="mt-2 text-lg font-semibold leading-snug">
+            <h2
+              id="alert-modal-title"
+              className="mt-2.5 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
+            >
               {alert.title}
             </h2>
+            <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">{alert.message}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <StatusBadge status={alert.status} />
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10"
               aria-label="Fermer"
             >
               <X className="h-5 w-5" />
@@ -149,160 +297,187 @@ export function AlertDetailModal({
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 lg:grid-cols-2">
-          <div className="space-y-4 overflow-y-auto p-6">
-            <p className="text-sm text-muted-foreground">{alert.message}</p>
+        <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Créée
+              </p>
+              <p className="mt-1 font-mono text-sm">{formatDate(alert.createdAt)}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Occurrences
+              </p>
+              <p className="mt-1 text-2xl font-bold tabular-nums leading-none">
+                {alert.occurrenceCount}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Événements
+              </p>
+              <p className="mt-1 text-2xl font-bold tabular-nums leading-none">
+                {loading && !detail ? '—' : historyEvents.length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {alert.status === 'CLOSED' ? 'Clôturée' : 'Statut'}
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {alert.status === 'CLOSED' && alert.closedAt
+                  ? formatDate(alert.closedAt)
+                  : statusLabels[alert.status]}
+              </p>
+            </div>
+          </div>
 
-            {server?.id && (
-              <Link
-                href={`/servers/${server.id}`}
-                onClick={onClose}
-                className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 transition-colors hover:bg-primary/10"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-                  <Server className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-primary">Serveur associé</p>
-                  <p className="truncate font-semibold">{server.name}</p>
-                  {server.hostname && (
-                    <p className="truncate font-mono text-xs text-muted-foreground">{server.hostname}</p>
-                  )}
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-primary/70" />
-              </Link>
-            )}
-
-            {website?.id && (
-              <Link
-                href={`/websites/${website.id}`}
-                onClick={onClose}
-                className="flex items-center gap-2 rounded-lg border border-white/5 bg-secondary/20 px-4 py-2.5 text-sm transition-colors hover:bg-secondary/40"
-              >
-                <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="font-medium">{website.name}</span>
-                <span className="truncate text-xs text-muted-foreground">{website.url}</span>
-              </Link>
-            )}
-
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>Créée le {formatDate(alert.createdAt)}</p>
-              {alert.status === 'CLOSED' && alert.closedAt && (
-                <p>Clôturée le {formatDate(alert.closedAt)}</p>
+          {(server?.id || website?.id) && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {server?.id && (
+                <Link
+                  href={`/servers/${server.id}`}
+                  onClick={onClose}
+                  className="group flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.07] px-4 py-3 transition hover:border-primary/45 hover:bg-primary/10"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+                    <Server className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                      Serveur
+                    </p>
+                    <p className="truncate font-semibold">{server.name}</p>
+                    {server.hostname && (
+                      <p className="truncate font-mono text-[11px] text-muted-foreground">
+                        {server.hostname}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-primary/60 transition group-hover:translate-x-0.5" />
+                </Link>
+              )}
+              {website?.id && (
+                <Link
+                  href={`/websites/${website.id}`}
+                  onClick={onClose}
+                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.05]"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5">
+                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Site
+                    </p>
+                    <p className="truncate font-semibold">{website.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{website.url}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition group-hover:translate-x-0.5" />
+                </Link>
               )}
             </div>
+          )}
 
-            {alert.origin && (
-              <p className="text-sm">
-                <span className="text-muted-foreground">Origine :</span> {alert.origin}
-              </p>
-            )}
-            {alert.resolutionMethod && (
-              <p className="text-sm">
-                <span className="text-muted-foreground">Résolution :</span> {alert.resolutionMethod}
-              </p>
-            )}
+          {(alert.origin || alert.resolutionMethod) && (
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {alert.origin && (
+                <p>
+                  <span className="text-foreground/70">Origine :</span> {alert.origin}
+                </p>
+              )}
+              {alert.resolutionMethod && (
+                <p>
+                  <span className="text-foreground/70">Résolution :</span>{' '}
+                  {alert.resolutionMethod}
+                </p>
+              )}
+            </div>
+          )}
 
-            {canEdit && (
-              <form onSubmit={handleNote} className="space-y-2">
-                <label className="block text-sm font-medium">Ajouter une note</label>
-                <textarea
-                  className="input"
-                  rows={3}
-                  placeholder="Information complémentaire, action en cours…"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
+          {canEdit && (
+            <form
+              onSubmit={handleNote}
+              className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-4"
+            >
+              <label className="block text-sm font-medium">Ajouter une note</label>
+              <textarea
+                className="input mt-2"
+                rows={2}
+                placeholder="Information complémentaire, action en cours…"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                {error ? (
+                  <p className="text-sm text-destructive">{error}</p>
+                ) : (
+                  <span />
+                )}
                 <button
                   type="submit"
                   disabled={!note.trim() || submitting}
                   className="btn-secondary text-sm"
                 >
-                  {submitting ? 'Enregistrement…' : 'Enregistrer la note'}
+                  {submitting ? 'Enregistrement…' : 'Enregistrer'}
                 </button>
-              </form>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            {!loading && historyEvents.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold">Historique & notes</h4>
-                <ol className="relative space-y-0 border-l border-white/10 pl-4">
-                  {historyEvents.map((e) => (
-                    <li key={e.id} className="relative pb-4 last:pb-0">
-                      <span className="absolute -left-[calc(0.25rem+1px)] top-1.5 h-2 w-2 rounded-full bg-primary/60" />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={cn(
-                            'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
-                            e.action === 'NOTE'
-                              ? 'bg-blue-500/15 text-blue-400'
-                              : e.action === 'CLOSED'
-                                ? 'bg-success/15 text-success'
-                                : 'bg-secondary text-muted-foreground',
-                          )}
-                        >
-                          {alertActionLabels[e.action] ?? e.action}
-                        </span>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {formatDate(e.createdAt)}
-                        </span>
-                        {e.user && (
-                          <span className="text-[11px] text-muted-foreground">— {e.user.name}</span>
-                        )}
-                      </div>
-                      {e.message && (
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground/90">{e.message}</p>
-                      )}
-                    </li>
-                  ))}
-                </ol>
               </div>
-            )}
-          </div>
+            </form>
+          )}
 
-          <div className="flex min-h-0 flex-col border-t border-white/5 bg-secondary/5 lg:border-l lg:border-t-0">
-            <div className="shrink-0 border-b border-white/5 px-6 py-3">
-              <h3 className="text-sm font-semibold">Occurrences</h3>
+          {error && !canEdit && (
+            <p className="mt-3 text-sm text-destructive">{error}</p>
+          )}
+
+          {loading && !detail ? (
+            <div className="mt-8 flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Chargement de l&apos;historique…
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-6">
-              {loading && !detail ? (
-                <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Chargement…
+          ) : (
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold tracking-tight">Occurrences</h3>
+                  <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+                    {occurrenceEvents.length}
+                  </span>
                 </div>
-              ) : occurrenceEvents.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">Aucune occurrence</p>
-              ) : (
-                <ul className="space-y-2">
-                  {occurrenceEvents.map((e, i) => (
-                    <li
-                      key={e.id}
-                      className="rounded-lg border border-white/5 bg-card/80 p-3"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning/15 text-xs font-medium text-warning">
-                          {i + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">
-                            {alertActionLabels[e.action] ?? e.action}
-                          </p>
-                          {e.message && (
-                            <p className="mt-1 text-sm text-muted-foreground">{e.message}</p>
-                          )}
-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
-                            {formatDate(e.createdAt)}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                {occurrenceEvents.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                    Aucune occurrence
+                  </p>
+                ) : (
+                  <div className="grid gap-2.5 sm:grid-cols-1">
+                    {occurrenceEvents.map((e, i) => (
+                      <EventTile key={e.id} event={e} index={i + 1} />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold tracking-tight">Événements & notes</h3>
+                  <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-medium text-sky-200">
+                    {historyEvents.length}
+                  </span>
+                </div>
+                {historyEvents.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                    Aucun événement
+                  </p>
+                ) : (
+                  <div className="grid gap-2.5">
+                    {[...historyEvents].reverse().map((e) => (
+                      <EventTile key={e.id} event={e} />
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
