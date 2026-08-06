@@ -247,7 +247,7 @@ export function AlertDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-3 backdrop-blur-sm sm:p-4"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-black/70 backdrop-blur-sm"
       onClick={() => {
         if (listPanel) {
           setListPanel(null);
@@ -256,223 +256,223 @@ export function AlertDetailModal({
         onClose();
       }}
     >
-      <div
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="alert-modal-title"
-      >
+      <div className="flex min-h-full items-start justify-center p-3 py-6 sm:items-center sm:p-4 sm:py-8">
         <div
-          className={cn('pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b', accent)}
-          aria-hidden
-        />
+          className="relative flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl max-h-[calc(100vh-3rem)] sm:max-h-[calc(100vh-4rem)]"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="alert-modal-title"
+        >
+          <div
+            className={cn('pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b', accent)}
+            aria-hidden
+          />
 
-        <header className="relative flex shrink-0 items-start justify-between gap-4 px-5 pb-3 pt-5 sm:px-6">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {isSslExpirationAlert(alert) ? (
-                <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-600/90 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
-                  EXPIRATION SSL
-                </span>
-              ) : (
-                <SeverityBadge severity={alert.severity} />
-              )}
-              {alert.occurrenceCount > 1 && (
-                <span className="rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-100">
-                  {alert.occurrenceCount} occurrences
-                </span>
-              )}
-              {alert.acknowledged && (
-                <span className="rounded-full border border-sky-400/30 bg-sky-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-sky-200">
-                  Acquittée
-                </span>
-              )}
-            </div>
-            <h2
-              id="alert-modal-title"
-              className="mt-2.5 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
-            >
-              {alert.title}
-            </h2>
-            <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">{alert.message}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <StatusBadge status={alert.status} />
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10"
-              aria-label="Fermer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </header>
-
-        <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Créée
-              </p>
-              <p className="mt-1 font-mono text-sm">{formatDate(alert.createdAt)}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setListPanel('occurrences')}
-              disabled={loading && !detail}
-              className="rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-3.5 text-left transition hover:border-amber-400/45 hover:bg-amber-500/15 disabled:opacity-60"
-              title="Voir les occurrences"
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80">
-                Occurrences
-              </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-amber-100">
-                {loading && !detail ? '—' : occurrenceEvents.length || alert.occurrenceCount}
-              </p>
-              <p className="mt-1.5 text-[11px] text-amber-200/60">Cliquer pour ouvrir</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setListPanel('events')}
-              disabled={loading && !detail}
-              className="rounded-xl border border-sky-500/25 bg-sky-500/[0.07] p-3.5 text-left transition hover:border-sky-400/45 hover:bg-sky-500/15 disabled:opacity-60"
-              title="Voir les événements"
-            >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-200/80">
-                Événements
-              </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-sky-100">
-                {loading && !detail ? '—' : historyEvents.length}
-              </p>
-              <p className="mt-1.5 text-[11px] text-sky-200/60">Cliquer pour ouvrir</p>
-            </button>
-            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {alert.status === 'CLOSED' ? 'Clôturée' : 'Statut'}
-              </p>
-              <p className="mt-1 text-sm font-medium">
-                {alert.status === 'CLOSED' && alert.closedAt
-                  ? formatDate(alert.closedAt)
-                  : statusLabels[alert.status]}
-              </p>
-            </div>
-          </div>
-
-          {(server?.id || website?.id) && (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {server?.id && (
-                <Link
-                  href={`/servers/${server.id}`}
-                  onClick={onClose}
-                  className="group flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.07] px-4 py-3 transition hover:border-primary/45 hover:bg-primary/10"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
-                    <Server className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                      Serveur
-                    </p>
-                    <p className="truncate font-semibold">{server.name}</p>
-                    {server.hostname && (
-                      <p className="truncate font-mono text-[11px] text-muted-foreground">
-                        {server.hostname}
-                      </p>
-                    )}
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-primary/60 transition group-hover:translate-x-0.5" />
-                </Link>
-              )}
-              {website?.id && (
-                <Link
-                  href={`/websites/${website.id}`}
-                  onClick={onClose}
-                  className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.05]"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5">
-                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Site
-                    </p>
-                    <p className="truncate font-semibold">{website.name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{website.url}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition group-hover:translate-x-0.5" />
-                </Link>
-              )}
-            </div>
-          )}
-
-          {(alert.origin || alert.resolutionMethod) && (
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              {alert.origin && (
-                <p>
-                  <span className="text-foreground/70">Origine :</span> {alert.origin}
-                </p>
-              )}
-              {alert.resolutionMethod && (
-                <p>
-                  <span className="text-foreground/70">Résolution :</span>{' '}
-                  {alert.resolutionMethod}
-                </p>
-              )}
-            </div>
-          )}
-
-          {canEdit && (
-            <form
-              onSubmit={handleNote}
-              className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-4"
-            >
-              <label className="block text-sm font-medium">Ajouter une note</label>
-              <textarea
-                className="input mt-2"
-                rows={2}
-                placeholder="Information complémentaire, action en cours…"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-              <div className="mt-2 flex items-center justify-between gap-3">
-                {error ? (
-                  <p className="text-sm text-destructive">{error}</p>
+          <header className="relative z-[1] flex shrink-0 items-start justify-between gap-4 border-b border-white/5 px-5 pb-4 pt-5 sm:px-6">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                {isSslExpirationAlert(alert) ? (
+                  <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-600/90 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-white">
+                    EXPIRATION SSL
+                  </span>
                 ) : (
-                  <span />
+                  <SeverityBadge severity={alert.severity} />
                 )}
-                <button
-                  type="submit"
-                  disabled={!note.trim() || submitting}
-                  className="btn-secondary text-sm"
-                >
-                  {submitting ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
+                {alert.occurrenceCount > 1 && (
+                  <span className="rounded-full border border-amber-400/30 bg-amber-400/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-100">
+                    {alert.occurrenceCount} occurrences
+                  </span>
+                )}
+                {alert.acknowledged && (
+                  <span className="rounded-full border border-sky-400/30 bg-sky-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-sky-200">
+                    Acquittée
+                  </span>
+                )}
               </div>
-            </form>
-          )}
-
-          {error && !canEdit && (
-            <p className="mt-3 text-sm text-destructive">{error}</p>
-          )}
-
-          {loading && !detail && (
-            <div className="mt-6 flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Chargement…
+              <h2
+                id="alert-modal-title"
+                className="mt-2.5 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
+              >
+                {alert.title}
+              </h2>
+              <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">{alert.message}</p>
             </div>
-          )}
+            <div className="flex shrink-0 items-center gap-2">
+              <StatusBadge status={alert.status} />
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10"
+                aria-label="Fermer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </header>
+
+          <div className="relative z-[1] min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:pb-6">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Créée
+                </p>
+                <p className="mt-1 font-mono text-sm">{formatDate(alert.createdAt)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setListPanel('occurrences')}
+                disabled={loading && !detail}
+                className="rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-3.5 text-left transition hover:border-amber-400/45 hover:bg-amber-500/15 disabled:opacity-60"
+                title="Voir les occurrences"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-200/80">
+                  Occurrences
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-amber-100">
+                  {loading && !detail ? '—' : occurrenceEvents.length || alert.occurrenceCount}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setListPanel('events')}
+                disabled={loading && !detail}
+                className="rounded-xl border border-sky-500/25 bg-sky-500/[0.07] p-3.5 text-left transition hover:border-sky-400/45 hover:bg-sky-500/15 disabled:opacity-60"
+                title="Voir les événements"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-200/80">
+                  Événements
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-sky-100">
+                  {loading && !detail ? '—' : historyEvents.length}
+                </p>
+              </button>
+              <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {alert.status === 'CLOSED' ? 'Clôturée' : 'Statut'}
+                </p>
+                <p className="mt-1 text-sm font-medium">
+                  {alert.status === 'CLOSED' && alert.closedAt
+                    ? formatDate(alert.closedAt)
+                    : statusLabels[alert.status]}
+                </p>
+              </div>
+            </div>
+
+            {(server?.id || website?.id) && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {server?.id && (
+                  <Link
+                    href={`/servers/${server.id}`}
+                    onClick={onClose}
+                    className="group flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/[0.07] px-4 py-3 transition hover:border-primary/45 hover:bg-primary/10"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+                      <Server className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        Serveur
+                      </p>
+                      <p className="truncate font-semibold">{server.name}</p>
+                      {server.hostname && (
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">
+                          {server.hostname}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-primary/60 transition group-hover:translate-x-0.5" />
+                  </Link>
+                )}
+                {website?.id && (
+                  <Link
+                    href={`/websites/${website.id}`}
+                    onClick={onClose}
+                    className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.05]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5">
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Site
+                      </p>
+                      <p className="truncate font-semibold">{website.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{website.url}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition group-hover:translate-x-0.5" />
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {(alert.origin || alert.resolutionMethod) && (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {alert.origin && (
+                  <p>
+                    <span className="text-foreground/70">Origine :</span> {alert.origin}
+                  </p>
+                )}
+                {alert.resolutionMethod && (
+                  <p>
+                    <span className="text-foreground/70">Résolution :</span>{' '}
+                    {alert.resolutionMethod}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {canEdit && (
+              <form
+                onSubmit={handleNote}
+                className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-4"
+              >
+                <label className="block text-sm font-medium">Ajouter une note</label>
+                <textarea
+                  className="input mt-2"
+                  rows={2}
+                  placeholder="Information complémentaire, action en cours…"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  {error ? (
+                    <p className="text-sm text-destructive">{error}</p>
+                  ) : (
+                    <span />
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!note.trim() || submitting}
+                    className="btn-secondary text-sm"
+                  >
+                    {submitting ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {error && !canEdit && (
+              <p className="mt-3 text-sm text-destructive">{error}</p>
+            )}
+
+            {loading && !detail && (
+              <div className="mt-6 flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Chargement…
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {listPanel && (
         <div
-          className="absolute inset-0 z-[90] flex items-center justify-center bg-black/60 p-3 backdrop-blur-[2px] sm:p-6"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-3 backdrop-blur-[2px] sm:p-6"
           onClick={() => setListPanel(null)}
         >
           <div
-            className="flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526] shadow-2xl"
+            className="flex max-h-[min(85vh,720px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
