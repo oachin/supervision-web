@@ -41,6 +41,7 @@ export const MENU_PERMISSION: Record<string, PermissionResource> = {
   '/events': 'events',
   '/cybersecurite': 'cybersecurity',
   '/settings': 'settings',
+  '/settings/general': 'settings',
 };
 
 export function emptyPermissions(): PermissionsMap {

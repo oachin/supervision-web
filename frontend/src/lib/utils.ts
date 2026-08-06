@@ -5,11 +5,41 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date?: string) {
+const DEFAULT_APP_TIMEZONE = 'Europe/Paris';
+let appTimeZone = DEFAULT_APP_TIMEZONE;
+
+export function getAppTimeZone() {
+  return appTimeZone || DEFAULT_APP_TIMEZONE;
+}
+
+export function setAppTimeZone(timezone: string) {
+  const next = (timezone || '').trim();
+  if (!next) return;
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: next });
+    appTimeZone = next;
+  } catch {
+    // keep previous valid timezone
+  }
+}
+
+export function formatDate(date?: string | Date | null) {
   if (!date) return '—';
   return new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'short',
     timeStyle: 'short',
+    timeZone: getAppTimeZone(),
+  }).format(typeof date === 'string' || date instanceof Date ? new Date(date) : new Date(date));
+}
+
+export function formatDateTime(
+  date?: string | Date | null,
+  options?: Intl.DateTimeFormatOptions,
+) {
+  if (!date) return '—';
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: getAppTimeZone(),
+    ...options,
   }).format(new Date(date));
 }
 

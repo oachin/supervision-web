@@ -8,6 +8,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebsecClient, type WebsecSiteTarget } from './websec-client';
+import { AppSettingsService } from '../settings/app-settings.service';
 
 function domainFromUrl(url: string): string | undefined {
   try {
@@ -83,18 +84,30 @@ export class CyberService {
   constructor(
     private prisma: PrismaService,
     private websec: WebsecClient,
+    private appSettings: AppSettingsService,
   ) {}
 
+  private async resolveTimezone(fallback?: string | null) {
+    try {
+      const app = await this.appSettings.get();
+      return app.timezone || fallback || 'Europe/Paris';
+    } catch {
+      return fallback || 'Europe/Paris';
+    }
+  }
+
   private async ensureSchedule() {
+    const timezone = await this.resolveTimezone();
     return this.prisma.cyberScanSchedule.upsert({
       where: { id: 'default' },
-      create: { id: 'default' },
+      create: { id: 'default', timezone },
       update: {},
     });
   }
 
   async getAutomation() {
     const schedule = await this.ensureSchedule();
+    const timezone = await this.resolveTimezone(schedule.timezone);
     const status = await this.websec.getStatus().catch(() => ({ running: false }));
     const now = new Date();
     const nextIntervalAt =
@@ -106,7 +119,7 @@ export class CyberService {
         : null;
     const nextDaily =
       schedule.enabled && schedule.dailyTimes.length
-        ? nextDailyAt(schedule.dailyTimes, schedule.timezone, now)
+        ? nextDailyAt(schedule.dailyTimes, timezone, now)
         : null;
 
     let nextRunAt: Date | null = null;
@@ -126,6 +139,7 @@ export class CyberService {
 
     return {
       ...schedule,
+      timezone,
       scanRunning: Boolean((status as { running?: boolean }).running),
       nextIntervalAt,
       nextDailyAt: nextDaily,
@@ -190,6 +204,11 @@ export class CyberService {
       }
     }
 
+    if (data.timezone !== undefined) {
+      const timezone = data.timezone.trim() || 'Europe/Paris';
+      await this.appSettings.update({ timezone });
+    }
+
     await this.prisma.cyberScanSchedule.update({
       where: { id: 'default' },
       data: {
@@ -198,9 +217,6 @@ export class CyberService {
         dailyTimes,
         autoExcludeUrls,
         ...(data.deep !== undefined ? { deep: data.deep } : {}),
-        ...(data.timezone !== undefined
-          ? { timezone: data.timezone.trim() || 'Europe/Paris' }
-          : {}),
         lastError: null,
       },
     });
@@ -420,6 +436,7 @@ export class CyberService {
   /** Lightweight automation snapshot for overview cards (no full target list). */
   private async overviewAutomation() {
     const schedule = await this.ensureSchedule();
+    const timezone = await this.resolveTimezone(schedule.timezone);
     const status = await this.websec.getStatus().catch(() => ({ running: false }));
     const now = new Date();
     const nextIntervalAt =
@@ -431,7 +448,7 @@ export class CyberService {
         : null;
     const nextDaily =
       schedule.enabled && schedule.dailyTimes.length
-        ? nextDailyAt(schedule.dailyTimes, schedule.timezone, now)
+        ? nextDailyAt(schedule.dailyTimes, timezone, now)
         : null;
 
     let nextRunAt: Date | null = null;
@@ -472,7 +489,7 @@ export class CyberService {
       intervalMinutes: schedule.intervalMinutes,
       dailyTimes: schedule.dailyTimes,
       deep: schedule.deep,
-      timezone: schedule.timezone,
+      timezone,
       lastRunAt: schedule.lastRunAt,
       lastTrigger: schedule.lastTrigger,
       lastError: schedule.lastError,
@@ -632,7 +649,8 @@ export class CyberService {
       if (schedule.intervalMinutes <= 0 && schedule.dailyTimes.length === 0) return;
 
       const now = new Date();
-      const clock = clockInTimezone(schedule.timezone, now);
+      const timezone = await this.resolveTimezone(schedule.timezone);
+      const clock = clockInTimezone(timezone, now);
 
       let trigger: 'interval' | 'daily' | null = null;
       let dailySlot: string | undefined;

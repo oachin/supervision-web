@@ -419,6 +419,10 @@ class ApiClient {
 
   // Notifications
   getSmtpSettings() { return this.fetch<SmtpSettings>('/notifications/smtp'); }
+  getAppSettings() { return this.fetch<AppSettings>('/settings/app'); }
+  updateAppSettings(data: { timezone: string }) {
+    return this.fetch<AppSettings>('/settings/app', { method: 'PUT', body: JSON.stringify(data) });
+  }
   saveSmtpSettings(data: UpsertSmtpSettingsData) {
     return this.fetch<SmtpSettings>('/notifications/smtp', { method: 'PUT', body: JSON.stringify(data) });
   }
@@ -997,6 +1001,12 @@ export interface SmtpSettings {
   fromName: string;
   enabled: boolean;
   updatedAt: string | null;
+}
+
+export interface AppSettings {
+  id: string;
+  timezone: string;
+  updatedAt: string;
 }
 
 export interface UpsertSmtpSettingsData {

@@ -105,7 +105,6 @@ export default function CyberAutomationPage() {
         dailyTimes,
         autoExcludeUrls: excludeUrls,
         deep,
-        timezone,
       });
       apply(updated);
     } catch (err) {
@@ -247,13 +246,16 @@ export default function CyberAutomationPage() {
 
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">Fuseau horaire</label>
-          <input
-            className="input max-w-xs"
-            value={timezone}
-            disabled={!canModify || saving}
-            onChange={(e) => setTimezone(e.target.value)}
-            placeholder="Europe/Paris"
-          />
+          <p className="rounded-lg border border-white/10 bg-secondary/20 px-3 py-2 font-mono text-sm">
+            {timezone}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Défini dans{' '}
+            <Link href="/settings/general" className="text-primary hover:underline">
+              Configuration → Fuseau horaire
+            </Link>
+            . Les heures quotidiennes ci-dessous sont interprétées dans ce fuseau.
+          </p>
         </div>
       </div>
 

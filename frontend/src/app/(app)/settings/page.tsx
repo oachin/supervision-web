@@ -1,10 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, Mail, Shield, ChevronRight } from 'lucide-react';
+import { Users, Mail, Shield, ChevronRight, Clock } from 'lucide-react';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 
 const tiles = [
+  {
+    href: '/settings/general',
+    title: 'Fuseau horaire',
+    description: 'Fuseau serveur pour les horodatages et les automations',
+    icon: Clock,
+    resource: 'settings' as const,
+  },
   {
     href: '/settings/users',
     title: 'Utilisateurs',
@@ -50,7 +57,7 @@ export default function SettingsHubPage() {
       <div>
         <h1 className="text-2xl font-bold">Configuration</h1>
         <p className="text-sm text-muted-foreground">
-          Paramètres de la plateforme — accès, profils et notifications
+          Paramètres de la plateforme — fuseau, accès, profils et notifications
         </p>
       </div>
 

@@ -223,6 +223,39 @@ export default function CybersecuritePage() {
   const globalDone = typeof scan?.done === 'number' ? scan.done : 0;
   const globalTotal = typeof scan?.total === 'number' ? scan.total : 0;
 
+  const lastScanLabel = useMemo(() => {
+    if (scan?.running) {
+      return globalTotal > 0
+        ? `${globalPercent}% · ${globalDone}/${globalTotal}`
+        : 'En cours…';
+    }
+    const iso =
+      (typeof scan?.finished_at === 'string' && scan.finished_at) ||
+      data?.automation?.lastRunAt ||
+      data?.trend?.[data.trend.length - 1]?.started_at ||
+      null;
+    if (!iso) return 'Aucun';
+    try {
+      return new Date(iso).toLocaleString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return String(iso);
+    }
+  }, [
+    scan?.running,
+    scan?.finished_at,
+    data?.automation?.lastRunAt,
+    data?.trend,
+    globalPercent,
+    globalDone,
+    globalTotal,
+  ]);
+
   if (loading && !data) {
     return (
       <div className="flex h-32 items-center justify-center">
@@ -333,15 +366,7 @@ export default function CybersecuritePage() {
         </div>
         <div className="card">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Dernier scan</p>
-          <p className="mt-2 text-sm font-medium">
-            {scan?.running
-              ? globalTotal > 0
-                ? `${globalPercent}% · ${globalDone}/${globalTotal}`
-                : 'En cours…'
-              : scan?.finished_at
-                ? String(scan.finished_at)
-                : 'Aucun'}
-          </p>
+          <p className="mt-2 text-sm font-medium">{lastScanLabel}</p>
           {scan?.error ? <p className="mt-1 text-xs text-destructive">{String(scan.error)}</p> : null}
         </div>
         <Link

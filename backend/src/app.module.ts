@@ -20,6 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { NocModule } from './noc/noc.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { CyberModule } from './cyber/cyber.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { CyberModule } from './cyber/cyber.module';
     UsersModule,
     ProfilesModule,
     CyberModule,
+    SettingsModule,
     ServersModule,
     WebsitesModule,
     AlertsModule,
