@@ -75,6 +75,25 @@ const SEV_TAG_STYLES: Record<string, { idle: string; active: string }> = {
 
 const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
+function gradeClass(grade?: string | null) {
+  switch (grade) {
+    case 'A':
+    case 'A+':
+      return 'border-emerald-500/40 bg-emerald-500/20 text-emerald-300';
+    case 'B':
+      return 'border-sky-500/40 bg-sky-500/20 text-sky-300';
+    case 'C':
+      return 'border-amber-500/40 bg-amber-500/20 text-amber-300';
+    case 'D':
+      return 'border-orange-500/40 bg-orange-500/20 text-orange-300';
+    case 'E':
+    case 'F':
+      return 'border-destructive/40 bg-destructive/20 text-destructive';
+    default:
+      return 'border-white/10 bg-secondary/30 text-foreground';
+  }
+}
+
 function formatLabel(iso?: string | null) {
   if (!iso) return '—';
   try {
@@ -426,18 +445,30 @@ function SiteDetailInner() {
             <p className="font-mono text-sm text-muted-foreground">{url}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-lg border border-white/10 px-4 py-2 text-center">
-              <p className="text-xs text-muted-foreground">
+            <div
+              className={cn(
+                'rounded-lg border px-4 py-2 text-center',
+                gradeClass(display?.grade),
+              )}
+            >
+              <p className="text-xs opacity-80">
                 {isLatest ? 'Score actuel' : 'Score audit'}
               </p>
               <p className="text-2xl font-bold">{display?.score ?? '—'}/100</p>
             </div>
-            <div className="rounded-lg border border-white/10 px-4 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Note</p>
+            <div
+              className={cn(
+                'rounded-lg border px-4 py-2 text-center',
+                gradeClass(display?.grade),
+              )}
+            >
+              <p className="text-xs opacity-80">Note</p>
               <p className="text-2xl font-bold">{display?.grade ?? '?'}</p>
             </div>
             <div className="rounded-lg border border-white/10 px-4 py-2 text-center">
-              <p className="text-xs text-muted-foreground">Date</p>
+              <p className="text-xs text-muted-foreground">
+                {isLatest ? 'Date (dernier audit)' : 'Date (audit)'}
+              </p>
               <p className="text-2xl font-bold tabular-nums">
                 {formatLabel(selectedStartedAt)}
               </p>

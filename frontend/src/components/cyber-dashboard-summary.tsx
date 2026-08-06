@@ -68,14 +68,9 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Shield className="h-3.5 w-3.5 text-primary" />
-          <h2 className="text-sm font-semibold">Cybersécurité</h2>
-        </div>
-        <Link href="/cybersecurite" className="text-xs text-primary hover:underline">
-          Voir l’audit
-        </Link>
+      <div className="flex items-center gap-2">
+        <Shield className="h-3.5 w-3.5 text-primary" />
+        <h2 className="text-sm font-semibold">Cybersécurité</h2>
       </div>
 
       <div className="grid gap-2 lg:grid-cols-3">
@@ -104,7 +99,10 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
           </p>
         </Link>
 
-        <div className="rounded-lg border border-white/10 bg-secondary/20 p-3">
+        <Link
+          href="/cybersecurite"
+          className="rounded-lg border border-white/10 bg-secondary/20 p-3 transition hover:border-sky-500/30"
+        >
           <h3 className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
             Répartition des notes
           </h3>
@@ -125,26 +123,21 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
               ))}
             </div>
           )}
-        </div>
+        </Link>
 
-        <div className="rounded-lg border border-white/10 bg-secondary/20 p-3">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <h3 className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Évolution du score
-            </h3>
-            <Link
-              href="/cybersecurite/evolution"
-              className="text-[10px] text-primary hover:underline"
-            >
-              Voir plus
-            </Link>
-          </div>
+        <Link
+          href="/cybersecurite/evolution"
+          className="rounded-lg border border-white/10 bg-secondary/20 p-3 transition hover:border-sky-500/30"
+        >
+          <h3 className="mb-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+            Évolution du score
+          </h3>
           {trendData.length < 2 ? (
             <p className="py-4 text-center text-xs text-muted-foreground">
               Historique insuffisant
             </p>
           ) : (
-            <div className="h-16">
+            <div className="h-16 pointer-events-none">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendData} margin={{ top: 2, right: 2, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
@@ -181,7 +174,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
               </ResponsiveContainer>
             </div>
           )}
-        </div>
+        </Link>
       </div>
     </div>
   );

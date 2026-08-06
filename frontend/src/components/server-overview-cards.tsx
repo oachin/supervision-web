@@ -9,7 +9,6 @@ import {
   Globe,
   Bell,
   GripVertical,
-  Maximize2,
 } from 'lucide-react';
 import { cn, isMaintenanceStatus, isSiteDegraded } from '@/lib/utils';
 import { TagList } from '@/components/tag-editor';
@@ -368,13 +367,6 @@ export function ServerOverviewCards({
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold tracking-tight">Serveurs</h2>
           <div className="flex items-center gap-2">
-            <Link
-              href="/noc"
-              className="btn-secondary px-2.5"
-              title="Mode NOC plein écran"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Link>
             <Link href="/servers" className="text-sm text-primary hover:underline">
               Voir tout
             </Link>

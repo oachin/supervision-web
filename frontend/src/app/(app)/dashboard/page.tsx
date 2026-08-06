@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
+import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw, Eye, Maximize2 } from 'lucide-react';
 import {
   api,
   type CyberOverview,
@@ -103,19 +103,32 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold tracking-tight">Tableau de bord</h1>
           <p className="text-xs text-muted-foreground">Vue d&apos;ensemble de votre infrastructure</p>
         </div>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="btn-secondary"
-        >
-          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-          Rafraîchir
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/noc"
+            className="btn-primary"
+            title="Mode NOC plein écran"
+          >
+            <Maximize2 className="h-4 w-4" />
+            Écran NOC
+          </Link>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="btn-secondary"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+            Rafraîchir
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Supervision</h2>
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <Eye className="h-3.5 w-3.5 text-primary" />
+          Supervision
+        </h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
             compact
