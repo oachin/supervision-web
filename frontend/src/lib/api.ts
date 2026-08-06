@@ -747,6 +747,7 @@ export interface CyberSiteResult {
   score?: number;
   grade?: string;
   findings?: CyberFinding[];
+  findingsCount?: number;
   history?: CyberHistoryPoint[];
 }
 

@@ -326,7 +326,11 @@ export default function CybersecuritePage() {
                       </span>
                     </td>
                     <td className="p-4 text-muted-foreground">
-                      {Array.isArray(site.findings) ? site.findings.length : '—'}
+                      {typeof site.findingsCount === 'number'
+                        ? site.findingsCount
+                        : Array.isArray(site.findings)
+                          ? site.findings.length
+                          : '—'}
                     </td>
                   </tr>
                 ))}

@@ -326,14 +326,42 @@ export class CyberService {
       targets.supervision.filter((t) => t.enabled).length +
       targets.external.filter((t) => t.enabled).length;
 
-    const grades = (sites.sites as Array<{ grade?: string }>).reduce<Record<string, number>>(
-      (acc, s) => {
-        const g = s.grade || '?';
-        acc[g] = (acc[g] || 0) + 1;
-        return acc;
-      },
-      {},
-    );
+    const slimSites = (sites.sites as Array<Record<string, unknown>>).map((s) => {
+      const findings = Array.isArray(s.findings) ? s.findings : [];
+      return {
+        name: s.name,
+        url: s.url,
+        domain: s.domain,
+        score: s.score,
+        grade: s.grade,
+        findingsCount: findings.length,
+      };
+    });
+
+    const grades = slimSites.reduce<Record<string, number>>((acc, s) => {
+      const g = (s.grade as string) || '?';
+      acc[g] = (acc[g] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Keep overview payload small (full findings live on /cyber/sites?url=…).
+    const slimAutomation = automation
+      ? {
+          id: automation.id,
+          enabled: automation.enabled,
+          intervalMinutes: automation.intervalMinutes,
+          dailyTimes: automation.dailyTimes,
+          deep: automation.deep,
+          timezone: automation.timezone,
+          lastRunAt: automation.lastRunAt,
+          lastTrigger: automation.lastTrigger,
+          lastError: automation.lastError,
+          scanRunning: automation.scanRunning,
+          nextRunAt: automation.nextRunAt,
+          autoIncludedCount: automation.autoIncludedCount,
+          autoEligibleCount: automation.autoEligibleCount,
+        }
+      : null;
 
     return {
       healthy,
@@ -341,9 +369,9 @@ export class CyberService {
       enabledTargets: enabledCount,
       resultsCount: sites.count,
       grades,
-      sites: sites.sites,
+      sites: slimSites,
       trend: trend.trend,
-      automation,
+      automation: slimAutomation,
     };
   }
 
