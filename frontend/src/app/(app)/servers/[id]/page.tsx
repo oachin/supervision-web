@@ -13,6 +13,7 @@ import { ServerAlertsBySitePanel } from '@/components/server-alerts-panel';
 import { ProxmoxVmsPanel } from '@/components/proxmox-vms-panel';
 import { ProxmoxBackupsPanel } from '@/components/proxmox-backups-panel';
 import { flattenActiveAlerts, openAlertsForServer } from '@/lib/server-alerts';
+import { countAlertsBySeverity } from '@/lib/alert-severity';
 import { formatDate, formatCpuPercent, cn } from '@/lib/utils';
 
 type ChartMetric = 'cpu' | 'memory' | 'disk' | 'load';
@@ -133,7 +134,10 @@ export default function ServerDetailPage() {
   }
 
   const alertCount = serverOpenAlerts.length;
-  const hasCriticalAlerts = serverOpenAlerts.some((a) => a.severity === 'CRITICAL');
+  const severityCounts = countAlertsBySeverity(serverOpenAlerts);
+  const hasCriticalAlerts = severityCounts.CRITICAL > 0;
+  const hasWarningAlerts =
+    severityCounts.WARNING > 0 || severityCounts.EXPIRATION_SSL > 0;
 
   const latest = server.metrics?.[0]
     ?? (metrics.length > 0 ? metrics[metrics.length - 1] : undefined);
@@ -341,7 +345,7 @@ export default function ServerDetailPage() {
               'card text-center transition-colors hover:border-primary/30',
               showAlertsPanel && 'border-primary/50 ring-1 ring-primary/30 bg-primary/5',
               alertCount > 0 && hasCriticalAlerts && !showAlertsPanel && 'border-destructive/40 bg-destructive/[0.04]',
-              alertCount > 0 && !hasCriticalAlerts && !showAlertsPanel && 'border-warning/40 bg-warning/[0.04]',
+              alertCount > 0 && !hasCriticalAlerts && hasWarningAlerts && !showAlertsPanel && 'border-warning/40 bg-warning/[0.04]',
             )}
             title={showAlertsPanel ? 'Masquer les alertes' : 'Afficher les alertes par site'}
           >
@@ -352,7 +356,7 @@ export default function ServerDetailPage() {
             <p className={cn(
               'mt-1 text-2xl font-bold',
               alertCount > 0 && hasCriticalAlerts && 'text-destructive',
-              alertCount > 0 && !hasCriticalAlerts && 'text-warning',
+              alertCount > 0 && !hasCriticalAlerts && hasWarningAlerts && 'text-warning',
             )}>
               {alertCount}
             </p>
