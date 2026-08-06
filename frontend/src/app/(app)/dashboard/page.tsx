@@ -2,25 +2,35 @@
 
 import { useEffect, useState } from 'react';
 import { Server as ServerIcon, Globe, Bell, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
-import { api, type DashboardData, type ServerWithHistory, type User, type WebsiteWithHistory } from '@/lib/api';
+import {
+  api,
+  type CyberOverview,
+  type DashboardData,
+  type ServerWithHistory,
+  type WebsiteWithHistory,
+} from '@/lib/api';
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
+import { CyberDashboardSummary } from '@/components/cyber-dashboard-summary';
 import { OpenExternalUrl } from '@/components/open-external-url';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
+import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { formatDate, cn } from '@/lib/utils';
 import Link from 'next/link';
 import type { Alert } from '@/lib/api';
 
 export default function DashboardPage() {
+  const { profile, hasPermission } = useAuthProfile();
+  const canViewCyber = hasPermission('cybersecurity', 'view');
   const [data, setData] = useState<DashboardData | null>(null);
   const [servers, setServers] = useState<ServerWithHistory[]>([]);
   const [websites, setWebsites] = useState<WebsiteWithHistory[]>([]);
   const [openAlerts, setOpenAlerts] = useState<Alert[]>([]);
+  const [cyberOverview, setCyberOverview] = useState<CyberOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
-  const [profile, setProfile] = useState<User | null>(null);
 
   async function refreshOpenAlerts() {
     const summary = await api.getAlertsSummary();
@@ -29,16 +39,20 @@ export default function DashboardPage() {
   }
 
   async function loadAll() {
-    const [dashboard, serversData, websitesData, summary] = await Promise.all([
+    const [dashboard, serversData, websitesData, summary, cyber] = await Promise.all([
       api.getDashboard(),
       api.getServers(),
       api.getWebsites(),
       api.getAlertsSummary(),
+      canViewCyber
+        ? api.getCyberOverview().catch(() => null)
+        : Promise.resolve(null),
     ]);
     setData(dashboard);
     setServers(serversData);
     setWebsites(websitesData);
     setOpenAlerts([...summary.active]);
+    setCyberOverview(cyber);
   }
 
   async function handleRefresh() {
@@ -58,13 +72,12 @@ export default function DashboardPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
 
-    api.getProfile().then(setProfile).catch(() => {});
-
     const interval = setInterval(() => {
       loadAll().catch(console.error);
     }, 10000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when cyber permission resolves
+  }, [canViewCyber]);
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
 
@@ -143,6 +156,8 @@ export default function DashboardPage() {
           href={websitesDisabled > 0 ? '/websites?filter=disabled' : '/websites'}
         />
       </div>
+
+      {canViewCyber && cyberOverview && <CyberDashboardSummary data={cyberOverview} />}
 
       <ServerOverviewCards servers={servers} websites={websites} alerts={openAlerts} />
 
