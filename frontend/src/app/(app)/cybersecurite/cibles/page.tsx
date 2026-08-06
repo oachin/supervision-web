@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { api, type CyberTargets } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
+import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 
 export default function CyberCiblesPage() {
   const { hasPermission } = useAuthProfile();
@@ -14,6 +15,7 @@ export default function CyberCiblesPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', url: '', notes: '' });
   const [showForm, setShowForm] = useState(false);
+  const [siteQuery, setSiteQuery] = useState('');
 
   const load = () =>
     api
@@ -24,6 +26,22 @@ export default function CyberCiblesPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const filteredSupervision = useMemo(
+    () =>
+      (targets?.supervision ?? []).filter((t) =>
+        matchesSiteSearch(siteQuery, t.name, t.url, t.server?.name, t.server?.hostname),
+      ),
+    [targets?.supervision, siteQuery],
+  );
+
+  const filteredExternal = useMemo(
+    () =>
+      (targets?.external ?? []).filter((t) =>
+        matchesSiteSearch(siteQuery, t.name, t.url, t.notes),
+      ),
+    [targets?.external, siteQuery],
+  );
 
   async function toggleSupervision(id: string, enabled: boolean) {
     await api.setCyberWebsiteScan(id, enabled);
@@ -77,6 +95,20 @@ export default function CyberCiblesPage() {
           </button>
         )}
       </div>
+
+      <SiteSearchInput
+        value={siteQuery}
+        onChange={setSiteQuery}
+        placeholder="Rechercher un site (nom, URL, serveur…)"
+      />
+
+      {siteQuery.trim() && (
+        <p className="text-sm text-muted-foreground">
+          {filteredSupervision.length + filteredExternal.length} résultat
+          {filteredSupervision.length + filteredExternal.length !== 1 ? 's' : ''} pour «{' '}
+          {siteQuery.trim()} »
+        </p>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -134,7 +166,7 @@ export default function CyberCiblesPage() {
               </tr>
             </thead>
             <tbody>
-              {targets.supervision.map((t) => (
+              {filteredSupervision.map((t) => (
                 <tr key={t.id} className="border-b border-white/5">
                   <td className="p-4 font-medium">{t.name}</td>
                   <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
@@ -152,10 +184,12 @@ export default function CyberCiblesPage() {
                   </td>
                 </tr>
               ))}
-              {targets.supervision.length === 0 && (
+              {filteredSupervision.length === 0 && (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-muted-foreground">
-                    Aucun site supervisé
+                    {siteQuery.trim()
+                      ? `Aucun site Supervision pour « ${siteQuery.trim()} »`
+                      : 'Aucun site supervisé'}
                   </td>
                 </tr>
               )}
@@ -177,7 +211,7 @@ export default function CyberCiblesPage() {
               </tr>
             </thead>
             <tbody>
-              {targets.external.map((t) => (
+              {filteredExternal.map((t) => (
                 <tr key={t.id} className="border-b border-white/5">
                   <td className="p-4 font-medium">{t.name}</td>
                   <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
@@ -205,10 +239,12 @@ export default function CyberCiblesPage() {
                   </td>
                 </tr>
               ))}
-              {targets.external.length === 0 && (
+              {filteredExternal.length === 0 && (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-muted-foreground">
-                    Aucune cible externe — ajoutez une URL hors inventaire Supervision
+                    {siteQuery.trim()
+                      ? `Aucune cible externe pour « ${siteQuery.trim()} »`
+                      : 'Aucune cible externe — ajoutez une URL hors inventaire Supervision'}
                   </td>
                 </tr>
               )}

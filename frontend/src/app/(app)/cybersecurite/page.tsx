@@ -12,6 +12,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarClock, Info } from 'lucide-react';
+import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
@@ -102,6 +103,7 @@ export default function CybersecuritePage() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [deep, setDeep] = useState(false);
+  const [siteQuery, setSiteQuery] = useState('');
   const wasRunning = useRef(false);
 
   const load = useCallback(async () => {
@@ -185,23 +187,36 @@ export default function CybersecuritePage() {
 
   const displaySites = useMemo(() => {
     const results = data?.sites ?? [];
+    let rows: { result: CyberSiteResult; progress: CyberScanSiteProgress | null }[];
     if (!scanRunning || !scan?.sites?.length) {
-      return results.map((s) => ({ result: s, progress: progressByUrl.get(normalizeUrl(s.url)) ?? null }));
+      rows = results.map((s) => ({
+        result: s,
+        progress: progressByUrl.get(normalizeUrl(s.url)) ?? null,
+      }));
+    } else {
+      // Pendant un scan : une ligne par cible du scan (ordre file), enrichie des derniers scores connus.
+      const byUrl = new Map(results.map((s) => [normalizeUrl(s.url), s]));
+      rows = (scan.sites || []).map((p) => {
+        const prior = byUrl.get(normalizeUrl(p.url));
+        const result: CyberSiteResult = prior ?? {
+          name: p.name || p.url || '—',
+          url: p.url,
+          score: p.score ?? undefined,
+          grade: p.grade ?? undefined,
+          findingsCount: typeof p.findings === 'number' ? p.findings : undefined,
+        };
+        return { result, progress: p };
+      });
     }
-    // Pendant un scan : une ligne par cible du scan (ordre file), enrichie des derniers scores connus.
-    const byUrl = new Map(results.map((s) => [normalizeUrl(s.url), s]));
-    return (scan.sites || []).map((p) => {
-      const prior = byUrl.get(normalizeUrl(p.url));
-      const result: CyberSiteResult = prior ?? {
-        name: p.name || p.url || '—',
-        url: p.url,
-        score: p.score ?? undefined,
-        grade: p.grade ?? undefined,
-        findingsCount: typeof p.findings === 'number' ? p.findings : undefined,
-      };
-      return { result, progress: p };
-    });
-  }, [data?.sites, scanRunning, scan?.sites, progressByUrl]);
+    return rows.filter(({ result }) =>
+      matchesSiteSearch(siteQuery, result.name, result.url, result.domain),
+    );
+  }, [data?.sites, scanRunning, scan?.sites, progressByUrl, siteQuery]);
+
+  const totalSitesForSearch = useMemo(() => {
+    if (scanRunning && scan?.sites?.length) return scan.sites.length;
+    return data?.sites?.length ?? 0;
+  }, [scanRunning, scan?.sites, data?.sites]);
 
   const globalPercent = typeof scan?.percent === 'number' ? scan.percent : 0;
   const globalDone = typeof scan?.done === 'number' ? scan.done : 0;
@@ -400,13 +415,28 @@ export default function CybersecuritePage() {
       </div>
 
       <div className="card overflow-hidden p-0">
-        <div className="flex items-center gap-2 border-b border-white/5 px-4 py-3">
-          <Shield className="h-4 w-4 text-primary" />
-          <h2 className="font-semibold">Résultats par site</h2>
+        <div className="flex flex-wrap items-center gap-3 border-b border-white/5 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            <h2 className="font-semibold">Résultats par site</h2>
+          </div>
+          <SiteSearchInput
+            value={siteQuery}
+            onChange={setSiteQuery}
+            className="ml-auto w-full sm:w-72 sm:flex-none"
+          />
         </div>
+        {siteQuery.trim() && totalSitesForSearch > 0 && (
+          <p className="border-b border-white/5 px-4 py-2 text-xs text-muted-foreground">
+            {displaySites.length} résultat{displaySites.length !== 1 ? 's' : ''} pour «{' '}
+            {siteQuery.trim()} »
+          </p>
+        )}
         {displaySites.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            Aucun résultat pour l’instant. Activez des cibles puis lancez un scan.
+            {siteQuery.trim()
+              ? `Aucun site ne correspond à « ${siteQuery.trim()} ».`
+              : 'Aucun résultat pour l’instant. Activez des cibles puis lancez un scan.'}
           </p>
         ) : (
           <div className="overflow-x-auto">

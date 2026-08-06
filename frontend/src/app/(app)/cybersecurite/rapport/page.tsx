@@ -1,15 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { FileDown, FileText, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview } from '@/lib/api';
+import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 
 export default function CyberRapportPage() {
   const [data, setData] = useState<CyberOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [siteQuery, setSiteQuery] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +41,15 @@ export default function CyberRapportPage() {
     }
   }
 
+  const sites = data?.sites ?? [];
+  const filteredSites = useMemo(
+    () =>
+      [...sites]
+        .filter((s) => matchesSiteSearch(siteQuery, s.name, s.url, s.domain))
+        .sort((a, b) => (a.score ?? 0) - (b.score ?? 0)),
+    [sites, siteQuery],
+  );
+
   if (loading && !data) {
     return (
       <div className="flex h-32 items-center justify-center">
@@ -46,8 +57,6 @@ export default function CyberRapportPage() {
       </div>
     );
   }
-
-  const sites = data?.sites ?? [];
 
   return (
     <div className="space-y-6">
@@ -102,12 +111,25 @@ export default function CyberRapportPage() {
       </div>
 
       <div className="card overflow-hidden p-0">
-        <div className="border-b border-white/5 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-white/5 px-4 py-3">
           <h2 className="font-semibold">Rapports par site</h2>
+          <SiteSearchInput
+            value={siteQuery}
+            onChange={setSiteQuery}
+            className="ml-auto w-full sm:w-72 sm:flex-none"
+          />
         </div>
-        {sites.length === 0 ? (
+        {siteQuery.trim() && sites.length > 0 && (
+          <p className="border-b border-white/5 px-4 py-2 text-xs text-muted-foreground">
+            {filteredSites.length} résultat{filteredSites.length !== 1 ? 's' : ''} pour «{' '}
+            {siteQuery.trim()} »
+          </p>
+        )}
+        {filteredSites.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            Aucun résultat. Lancez un audit depuis Audit web.
+            {siteQuery.trim()
+              ? `Aucun site ne correspond à « ${siteQuery.trim()} ».`
+              : 'Aucun résultat. Lancez un audit depuis Audit web.'}
           </p>
         ) : (
           <table className="w-full text-sm">
@@ -119,49 +141,47 @@ export default function CyberRapportPage() {
               </tr>
             </thead>
             <tbody>
-              {[...sites]
-                .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
-                .map((site) => (
-                  <tr key={site.url ?? site.name} className="border-b border-white/5">
-                    <td className="p-4">
-                      <div className="font-medium">{site.name}</div>
-                      <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
-                        {site.url}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      {site.score ?? '—'}/100 · {site.grade ?? '?'}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          className="btn-secondary px-2 py-1 text-xs"
-                          disabled={!site.url || !!busy}
-                          onClick={() => site.url && download('site', 'html', site.url)}
+              {filteredSites.map((site) => (
+                <tr key={site.url ?? site.name} className="border-b border-white/5">
+                  <td className="p-4">
+                    <div className="font-medium">{site.name}</div>
+                    <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                      {site.url}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {site.score ?? '—'}/100 · {site.grade ?? '?'}
+                  </td>
+                  <td className="p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        disabled={!site.url || !!busy}
+                        onClick={() => site.url && download('site', 'html', site.url)}
+                      >
+                        HTML
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary px-2 py-1 text-xs"
+                        disabled={!site.url || !!busy}
+                        onClick={() => site.url && download('site', 'pdf', site.url)}
+                      >
+                        PDF
+                      </button>
+                      {site.url && (
+                        <Link
+                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                          className="text-xs text-primary hover:underline"
                         >
-                          HTML
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary px-2 py-1 text-xs"
-                          disabled={!site.url || !!busy}
-                          onClick={() => site.url && download('site', 'pdf', site.url)}
-                        >
-                          PDF
-                        </button>
-                        {site.url && (
-                          <Link
-                            href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Détail
-                          </Link>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          Détail
+                        </Link>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}

@@ -16,6 +16,7 @@ import {
 import { api, type CyberAutomation, type CyberAutoTarget } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
+import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
@@ -52,6 +53,7 @@ export default function CyberAutomationPage() {
   const [timezone, setTimezone] = useState('Europe/Paris');
   const [targets, setTargets] = useState<CyberAutoTarget[]>([]);
   const [targetsOpen, setTargetsOpen] = useState(false);
+  const [siteQuery, setSiteQuery] = useState('');
 
   const apply = useCallback((a: CyberAutomation) => {
     setData(a);
@@ -86,6 +88,10 @@ export default function CyberAutomationPage() {
   );
   const includedCount = targets.filter((t) => t.includedInAuto).length;
   const allIncluded = targets.length > 0 && includedCount === targets.length;
+  const filteredTargets = useMemo(
+    () => targets.filter((t) => matchesSiteSearch(siteQuery, t.name, t.url, t.domain)),
+    [targets, siteQuery],
+  );
 
   async function save() {
     if (!canModify) return;
@@ -300,6 +306,14 @@ export default function CyberAutomationPage() {
               )}
             </div>
 
+            {targets.length > 0 && (
+              <SiteSearchInput
+                value={siteQuery}
+                onChange={setSiteQuery}
+                className="w-full max-w-none"
+              />
+            )}
+
             {targets.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Aucune cible active.{' '}
@@ -307,9 +321,13 @@ export default function CyberAutomationPage() {
                   Activer des cibles
                 </Link>
               </p>
+            ) : filteredTargets.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Aucune cible pour « {siteQuery.trim()} ».
+              </p>
             ) : (
               <ul className="divide-y divide-white/5 rounded-lg border border-white/5">
-                {targets.map((t) => (
+                {filteredTargets.map((t) => (
                   <li key={t.url} className="flex items-center gap-3 px-3 py-2.5">
                     <input
                       type="checkbox"

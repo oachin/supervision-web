@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview, type CyberTrendPoint } from '@/lib/api';
+import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 
 function formatLabel(iso?: string | null) {
   if (!iso) return '—';
@@ -33,6 +34,7 @@ export default function CyberEvolutionPage() {
   const [trend, setTrend] = useState<CyberTrendPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [siteQuery, setSiteQuery] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +64,14 @@ export default function CyberEvolutionPage() {
         score: p.avg_score ?? 0,
       })),
     [trend],
+  );
+
+  const filteredSites = useMemo(
+    () =>
+      [...(overview?.sites ?? [])]
+        .filter((s) => matchesSiteSearch(siteQuery, s.name, s.url, s.domain))
+        .sort((a, b) => (a.score ?? 0) - (b.score ?? 0)),
+    [overview?.sites, siteQuery],
   );
 
   if (loading && !overview) {
@@ -150,11 +160,26 @@ export default function CyberEvolutionPage() {
       </div>
 
       <div className="card overflow-hidden p-0">
-        <div className="border-b border-white/5 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-white/5 px-4 py-3">
           <h2 className="font-semibold">Évolution par site</h2>
+          <SiteSearchInput
+            value={siteQuery}
+            onChange={setSiteQuery}
+            className="ml-auto w-full sm:w-72 sm:flex-none"
+          />
         </div>
-        {(overview?.sites?.length ?? 0) === 0 ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">Aucun site scanné.</p>
+        {siteQuery.trim() && (overview?.sites?.length ?? 0) > 0 && (
+          <p className="border-b border-white/5 px-4 py-2 text-xs text-muted-foreground">
+            {filteredSites.length} résultat{filteredSites.length !== 1 ? 's' : ''} pour «{' '}
+            {siteQuery.trim()} »
+          </p>
+        )}
+        {filteredSites.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            {siteQuery.trim()
+              ? `Aucun site ne correspond à « ${siteQuery.trim()} ».`
+              : 'Aucun site scanné.'}
+          </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -166,30 +191,28 @@ export default function CyberEvolutionPage() {
               </tr>
             </thead>
             <tbody>
-              {[...(overview?.sites ?? [])]
-                .sort((a, b) => (a.score ?? 0) - (b.score ?? 0))
-                .map((site) => (
-                  <tr key={site.url ?? site.name} className="border-b border-white/5">
-                    <td className="p-4">
-                      <div className="font-medium">{site.name}</div>
-                      <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
-                        {site.url}
-                      </div>
-                    </td>
-                    <td className="p-4">{site.score ?? '—'}/100</td>
-                    <td className="p-4">{site.grade ?? '?'}</td>
-                    <td className="p-4 text-right">
-                      {site.url && (
-                        <Link
-                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                          className="text-sm text-primary hover:underline"
-                        >
-                          Voir l’historique
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+              {filteredSites.map((site) => (
+                <tr key={site.url ?? site.name} className="border-b border-white/5">
+                  <td className="p-4">
+                    <div className="font-medium">{site.name}</div>
+                    <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                      {site.url}
+                    </div>
+                  </td>
+                  <td className="p-4">{site.score ?? '—'}/100</td>
+                  <td className="p-4">{site.grade ?? '?'}</td>
+                  <td className="p-4 text-right">
+                    {site.url && (
+                      <Link
+                        href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Voir l’historique
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
