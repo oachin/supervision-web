@@ -5,6 +5,10 @@ import { ServersService } from '../servers/servers.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { AgentMetricsDto } from '../common/dto';
 import { hasExcludedProxmoxTag } from '../common/proxmox-vm';
+import {
+  ALERT_RECOVER_STREAK,
+  hasConsecutiveHeartbeats,
+} from '../monitoring/alert-hysteresis';
 
 const PLESK_CRITICAL_SERVICE_GROUPS = [
   ['sw-engine'],
@@ -92,20 +96,24 @@ export class AgentService {
       await this.evaluateProxmoxBackupAlerts(server);
     }
 
-    if (previousStatus !== 'OFFLINE' && status === 'OFFLINE') {
-      await this.alerts.create({
-        title: `Serveur hors ligne: ${server.name}`,
-        message: `Le serveur ${server.hostname} ne répond plus.`,
-        severity: 'CRITICAL',
-        serverId: server.id,
+    if (status === 'ONLINE') {
+      const recent = await this.prisma.serverMetric.findMany({
+        where: { serverId: server.id },
+        orderBy: { collectedAt: 'desc' },
+        take: ALERT_RECOVER_STREAK,
+        select: { collectedAt: true },
       });
-    }
-
-    if (previousStatus === 'OFFLINE' && status === 'ONLINE') {
-      await this.alerts.onIssueResolved({
-        serverId: server.id,
-        titleContains: 'hors ligne',
-      });
+      if (
+        hasConsecutiveHeartbeats(
+          recent.map((m) => m.collectedAt),
+          ALERT_RECOVER_STREAK,
+        )
+      ) {
+        await this.alerts.onIssueResolved({
+          serverId: server.id,
+          titleContains: 'hors ligne',
+        });
+      }
     }
 
     if (status === 'DEGRADED') {

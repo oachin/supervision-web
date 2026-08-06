@@ -5,6 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { availabilityStatus, isMaintenanceStatusCode, sslHostnameForProbe } from '../websites/website-status.util';
 import { WebsiteProbeService } from './website-probe.service';
+import {
+  ALERT_FAIL_STREAK,
+  ALERT_RECOVER_STREAK,
+  SERVER_OFFLINE_AFTER_MS,
+  SERVER_OFFLINE_ALERT_AFTER_MS,
+  countLeadingStreak,
+} from './alert-hysteresis';
 
 const SSL_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STAGGER_MS = 300;
@@ -83,7 +90,6 @@ export class MonitoringService {
     }
 
     const status = availabilityStatus(httpResult.ok, httpResult.responseMs, httpResult.statusCode);
-    const previousStatus = website.status;
     const isMaintenance = isMaintenanceStatusCode(httpResult.statusCode);
 
     await this.prisma.websiteCheck.create({
@@ -134,25 +140,37 @@ export class MonitoringService {
       data: updateData,
     });
 
-    if (status === 'DOWN' && !isMaintenance) {
-      const details = [
-        httpResult.error,
-        httpResult.dnsOk === false ? 'DNS en échec' : null,
-        httpResult.port443Open === false ? 'Port 443 fermé' : null,
-      ].filter(Boolean).join(' · ');
+    // Availability alerts: confirm N consecutive EXTERNAL checks (Zabbix-style).
+    const recentChecks = await this.prisma.websiteCheck.findMany({
+      where: { websiteId: website.id, checkSource: 'EXTERNAL' },
+      orderBy: { checkedAt: 'desc' },
+      take: Math.max(ALERT_FAIL_STREAK, ALERT_RECOVER_STREAK),
+      select: { status: true, statusCode: true },
+    });
+    const downStreak = countLeadingStreak(recentChecks, (c) => c.status === 'DOWN');
+    const recoverStreak = countLeadingStreak(
+      recentChecks,
+      (c) => c.status === 'UP' || isMaintenanceStatusCode(c.statusCode),
+    );
 
-      await this.alerts.create({
-        title: `Site hors ligne: ${website.name}`,
-        message: `${website.url} — ${details || 'Indisponible'}`,
-        severity: 'CRITICAL',
-        websiteId: website.id,
-      });
-    } else if (isMaintenance) {
-      await this.alerts.onIssueResolved({
-        websiteId: website.id,
-        titleContains: 'hors ligne',
-      });
-    } else if (status === 'UP' && (previousStatus === 'DOWN' || previousStatus === 'DEGRADED')) {
+    if (status === 'DOWN' && !isMaintenance) {
+      if (downStreak >= ALERT_FAIL_STREAK) {
+        const details = [
+          httpResult.error,
+          httpResult.dnsOk === false ? 'DNS en échec' : null,
+          httpResult.port443Open === false ? 'Port 443 fermé' : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+        await this.alerts.create({
+          title: `Site hors ligne: ${website.name}`,
+          message: `${website.url} — ${details || 'Indisponible'} (${downStreak} checks en échec)`,
+          severity: 'CRITICAL',
+          websiteId: website.id,
+        });
+      }
+    } else if (recoverStreak >= ALERT_RECOVER_STREAK) {
       await this.alerts.onIssueResolved({
         websiteId: website.id,
         titleContains: 'hors ligne',
@@ -223,20 +241,23 @@ export class MonitoringService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async checkServerHeartbeats() {
-    const servers = await this.prisma.server.findMany({
-      where: { status: { not: 'OFFLINE' } },
-    });
+    const servers = await this.prisma.server.findMany();
 
     for (const server of servers) {
       if (!server.lastSeenAt) continue;
 
       const elapsed = Date.now() - server.lastSeenAt.getTime();
-      if (elapsed > 5 * 60 * 1000) {
+      if (elapsed <= SERVER_OFFLINE_AFTER_MS) continue;
+
+      if (server.status !== 'OFFLINE') {
         await this.prisma.server.update({
           where: { id: server.id },
           data: { status: 'OFFLINE' },
         });
+      }
 
+      // Alert only after confirmed silence across several cron ticks.
+      if (elapsed >= SERVER_OFFLINE_ALERT_AFTER_MS) {
         await this.alerts.create({
           title: `Serveur hors ligne: ${server.name}`,
           message: `Pas de signal depuis ${Math.floor(elapsed / 60000)} minutes`,
