@@ -207,6 +207,8 @@ export class AlertsService {
     });
 
     if (existing) {
+      const keepAck =
+        existing.status === 'ACTIVE' && existing.acknowledged === true;
       const updated = await this.prisma.alert.update({
         where: { id: existing.id },
         data: {
@@ -215,7 +217,13 @@ export class AlertsService {
           issueResolvedAt: null,
           status: 'ACTIVE',
           snoozedUntil: null,
-          acknowledged: false,
+          ...(keepAck
+            ? {}
+            : {
+                acknowledged: false,
+                acknowledgedAt: null,
+                acknowledgedById: null,
+              }),
         },
         include: alertInclude,
       });
@@ -394,10 +402,37 @@ export class AlertsService {
 
   async getPendingPopup() {
     return this.prisma.alert.findMany({
-      where: { status: 'ACTIVE' },
-      orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+      where: {
+        status: 'ACTIVE',
+        acknowledged: false,
+        severity: 'CRITICAL',
+      },
+      orderBy: [{ createdAt: 'desc' }],
       include: alertInclude,
     });
+  }
+
+  async acknowledge(id: string, userId: string) {
+    const alert = await this.prisma.alert.findUnique({ where: { id } });
+    if (!alert) throw new NotFoundException('Alerte introuvable');
+    if (alert.status === 'CLOSED') {
+      throw new BadRequestException('Impossible d’acquitter une alerte clôturée');
+    }
+
+    const updated = await this.prisma.alert.update({
+      where: { id },
+      data: {
+        acknowledged: true,
+        acknowledgedAt: new Date(),
+        acknowledgedById: userId,
+        // Stay ACTIVE — popup-only silence until the issue clears
+        status: 'ACTIVE',
+      },
+      include: alertInclude,
+    });
+
+    await this.logEvent(id, 'ACKNOWLEDGED', 'Alerte acquittée (plus de popup)', userId);
+    return updated;
   }
 
   async getSummary() {

@@ -65,6 +65,14 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
     snooze();
   }
 
+  async function handleAcknowledgePopup() {
+    if (!currentPopup) return;
+    const id = currentPopup.id;
+    await api.acknowledgeAlert(id);
+    setCurrentPopup(null);
+    await refresh();
+  }
+
   return (
     <AlertContext.Provider
       value={{
@@ -80,6 +88,7 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
       {currentPopup && !isSnoozed && (
         <AlertPopup
           alert={currentPopup}
+          onAcknowledge={handleAcknowledgePopup}
           onSnooze={handleSnoozePopups}
         />
       )}

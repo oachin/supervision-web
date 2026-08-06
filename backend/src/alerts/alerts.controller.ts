@@ -39,6 +39,15 @@ export class AlertsController {
     return this.alerts.findOne(id);
   }
 
+  @Post(':id/acknowledge')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  acknowledge(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.alerts.acknowledge(id, userId);
+  }
+
   @Post(':id/notes')
   @Roles('ADMIN', 'OPERATOR')
   addNote(
