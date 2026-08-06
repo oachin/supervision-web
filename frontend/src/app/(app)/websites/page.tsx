@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { api, type Website } from '@/lib/api';
 import { WebsiteStatusBadge, HttpCodeBadge, DnsBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { StatusSummaryBanner } from '@/components/status-summary-banner';
 import { OpenExternalUrl } from '@/components/open-external-url';
 import { formatDate, cn, isSiteDegraded } from '@/lib/utils';
 
@@ -179,37 +178,92 @@ function WebsitesPageContent() {
         </div>
       </div>
 
-      <StatusSummaryBanner
-        activeId={activeFilter}
-        onSelect={setStatusFilter}
-        tiles={[
-          { id: 'all', label: 'Total', count: counts.total, tone: 'default' },
-          { id: 'up', label: 'En ligne', count: counts.up, tone: 'success' },
-          { id: 'degraded', label: 'Dégradés', count: counts.degraded, tone: 'warning' },
-          { id: 'down', label: 'Hors ligne', count: counts.down, tone: 'danger' },
-          { id: 'disabled', label: 'Désactivés', count: counts.disabled, tone: 'muted' },
-        ]}
-      />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              {
+                id: 'all',
+                label: 'TOTAL',
+                count: counts.total,
+                idle: 'border-sky-400/40 bg-sky-500/90 text-white hover:bg-sky-400',
+                active: 'ring-2 ring-sky-300 ring-offset-2 ring-offset-background',
+              },
+              {
+                id: 'up',
+                label: 'EN LIGNE',
+                count: counts.up,
+                idle: 'border-emerald-400/40 bg-emerald-600 text-white hover:bg-emerald-500',
+                active: 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-background',
+              },
+              {
+                id: 'degraded',
+                label: 'DÉGRADÉS',
+                count: counts.degraded,
+                idle: 'border-amber-500/50 bg-amber-400 text-amber-950 hover:bg-amber-300',
+                active: 'ring-2 ring-amber-200 ring-offset-2 ring-offset-background',
+              },
+              {
+                id: 'down',
+                label: 'HORS LIGNE',
+                count: counts.down,
+                idle: 'border-red-400/40 bg-red-600 text-white hover:bg-red-500',
+                active: 'ring-2 ring-red-300 ring-offset-2 ring-offset-background',
+              },
+              {
+                id: 'disabled',
+                label: 'DÉSACTIVÉS',
+                count: counts.disabled,
+                idle: 'border-slate-400/40 bg-slate-500 text-white hover:bg-slate-400',
+                active: 'ring-2 ring-slate-200 ring-offset-2 ring-offset-background',
+              },
+            ] as const
+          ).map((tag) => {
+            const isSelected = activeFilter === tag.id;
+            const hideZero = tag.id !== 'all' && tag.count === 0 && !isSelected;
+            if (hideZero) return null;
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => setStatusFilter(isSelected && tag.id !== 'all' ? 'all' : tag.id)}
+                title={
+                  isSelected && tag.id !== 'all'
+                    ? 'Retirer le filtre'
+                    : `Filtrer : ${tag.label}`
+                }
+                className={cn(
+                  'inline-flex cursor-pointer items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide transition',
+                  tag.idle,
+                  isSelected && tag.active,
+                )}
+              >
+                {tag.label} · {tag.count}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="search"
-          className="input pl-10 pr-10"
-          placeholder="Rechercher un site (nom, URL, serveur…)"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-            title="Effacer la recherche"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+        <div className="relative max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            className="input pl-10 pr-10"
+            placeholder="Rechercher un site (nom, URL, serveur…)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+              title="Effacer la recherche"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {!loading && searchQuery.trim() && (
