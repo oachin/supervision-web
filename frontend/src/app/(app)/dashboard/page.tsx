@@ -114,7 +114,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      <div className="card space-y-3 p-4">
+      <div className="space-y-2">
         <h2 className="text-sm font-semibold">Supervision</h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard

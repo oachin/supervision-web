@@ -67,7 +67,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
   );
 
   return (
-    <div className="card space-y-3 p-4">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Shield className="h-3.5 w-3.5 text-primary" />
