@@ -9,6 +9,8 @@ import { useAlerts } from '@/components/alert-provider';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { filterAlerts } from '@/lib/alert-search';
+import { countAlertsBySeverity } from '@/lib/alert-severity';
+import { SeverityCountTags } from '@/components/severity-count-tags';
 
 export default function AlertsPage() {
   const { summary, refresh } = useAlerts();
@@ -45,13 +47,7 @@ export default function AlertsPage() {
   }, [tab, searchQuery, severityFilter]);
 
   const tabAlerts = summary?.[tab] ?? [];
-  const severityCounts = useMemo(() => {
-    const counts = { CRITICAL: 0, WARNING: 0, INFO: 0 };
-    for (const a of tabAlerts) {
-      if (a.severity in counts) counts[a.severity] += 1;
-    }
-    return counts;
-  }, [tabAlerts]);
+  const severityCounts = useMemo(() => countAlertsBySeverity(tabAlerts), [tabAlerts]);
 
   const filteredAlerts = useMemo(
     () => filterAlerts(tabAlerts, searchQuery, severityFilter),
@@ -122,53 +118,12 @@ export default function AlertsPage() {
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Synthèse
         </span>
-        {(
-          [
-            {
-              sev: 'CRITICAL' as const,
-              count: severityCounts.CRITICAL,
-              className:
-                'border-red-400/40 bg-red-600 text-white hover:bg-red-500',
-              activeClassName: 'ring-2 ring-red-300 ring-offset-2 ring-offset-background',
-            },
-            {
-              sev: 'WARNING' as const,
-              count: severityCounts.WARNING,
-              className:
-                'border-amber-500/50 bg-amber-400 text-amber-950 hover:bg-amber-300',
-              activeClassName: 'ring-2 ring-amber-200 ring-offset-2 ring-offset-background',
-            },
-            {
-              sev: 'INFO' as const,
-              count: severityCounts.INFO,
-              className:
-                'border-sky-400/40 bg-sky-500/90 text-white hover:bg-sky-400',
-              activeClassName: 'ring-2 ring-sky-200 ring-offset-2 ring-offset-background',
-            },
-          ] as const
-        ).map(({ sev, count, className, activeClassName }) => (
-          <button
-            key={sev}
-            type="button"
-            onClick={() => toggleSeverity(sev)}
-            disabled={count === 0 && severityFilter !== sev}
-            title={
-              severityFilter === sev
-                ? 'Retirer le filtre'
-                : count === 0
-                  ? `Aucune alerte ${sev}`
-                  : `Filtrer : ${sev}`
-            }
-            className={[
-              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide transition',
-              className,
-              severityFilter === sev ? activeClassName : '',
-              count === 0 && severityFilter !== sev ? 'opacity-40' : '',
-            ].join(' ')}
-          >
-            {sev} · {count}
-          </button>
-        ))}
+        <SeverityCountTags
+          counts={severityCounts}
+          showZero
+          selected={severityFilter}
+          onSelect={toggleSeverity}
+        />
         {severityFilter && (
           <button
             type="button"

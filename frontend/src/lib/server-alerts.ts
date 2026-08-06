@@ -1,5 +1,5 @@
 import type { Alert, AlertSummary } from '@/lib/api';
-import { isMaintenanceStatus } from '@/lib/utils';
+import { countAlertsBySeverity, type SeverityCounts } from '@/lib/alert-severity';
 
 export interface ServerWebsiteAlertContext {
   id: string;
@@ -8,7 +8,7 @@ export interface ServerWebsiteAlertContext {
   monitoringEnabled: boolean;
 }
 
-/** Alertes en cours. */
+/** Alertes en cours (même source que le bandeau). */
 export function flattenActiveAlerts(summary: AlertSummary): Alert[] {
   return [...summary.active];
 }
@@ -18,15 +18,10 @@ export function flattenOpenAlerts(summary: AlertSummary): Alert[] {
   return [...summary.active];
 }
 
-function isFalseOfflineAlert(alert: Alert, websites: ServerWebsiteAlertContext[]): boolean {
-  if (!alert.websiteId || !alert.title.toLowerCase().includes('hors ligne')) return false;
-  const site = websites.find((w) => w.id === alert.websiteId);
-  if (!site?.monitoringEnabled) return false;
-  // Maintenance 503 or site already back up — not an open outage
-  if (isMaintenanceStatus(site.status, site.lastStatusCode)) return true;
-  return site.status !== 'DOWN';
-}
-
+/**
+ * Alertes ACTIVE rattachées à un serveur (directement ou via un site supervisé).
+ * Aligné sur le bandeau / la page Alertes (pas de filtre « faux hors ligne »).
+ */
 export function openAlertsForServer(
   serverId: string,
   websites: ServerWebsiteAlertContext[],
@@ -38,15 +33,21 @@ export function openAlertsForServer(
 
   return alerts.filter((a) => {
     if (a.status !== 'ACTIVE') return false;
-    if (isFalseOfflineAlert(a, websites)) return false;
 
     if (a.websiteId) {
-      // Ne pas remonter via serverId les alertes de sites non supervisés
       return monitoredWebsiteIds.has(a.websiteId);
     }
 
     return a.serverId === serverId;
   });
+}
+
+export function severityCountsForServer(
+  serverId: string,
+  websites: ServerWebsiteAlertContext[],
+  alerts: Alert[],
+): SeverityCounts {
+  return countAlertsBySeverity(openAlertsForServer(serverId, websites, alerts));
 }
 
 export interface AlertSiteGroup {

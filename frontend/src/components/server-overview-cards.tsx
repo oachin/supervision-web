@@ -15,6 +15,8 @@ import { TagList } from '@/components/tag-editor';
 import { useServerTileOrder } from '@/hooks/use-server-tile-order';
 import type { Alert, ServerWithHistory, WebsiteWithHistory } from '@/lib/api';
 import { openAlertsForServer } from '@/lib/server-alerts';
+import { countAlertsBySeverity, type SeverityCounts } from '@/lib/alert-severity';
+import { SeverityCountTags } from '@/components/severity-count-tags';
 
 export type ServerHealthLevel = 'ok' | 'warning' | 'critical';
 
@@ -23,6 +25,7 @@ export interface ServerOverviewData {
   level: ServerHealthLevel;
   summaryLines: string[];
   alertCount: number;
+  severityCounts: SeverityCounts;
   sitesTotal: number;
   sitesDown: number;
   sitesDegraded: number;
@@ -88,8 +91,9 @@ export function buildServerOverview(
   const sitesDegraded = serverSites.filter((w) =>
     isSiteDegraded(w.status, w.lastStatusCode),
   ).length;
-  const criticalAlerts = serverAlerts.filter((a) => a.severity === 'CRITICAL').length;
-  const warningAlerts = serverAlerts.filter((a) => a.severity === 'WARNING').length;
+  const severityCounts = countAlertsBySeverity(serverAlerts);
+  const criticalAlerts = severityCounts.CRITICAL;
+  const warningAlerts = severityCounts.WARNING;
 
   let level: ServerHealthLevel = 'ok';
   if (server.status === 'OFFLINE' || sitesDown > 0 || criticalAlerts > 0) {
@@ -110,22 +114,16 @@ export function buildServerOverview(
   if (sitesMaintenance > 0) {
     summaryLines.push(`${sitesMaintenance} site${sitesMaintenance > 1 ? 's' : ''} en maintenance`);
   }
-  if (sitesUnsupervised > 0) {
-    summaryLines.push(`${sitesUnsupervised} site${sitesUnsupervised > 1 ? 's' : ''} non supervisé${sitesUnsupervised > 1 ? 's' : ''}`);
+  if (summaryLines.length === 0 && criticalAlerts === 0 && warningAlerts === 0) {
+    summaryLines.push('Aucune alerte active');
   }
-  if (warningAlerts > 0 && level !== 'critical') {
-    summaryLines.push(`${warningAlerts} alerte${warningAlerts > 1 ? 's' : ''} warning`);
-  }
-  if (criticalAlerts > 0) {
-    summaryLines.push(`${criticalAlerts} alerte${criticalAlerts > 1 ? 's' : ''} critique${criticalAlerts > 1 ? 's' : ''}`);
-  }
-  if (summaryLines.length === 0) summaryLines.push('Aucune alerte active');
 
   return {
     server,
     level,
     summaryLines,
     alertCount: serverAlerts.length,
+    severityCounts,
     sitesTotal: serverSites.length,
     sitesDown,
     sitesDegraded,
@@ -155,7 +153,7 @@ function ServerOverviewCard({
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
 }) {
-  const { server, level, summaryLines, alertCount, sitesTotal } = data;
+  const { server, level, summaryLines, alertCount, severityCounts, sitesTotal } = data;
   const styles = levelStyles[level];
   const hostname = server.hostname === 'en-attente' ? 'Hostname en attente' : server.hostname;
 
@@ -248,39 +246,51 @@ function ServerOverviewCard({
             )}
           </div>
 
-          <ul className="space-y-1">
-            {paddedSummaryLines.map((line, index) => {
-              const isMaintenanceLine = line?.includes('en maintenance');
-              const isUnsupervisedLine = line?.includes('non supervisé');
-              return (
-              <li
-                key={`${line || 'empty'}-${index}`}
-                className={cn(
-                  'flex min-h-[22px] items-start gap-2 text-sm text-foreground/90',
-                  !line && 'invisible',
-                )}
-              >
-                <AlertTriangle className={cn(
-                  'mt-0.5 h-3.5 w-3.5 shrink-0',
-                  isMaintenanceLine
-                    ? 'text-emerald-400'
-                    : isUnsupervisedLine
-                      ? 'text-muted-foreground'
-                    : level === 'ok'
-                      ? 'text-accent/70'
-                      : level === 'warning'
-                        ? 'text-warning'
-                        : 'text-destructive',
-                )} />
-                <span className={cn(
-                  'line-clamp-2',
-                  isMaintenanceLine && 'text-emerald-300/90',
-                  isUnsupervisedLine && 'text-muted-foreground',
-                )}>{line || '—'}</span>
-              </li>
-            );
-            })}
-          </ul>
+          <div className="mt-auto flex items-end justify-between gap-3">
+            <ul className="min-w-0 flex-1 space-y-1">
+              {paddedSummaryLines.map((line, index) => {
+                const isMaintenanceLine = line?.includes('en maintenance');
+                return (
+                  <li
+                    key={`${line || 'empty'}-${index}`}
+                    className={cn(
+                      'flex min-h-[22px] items-start gap-2 text-sm text-foreground/90',
+                      !line && 'invisible',
+                    )}
+                  >
+                    <AlertTriangle
+                      className={cn(
+                        'mt-0.5 h-3.5 w-3.5 shrink-0',
+                        isMaintenanceLine
+                          ? 'text-emerald-400'
+                          : level === 'ok'
+                            ? 'text-accent/70'
+                            : level === 'warning'
+                              ? 'text-warning'
+                              : 'text-destructive',
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        'line-clamp-2',
+                        isMaintenanceLine && 'text-emerald-300/90',
+                      )}
+                    >
+                      {line || '—'}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <SeverityCountTags
+              counts={severityCounts}
+              showInfo={false}
+              stacked
+              size="sm"
+              className="shrink-0 pb-0.5"
+            />
+          </div>
         </div>
       </Link>
     </div>

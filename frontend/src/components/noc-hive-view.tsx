@@ -7,6 +7,8 @@ import { cn, isMaintenanceStatus, statusLabel } from '@/lib/utils';
 import { useServerTileOrder } from '@/hooks/use-server-tile-order';
 import { buildServerOverview } from '@/components/server-overview-cards';
 import { openAlertsForServer } from '@/lib/server-alerts';
+import { SeverityCountTags } from '@/components/severity-count-tags';
+import { countAlertsBySeverity } from '@/lib/alert-severity';
 import type { Alert, ProxmoxVmWithServer, ServerWithHistory, WebsiteWithHistory } from '@/lib/api';
 
 const HEX_SIZE = 11;
@@ -151,14 +153,25 @@ function HiveLegend({ mode }: { mode: 'sites' | 'vms' | 'mixed' }) {
 function proxmoxHealthLevel(
   server: ServerWithHistory,
   vms: ProxmoxVmWithServer[],
+  websites: WebsiteWithHistory[],
   alerts: Alert[],
 ): 'ok' | 'warning' | 'critical' {
-  const serverAlerts = openAlertsForServer(server.id, [], alerts);
-  const criticalAlerts = serverAlerts.filter((a) => a.severity === 'CRITICAL').length;
-  const warningAlerts = serverAlerts.filter((a) => a.severity === 'WARNING').length;
+  const serverAlerts = openAlertsForServer(
+    server.id,
+    websites
+      .filter((w) => w.server?.id === server.id)
+      .map((w) => ({
+        id: w.id,
+        status: w.status,
+        lastStatusCode: w.lastStatusCode,
+        monitoringEnabled: w.monitoringEnabled,
+      })),
+    alerts,
+  );
+  const counts = countAlertsBySeverity(serverAlerts);
 
-  if (server.status === 'OFFLINE' || criticalAlerts > 0) return 'critical';
-  if (server.status === 'DEGRADED' || warningAlerts > 0) return 'warning';
+  if (server.status === 'OFFLINE' || counts.CRITICAL > 0) return 'critical';
+  if (server.status === 'DEGRADED' || counts.WARNING > 0) return 'warning';
 
   const running = vms.filter((vm) => vm.status.toLowerCase() === 'running').length;
   if (vms.length > 0 && running === 0) return 'warning';
@@ -181,7 +194,7 @@ function ServerHivePanel({
 }) {
   const isProxmox = server.profile === 'PROXMOX';
   const overview = buildServerOverview(server, websites, alerts);
-  const level = isProxmox ? proxmoxHealthLevel(server, vms, alerts) : overview.level;
+  const level = isProxmox ? proxmoxHealthLevel(server, vms, websites, alerts) : overview.level;
 
   const styles = {
     ok: { border: 'border-accent/40', bg: 'bg-accent/[0.04]', bar: 'bg-accent', label: 'Opérationnel' },
@@ -229,9 +242,12 @@ function ServerHivePanel({
           </div>
           <p className="truncate pl-6 font-mono text-[11px] text-muted-foreground">{server.hostname}</p>
         </div>
-        <span className={cn('shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium', styles.border, styles.bg)}>
-          {styles.label}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-medium', styles.border, styles.bg)}>
+            {styles.label}
+          </span>
+          <SeverityCountTags counts={overview.severityCounts} showInfo={false} stacked />
+        </div>
       </header>
 
       <div className="flex flex-wrap gap-3 px-4 py-2 pl-5 text-[11px] text-muted-foreground">

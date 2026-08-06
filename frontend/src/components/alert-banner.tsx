@@ -6,6 +6,8 @@ import { Activity } from 'lucide-react';
 import { useAlerts } from './alert-provider';
 import { api, type DashboardData } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { countAlertsBySeverity } from '@/lib/alert-severity';
+import { SeverityCountTags } from '@/components/severity-count-tags';
 
 type GlobalLevel = 'ok' | 'warning' | 'critical';
 
@@ -44,10 +46,9 @@ export function AlertBanner() {
 
   const state = useMemo(() => {
     const active = summary?.active ?? [];
-    const criticalCount = active.filter((a) => a.severity === 'CRITICAL').length;
-    const warningCount = active.filter(
-      (a) => a.severity === 'WARNING' || a.severity === 'INFO',
-    ).length;
+    const severityCounts = countAlertsBySeverity(active);
+    const criticalCount = severityCounts.CRITICAL;
+    const warningCount = severityCounts.WARNING + severityCounts.INFO;
 
     const serversOffline = dashboard?.summary.servers.offline ?? 0;
     const sitesDown = dashboard?.summary.websites.down ?? 0;
@@ -61,7 +62,7 @@ export function AlertBanner() {
       level = 'warning';
     }
 
-    return { level, criticalCount, warningCount };
+    return { level, severityCounts, criticalCount, warningCount };
   }, [summary, dashboard]);
 
   const styles = levelStyles[state.level];
@@ -79,17 +80,8 @@ export function AlertBanner() {
         <span className="font-semibold">État global : {styles.label}</span>
       </span>
       <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
-        {state.criticalCount > 0 && (
-          <span className="inline-flex items-center rounded-full border border-red-400/40 bg-red-600 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-white">
-            CRITICAL · {state.criticalCount}
-          </span>
-        )}
-        {state.warningCount > 0 && (
-          <span className="inline-flex items-center rounded-full border border-amber-500/50 bg-amber-400 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-amber-950">
-            WARNING · {state.warningCount}
-          </span>
-        )}
-        {state.criticalCount === 0 && state.warningCount === 0 && (
+        <SeverityCountTags counts={state.severityCounts} showInfo={false} />
+        {state.criticalCount === 0 && state.severityCounts.WARNING === 0 && (
           <span className="text-sm font-normal opacity-90">Aucune alerte active</span>
         )}
       </span>
