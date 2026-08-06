@@ -1,5 +1,10 @@
 import type { Alert } from '@/lib/api';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
+import {
+  alertMatchesDisplaySeverity,
+  isSslExpirationAlert,
+  type DisplaySeverityKey,
+} from '@/lib/alert-severity';
 
 const STATUS_LABELS: Record<Alert['status'], string[]> = {
   ACTIVE: ['active', 'en cours'],
@@ -23,6 +28,7 @@ function alertSearchHaystack(alert: Alert): string {
     alert.status,
     ...STATUS_LABELS[alert.status],
     ...SEVERITY_LABELS[alert.severity],
+    isSslExpirationAlert(alert) ? 'expiration ssl ssl' : null,
     hosting?.name,
     hosting?.hostname,
     alert.server?.name,
@@ -45,11 +51,11 @@ function alertSearchHaystack(alert: Alert): string {
 export function filterAlerts(
   alerts: Alert[],
   query: string,
-  severity?: Alert['severity'] | '',
+  severity?: DisplaySeverityKey | '',
 ): Alert[] {
   let list = alerts;
   if (severity) {
-    list = list.filter((alert) => alert.severity === severity);
+    list = list.filter((alert) => alertMatchesDisplaySeverity(alert, severity));
   }
 
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);

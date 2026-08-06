@@ -9,7 +9,11 @@ import { useAlerts } from '@/components/alert-provider';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { filterAlerts } from '@/lib/alert-search';
-import { countAlertsBySeverity } from '@/lib/alert-severity';
+import {
+  countAlertsBySeverity,
+  DISPLAY_SEVERITY_LABELS,
+  type DisplaySeverityKey,
+} from '@/lib/alert-severity';
 import { SeverityCountTags } from '@/components/severity-count-tags';
 
 export default function AlertsPage() {
@@ -20,7 +24,7 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [severityFilter, setSeverityFilter] = useState<Alert['severity'] | ''>('');
+  const [severityFilter, setSeverityFilter] = useState<DisplaySeverityKey | ''>('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -57,7 +61,7 @@ export default function AlertsPage() {
 
   const canEdit = profile?.role === 'ADMIN' || profile?.role === 'OPERATOR';
 
-  function toggleSeverity(sev: Alert['severity']) {
+  function toggleSeverity(sev: DisplaySeverityKey) {
     setSeverityFilter((current) => (current === sev ? '' : sev));
   }
 
@@ -160,7 +164,9 @@ export default function AlertsPage() {
         <p className="text-sm text-muted-foreground">
           {filteredAlerts.length} résultat{filteredAlerts.length !== 1 ? 's' : ''}
           {searchQuery.trim() ? ` pour « ${searchQuery.trim()} »` : ''}
-          {severityFilter ? ` · sévérité ${severityFilter === 'CRITICAL' ? 'critique' : severityFilter === 'WARNING' ? 'avertissement' : 'info'}` : ''}
+          {severityFilter
+            ? ` · ${DISPLAY_SEVERITY_LABELS[severityFilter]}`
+            : ''}
         </p>
       )}
 

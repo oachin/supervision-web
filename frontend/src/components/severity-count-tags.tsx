@@ -2,12 +2,13 @@
 
 import { cn } from '@/lib/utils';
 import {
+  DISPLAY_SEVERITY_LABELS,
+  type DisplaySeverityKey,
   type SeverityCounts,
-  type SeverityKey,
 } from '@/lib/alert-severity';
 
 const SEVERITY_TAG_STYLES: Record<
-  SeverityKey,
+  DisplaySeverityKey,
   { idle: string; active: string }
 > = {
   CRITICAL: {
@@ -18,19 +19,29 @@ const SEVERITY_TAG_STYLES: Record<
     idle: 'border-amber-500/50 bg-amber-400 text-amber-950 hover:bg-amber-300',
     active: 'ring-2 ring-amber-200 ring-offset-2 ring-offset-background',
   },
+  EXPIRATION_SSL: {
+    idle: 'border-violet-400/40 bg-violet-600/90 text-white hover:bg-violet-500',
+    active: 'ring-2 ring-violet-300 ring-offset-2 ring-offset-background',
+  },
   INFO: {
     idle: 'border-sky-400/40 bg-sky-500/90 text-white hover:bg-sky-400',
     active: 'ring-2 ring-sky-200 ring-offset-2 ring-offset-background',
   },
 };
 
-const ORDER: SeverityKey[] = ['CRITICAL', 'WARNING', 'INFO'];
+const ORDER: DisplaySeverityKey[] = [
+  'CRITICAL',
+  'WARNING',
+  'EXPIRATION_SSL',
+  'INFO',
+];
 
-/** Pills CRITICAL · N / WARNING · N — shared by banner, alerts page, server tiles. */
+/** Pills CRITICAL · N / WARNING · N / EXPIRATION SSL · N — shared UI. */
 export function SeverityCountTags({
   counts,
   showZero = false,
   showInfo = true,
+  showSsl = true,
   selected,
   onSelect,
   className,
@@ -40,15 +51,18 @@ export function SeverityCountTags({
   counts: SeverityCounts;
   showZero?: boolean;
   showInfo?: boolean;
-  selected?: SeverityKey | '';
-  onSelect?: (sev: SeverityKey) => void;
+  showSsl?: boolean;
+  selected?: DisplaySeverityKey | '';
+  onSelect?: (sev: DisplaySeverityKey) => void;
   className?: string;
   stacked?: boolean;
   size?: 'sm' | 'md';
 }) {
-  const items = ORDER.filter((sev) => showInfo || sev !== 'INFO').filter(
-    (sev) => showZero || counts[sev] > 0 || selected === sev,
-  );
+  const items = ORDER.filter((sev) => {
+    if (!showInfo && sev === 'INFO') return false;
+    if (!showSsl && sev === 'EXPIRATION_SSL') return false;
+    return showZero || counts[sev] > 0 || selected === sev;
+  });
 
   if (items.length === 0) return null;
 
@@ -74,7 +88,7 @@ export function SeverityCountTags({
           count === 0 && !isSelected && 'opacity-40',
           interactive && !disabled && 'cursor-pointer transition',
         );
-        const label = `${sev} · ${count}`;
+        const label = `${DISPLAY_SEVERITY_LABELS[sev]} · ${count}`;
 
         if (interactive) {
           return (
@@ -87,8 +101,8 @@ export function SeverityCountTags({
                 isSelected
                   ? 'Retirer le filtre'
                   : count === 0
-                    ? `Aucune alerte ${sev}`
-                    : `Filtrer : ${sev}`
+                    ? `Aucune alerte ${DISPLAY_SEVERITY_LABELS[sev]}`
+                    : `Filtrer : ${DISPLAY_SEVERITY_LABELS[sev]}`
               }
               className={className}
             >

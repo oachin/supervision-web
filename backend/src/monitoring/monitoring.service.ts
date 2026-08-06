@@ -148,6 +148,11 @@ export class MonitoringService {
       select: { status: true, statusCode: true },
     });
     const downStreak = countLeadingStreak(recentChecks, (c) => c.status === 'DOWN');
+    const degradedStreak = countLeadingStreak(
+      recentChecks,
+      (c) =>
+        c.status === 'DEGRADED' && !isMaintenanceStatusCode(c.statusCode),
+    );
     const recoverStreak = countLeadingStreak(
       recentChecks,
       (c) => c.status === 'UP' || isMaintenanceStatusCode(c.statusCode),
@@ -169,6 +174,33 @@ export class MonitoringService {
           severity: 'CRITICAL',
           websiteId: website.id,
         });
+        await this.alerts.onIssueResolved({
+          websiteId: website.id,
+          titleContains: 'Site dégradé',
+        });
+      }
+    } else if (status === 'DEGRADED' && !isMaintenance) {
+      if (degradedStreak >= ALERT_FAIL_STREAK) {
+        const details = [
+          httpResult.responseMs > 3000
+            ? `Lenteur ${httpResult.responseMs} ms`
+            : null,
+          httpResult.statusCode != null &&
+          httpResult.statusCode >= 400 &&
+          httpResult.statusCode < 500
+            ? `HTTP ${httpResult.statusCode}`
+            : null,
+          httpResult.error,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+        await this.alerts.create({
+          title: `Site dégradé: ${website.name}`,
+          message: `${website.url} — ${details || 'Performance ou réponse anormale'} (${degradedStreak} checks)`,
+          severity: 'WARNING',
+          websiteId: website.id,
+        });
       }
     } else if (
       (status === 'UP' || isMaintenance) &&
@@ -177,6 +209,10 @@ export class MonitoringService {
       await this.alerts.onIssueResolved({
         websiteId: website.id,
         titleContains: 'Site hors ligne',
+      });
+      await this.alerts.onIssueResolved({
+        websiteId: website.id,
+        titleContains: 'Site dégradé',
       });
     }
 
@@ -192,12 +228,18 @@ export class MonitoringService {
 
     if (sslResult?.sslChainValid === false) {
       await this.alerts.create({
-        title: `Chaîne SSL incomplète: ${website.name}`,
+        title: `Expiration SSL (chaîne): ${website.name}`,
         message: `${website.url} — certificats intermédiaires manquants ou invalides${sslCheckHostname !== httpResult.hostname ? ` (cible ${sslCheckHostname})` : ''}`,
         severity: 'WARNING',
         websiteId: website.id,
       });
     } else if (sslHealthy) {
+      await this.alerts.autoCloseResolvedByTitle({
+        websiteId: website.id,
+        titleContains: 'Expiration SSL (chaîne)',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
+      });
       await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Chaîne SSL',
@@ -208,12 +250,18 @@ export class MonitoringService {
 
     if (sslResult?.sslValid === false) {
       await this.alerts.create({
-        title: `Certificat SSL invalide: ${website.name}`,
+        title: `Expiration SSL (invalide): ${website.name}`,
         message: `${website.url} — ${sslResult.sslError ?? 'Certificat invalide'}${sslCheckHostname !== httpResult.hostname ? ` (cible ${sslCheckHostname})` : ''}`,
         severity: 'WARNING',
         websiteId: website.id,
       });
     } else if (sslHealthy) {
+      await this.alerts.autoCloseResolvedByTitle({
+        websiteId: website.id,
+        titleContains: 'Expiration SSL (invalide)',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
+      });
       await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Certificat SSL invalide',
@@ -227,12 +275,25 @@ export class MonitoringService {
     const sslExpires = sslResult?.sslExpiresAt ?? website.sslExpiresAt;
     if (sslDays != null && sslDays > 0 && sslDays < alertDays) {
       await this.alerts.create({
-        title: `Certificat SSL expire bientôt: ${website.name}`,
+        title: `Expiration SSL: ${website.name}`,
         message: `Expire le ${sslExpires?.toISOString().split('T')[0]} (${sslDays} jours, seuil ${alertDays}j)`,
         severity: sslDays < 7 ? 'CRITICAL' : 'WARNING',
         websiteId: website.id,
       });
+      // Migrate away from legacy title fingerprint
+      await this.alerts.autoCloseResolvedByTitle({
+        websiteId: website.id,
+        titleContains: 'Certificat SSL expire bientôt',
+        origin: 'Supervision automatique',
+        resolutionMethod: 'Remplacé par Expiration SSL',
+      });
     } else if (sslResult && (sslDays == null || sslDays >= alertDays)) {
+      await this.alerts.autoCloseResolvedByTitle({
+        websiteId: website.id,
+        titleContains: 'Expiration SSL:',
+        origin: 'Supervision automatique',
+        resolutionMethod: sslAutoResolution,
+      });
       await this.alerts.autoCloseResolvedByTitle({
         websiteId: website.id,
         titleContains: 'Certificat SSL expire bientôt',

@@ -100,6 +100,16 @@ function downtimeMs(intervals: Array<[number, number]>): number {
   return mergeIntervals(intervals).reduce((sum, [a, b]) => sum + Math.max(0, b - a), 0);
 }
 
+function isSslAlertTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return (
+    t.includes('expiration ssl') ||
+    t.includes('certificat ssl') ||
+    t.includes('chaîne ssl') ||
+    t.includes('chaine ssl')
+  );
+}
+
 @Injectable()
 export class NocService {
   constructor(private prisma: PrismaService) {}
@@ -338,9 +348,13 @@ export class NocService {
           .length,
       };
 
-      const criticalAlerts = serverAlerts.filter((a) => a.severity === 'CRITICAL')
-        .length;
-      const warningAlerts = serverAlerts.filter((a) => a.severity === 'WARNING')
+      const criticalAlerts = serverAlerts.filter(
+        (a) => a.severity === 'CRITICAL' && !isSslAlertTitle(a.title),
+      ).length;
+      const warningAlerts = serverAlerts.filter(
+        (a) => a.severity === 'WARNING' && !isSslAlertTitle(a.title),
+      ).length;
+      const sslAlerts = serverAlerts.filter((a) => isSslAlertTitle(a.title))
         .length;
 
       let status: 'ok' | 'degraded' | 'critical' = 'ok';
@@ -354,16 +368,9 @@ export class NocService {
         server.status === 'DEGRADED' ||
         sites.degraded > 0 ||
         warningAlerts > 0 ||
-        (isHyper && vmsSummary.stopped > 0 && vmsSummary.ok < vmsSummary.total)
+        sslAlerts > 0
       ) {
-        // stopped VMs alone are normal — don't degrade hyper on stopped
-        if (
-          server.status === 'DEGRADED' ||
-          sites.degraded > 0 ||
-          warningAlerts > 0
-        ) {
-          status = 'degraded';
-        }
+        status = 'degraded';
       }
 
       const downSites = monitored
@@ -437,17 +444,22 @@ export class NocService {
     ).length;
     const vmsRunning = vms.filter((v) => v.status.toLowerCase() === 'running')
       .length;
-    const critAlerts = openActiveAlerts.filter((a) => a.severity === 'CRITICAL')
-      .length;
-    const warnAlerts = openActiveAlerts.filter((a) => a.severity === 'WARNING')
+    const critAlerts = openActiveAlerts.filter(
+      (a) => a.severity === 'CRITICAL' && !isSslAlertTitle(a.title),
+    ).length;
+    const warnAlerts = openActiveAlerts.filter(
+      (a) => a.severity === 'WARNING' && !isSslAlertTitle(a.title),
+    ).length;
+    const sslAlerts = openActiveAlerts.filter((a) => isSslAlertTitle(a.title))
       .length;
     const criticalHosts = hosts.filter((h) => h.status === 'critical');
 
     const feedAlerts = [
       ...openActiveAlerts.slice(0, 10).map((a) => ({
         time: a.createdAt.toISOString(),
-        severity:
-          a.severity === 'CRITICAL'
+        severity: isSslAlertTitle(a.title)
+          ? ('ssl' as const)
+          : a.severity === 'CRITICAL'
             ? ('crit' as const)
             : a.severity === 'WARNING'
               ? ('warn' as const)
@@ -500,6 +512,7 @@ export class NocService {
         criticalHosts: criticalHosts.length,
         criticalAlerts: critAlerts,
         warningAlerts: warnAlerts,
+        sslAlerts,
       },
       kpis: {
         servers: { ok: serversOk, total: hosts.length },
@@ -513,6 +526,7 @@ export class NocService {
           active: openActiveAlerts.length,
           critical: critAlerts,
           warning: warnAlerts,
+          ssl: sslAlerts,
         },
         vms: { ok: vmsRunning, total: vms.length },
         availability30d,

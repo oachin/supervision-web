@@ -94,11 +94,17 @@ export function buildServerOverview(
   const severityCounts = countAlertsBySeverity(serverAlerts);
   const criticalAlerts = severityCounts.CRITICAL;
   const warningAlerts = severityCounts.WARNING;
+  const sslAlerts = severityCounts.EXPIRATION_SSL;
 
   let level: ServerHealthLevel = 'ok';
   if (server.status === 'OFFLINE' || sitesDown > 0 || criticalAlerts > 0) {
     level = 'critical';
-  } else if (server.status === 'DEGRADED' || sitesDegraded > 0 || warningAlerts > 0) {
+  } else if (
+    server.status === 'DEGRADED' ||
+    sitesDegraded > 0 ||
+    warningAlerts > 0 ||
+    sslAlerts > 0
+  ) {
     level = 'warning';
   }
 
@@ -114,7 +120,12 @@ export function buildServerOverview(
   if (sitesMaintenance > 0) {
     summaryLines.push(`${sitesMaintenance} site${sitesMaintenance > 1 ? 's' : ''} en maintenance`);
   }
-  if (summaryLines.length === 0 && criticalAlerts === 0 && warningAlerts === 0) {
+  if (
+    summaryLines.length === 0 &&
+    criticalAlerts === 0 &&
+    warningAlerts === 0 &&
+    sslAlerts === 0
+  ) {
     summaryLines.push('Aucune alerte active');
   }
 

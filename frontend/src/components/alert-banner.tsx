@@ -48,7 +48,10 @@ export function AlertBanner() {
     const active = summary?.active ?? [];
     const severityCounts = countAlertsBySeverity(active);
     const criticalCount = severityCounts.CRITICAL;
-    const warningCount = severityCounts.WARNING + severityCounts.INFO;
+    const warningCount =
+      severityCounts.WARNING +
+      severityCounts.EXPIRATION_SSL +
+      severityCounts.INFO;
 
     const serversOffline = dashboard?.summary.servers.offline ?? 0;
     const sitesDown = dashboard?.summary.websites.down ?? 0;
@@ -81,7 +84,9 @@ export function AlertBanner() {
       </span>
       <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
         <SeverityCountTags counts={state.severityCounts} showInfo={false} />
-        {state.criticalCount === 0 && state.severityCounts.WARNING === 0 && (
+        {state.criticalCount === 0 &&
+          state.severityCounts.WARNING === 0 &&
+          state.severityCounts.EXPIRATION_SSL === 0 && (
           <span className="text-sm font-normal opacity-90">Aucune alerte active</span>
         )}
       </span>

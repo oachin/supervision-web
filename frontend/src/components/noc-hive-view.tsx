@@ -171,7 +171,13 @@ function proxmoxHealthLevel(
   const counts = countAlertsBySeverity(serverAlerts);
 
   if (server.status === 'OFFLINE' || counts.CRITICAL > 0) return 'critical';
-  if (server.status === 'DEGRADED' || counts.WARNING > 0) return 'warning';
+  if (
+    server.status === 'DEGRADED' ||
+    counts.WARNING > 0 ||
+    counts.EXPIRATION_SSL > 0
+  ) {
+    return 'warning';
+  }
 
   const running = vms.filter((vm) => vm.status.toLowerCase() === 'running').length;
   if (vms.length > 0 && running === 0) return 'warning';

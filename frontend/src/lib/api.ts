@@ -856,7 +856,7 @@ export interface NocHost {
 
 export interface NocAlertFeedItem {
   time: string;
-  severity: 'crit' | 'warn' | 'info' | 'ok';
+  severity: 'crit' | 'warn' | 'ssl' | 'info' | 'ok';
   host: string;
   message: string;
 }
@@ -869,11 +869,12 @@ export interface NocState {
     criticalHosts: number;
     criticalAlerts: number;
     warningAlerts: number;
+    sslAlerts?: number;
   };
   kpis: {
     servers: { ok: number; total: number };
     sites: { ok: number; total: number; down: number; degraded: number };
-    alerts: { active: number; critical: number; warning: number };
+    alerts: { active: number; critical: number; warning: number; ssl?: number };
     vms: { ok: number; total: number };
     availability30d: number | null;
   };

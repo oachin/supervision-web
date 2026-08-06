@@ -10,6 +10,7 @@ const POLL_MS = 30_000;
 const SEV_LABEL = {
   crit: 'CRITICAL',
   warn: 'WARNING',
+  ssl: 'EXPIRATION SSL',
   info: 'INFO',
   ok: 'RESOLU',
 } as const;
@@ -17,13 +18,15 @@ const SEV_LABEL = {
 function SeverityTags({
   critical,
   warning,
+  ssl = 0,
   info = 0,
 }: {
   critical: number;
   warning: number;
+  ssl?: number;
   info?: number;
 }) {
-  if (critical <= 0 && warning <= 0 && info <= 0) return null;
+  if (critical <= 0 && warning <= 0 && ssl <= 0 && info <= 0) return null;
   return (
     <div className="sev-tags">
       {critical > 0 && (
@@ -31,6 +34,9 @@ function SeverityTags({
       )}
       {warning > 0 && (
         <span className="sev-tag warn">WARNING · {warning}</span>
+      )}
+      {ssl > 0 && (
+        <span className="sev-tag ssl">EXPIRATION SSL · {ssl}</span>
       )}
       {info > 0 && <span className="sev-tag info">INFO · {info}</span>}
     </div>
@@ -448,12 +454,13 @@ export function NocCommandCenter() {
 
   const bannerCrit = state?.global.criticalAlerts ?? 0;
   const bannerWarn = state?.global.warningAlerts ?? 0;
+  const bannerSsl = state?.global.sslAlerts ?? 0;
   const bannerLevel =
     !state
       ? null
       : state.global.criticalHosts > 0 || bannerCrit > 0
         ? 'crit'
-        : bannerWarn > 0
+        : bannerWarn > 0 || bannerSsl > 0
           ? 'warn'
           : 'ok';
   const bannerLabel =
@@ -550,7 +557,7 @@ export function NocCommandCenter() {
               className={`kpi ${
                 kpis.alerts.critical > 0
                   ? 'crit'
-                  : kpis.alerts.warning > 0
+                  : kpis.alerts.warning > 0 || (kpis.alerts.ssl ?? 0) > 0
                     ? 'warn'
                     : 'ok'
               }`}
@@ -562,6 +569,7 @@ export function NocCommandCenter() {
                 <SeverityTags
                   critical={kpis.alerts.critical}
                   warning={kpis.alerts.warning}
+                  ssl={kpis.alerts.ssl ?? 0}
                 />
                 {kpis.alerts.active === 0 && 'Aucune alerte'}
               </div>
