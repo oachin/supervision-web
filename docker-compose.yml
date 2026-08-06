@@ -46,10 +46,16 @@ services:
       AUDIT_MIN_CONFIDENCE: confirmed
       AUDIT_VERIFY_BACKPORTS: "true"
       # WEBSEC_API_KEY and optional NVD_API_KEY come from .env.secrets
+    # Bypass Docker embedded DNS (127.0.0.11) which can SERVFAIL external lookups
+    # and falsely mark reachable sites as down (−50 → score 50/E).
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - websec_data:/data
     networks:
       - internal
+      - public
 
   backend:
     build:
