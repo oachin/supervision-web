@@ -49,25 +49,93 @@ function gradeClass(grade?: string | null) {
   }
 }
 
+/** Lower index = better grade. A+ is one step above A. */
+function gradeRank(grade?: string | null): number | null {
+  if (!grade) return null;
+  const g = grade.trim().toUpperCase();
+  const order = ['A+', 'A', 'B', 'C', 'D', 'E', 'F'];
+  const idx = order.indexOf(g);
+  return idx >= 0 ? idx : null;
+}
+
+function formatSigned(n: number): string {
+  if (n > 0) return `+${n}`;
+  return String(n);
+}
+
+function DeltaChip({
+  value,
+  betterWhenPositive,
+}: {
+  value: number | null;
+  /** For score: higher is better. For grade rank delta we invert (lower rank = better). */
+  betterWhenPositive: boolean;
+}) {
+  if (value == null || value === 0) {
+    return (
+      <span className="inline-flex min-w-[2rem] items-center justify-center rounded-md border border-white/10 bg-white/[0.03] px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+        {value === 0 ? '0' : '—'}
+      </span>
+    );
+  }
+  const improved = betterWhenPositive ? value > 0 : value < 0;
+  return (
+    <span
+      className={cn(
+        'inline-flex min-w-[2rem] items-center justify-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold tabular-nums',
+        improved
+          ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+          : 'border-destructive/30 bg-destructive/15 text-destructive',
+      )}
+    >
+      {formatSigned(value)}
+    </span>
+  );
+}
+
 function ScoreTagGroup({
   label,
   score,
   grade,
+  previousScore,
+  previousGrade,
+  showProgression = false,
 }: {
   label: string;
   score?: number | null;
   grade?: string | null;
+  previousScore?: number | null;
+  previousGrade?: string | null;
+  showProgression?: boolean;
 }) {
   const hasScore = typeof score === 'number';
+  const scoreDelta =
+    showProgression && hasScore && typeof previousScore === 'number'
+      ? score - previousScore
+      : null;
+  const currentRank = gradeRank(grade);
+  const previousRank = gradeRank(previousGrade);
+  // Positive letter units = improved (moved toward A).
+  const gradeDelta =
+    showProgression && currentRank != null && previousRank != null
+      ? previousRank - currentRank
+      : null;
+
   return (
     <div className="inline-flex flex-col gap-1">
       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">
+        {showProgression && (
+          <DeltaChip value={scoreDelta} betterWhenPositive />
+        )}
         <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs font-semibold tabular-nums">
           {hasScore ? `${score}/100` : '—'}
         </span>
+        {showProgression && (
+          <DeltaChip value={gradeDelta} betterWhenPositive />
+        )}
         <span
           className={cn(
             'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold',
@@ -272,6 +340,9 @@ export default function CyberEvolutionPage() {
                           label="Score actuel"
                           score={site.score}
                           grade={site.grade}
+                          previousScore={site.previousScore}
+                          previousGrade={site.previousGrade}
+                          showProgression
                         />
                         <ScoreTagGroup
                           label="Score précédent"
