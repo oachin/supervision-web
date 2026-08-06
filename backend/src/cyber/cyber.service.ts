@@ -453,6 +453,15 @@ export class CyberService {
       .filter((s) => this.siteMatchesInventory(s, inventory))
       .map((s) => {
         const findings = Array.isArray(s.findings) ? s.findings : [];
+        const history = Array.isArray(s.history)
+          ? (s.history as Array<Record<string, unknown>>)
+          : [];
+        const previous = history.length >= 2 ? history[history.length - 2] : null;
+        const latestHist = history.length >= 1 ? history[history.length - 1] : null;
+        const startedAt =
+          (typeof s.started_at === 'string' && s.started_at) ||
+          (typeof latestHist?.started_at === 'string' && latestHist.started_at) ||
+          null;
         return {
           name: s.name,
           url: s.url,
@@ -460,6 +469,11 @@ export class CyberService {
           score: s.score,
           grade: s.grade,
           findingsCount: findings.length,
+          startedAt,
+          previousScore:
+            typeof previous?.score === 'number' ? previous.score : null,
+          previousGrade:
+            typeof previous?.grade === 'string' ? previous.grade : null,
         };
       });
 

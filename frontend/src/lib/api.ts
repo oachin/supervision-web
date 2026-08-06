@@ -779,6 +779,10 @@ export interface CyberSiteResult {
   findings?: CyberFinding[];
   findingsCount?: number;
   history?: CyberHistoryPoint[];
+  /** ISO timestamp of the latest audit (overview payload). */
+  startedAt?: string | null;
+  previousScore?: number | null;
+  previousGrade?: string | null;
 }
 
 export interface CyberAutoTarget {

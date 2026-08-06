@@ -15,6 +15,7 @@ import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview, type CyberTrendPoint } from '@/lib/api';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 import { OpenExternalUrl } from '@/components/open-external-url';
+import { cn } from '@/lib/utils';
 
 function formatLabel(iso?: string | null) {
   if (!iso) return '—';
@@ -28,6 +29,56 @@ function formatLabel(iso?: string | null) {
   } catch {
     return iso;
   }
+}
+
+function gradeClass(grade?: string | null) {
+  switch (grade) {
+    case 'A':
+    case 'A+':
+      return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300';
+    case 'B':
+      return 'border-sky-500/30 bg-sky-500/15 text-sky-300';
+    case 'C':
+      return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
+    case 'D':
+    case 'E':
+    case 'F':
+      return 'border-destructive/30 bg-destructive/15 text-destructive';
+    default:
+      return 'border-white/10 bg-secondary text-muted-foreground';
+  }
+}
+
+function ScoreTagGroup({
+  label,
+  score,
+  grade,
+}: {
+  label: string;
+  score?: number | null;
+  grade?: string | null;
+}) {
+  const hasScore = typeof score === 'number';
+  return (
+    <div className="inline-flex flex-col gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-xs font-semibold tabular-nums">
+          {hasScore ? `${score}/100` : '—'}
+        </span>
+        <span
+          className={cn(
+            'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold',
+            gradeClass(grade),
+          )}
+        >
+          {grade || '?'}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function CyberEvolutionPage() {
@@ -182,41 +233,58 @@ export default function CyberEvolutionPage() {
               : 'Aucun site scanné.'}
           </p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-left text-muted-foreground">
-                <th className="p-4 font-medium">Site</th>
-                <th className="p-4 font-medium">Score actuel</th>
-                <th className="p-4 font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSites.map((site) => (
-                <tr key={site.url ?? site.name} className="border-b border-white/5">
-                  <td className="p-4">
-                    <div className="flex items-center gap-1.5">
-                      {site.url ? (
-                        <Link
-                          href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                          className="font-medium hover:text-primary hover:underline"
-                        >
-                          {site.name}
-                        </Link>
-                      ) : (
-                        <div className="font-medium">{site.name}</div>
-                      )}
-                      <OpenExternalUrl url={site.url} />
-                    </div>
-                    <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
-                      {site.url}
-                    </div>
-                  </td>
-                  <td className="p-4">{site.score ?? '—'}/100</td>
-                  <td className="p-4">{site.grade ?? '?'}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5 text-left text-muted-foreground">
+                  <th className="p-4 font-medium">Site</th>
+                  <th className="p-4 font-medium">Dernier audit</th>
+                  <th className="p-4 font-medium">Scores</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredSites.map((site) => (
+                  <tr key={site.url ?? site.name} className="border-b border-white/5">
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5">
+                        {site.url ? (
+                          <Link
+                            href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                            className="font-medium hover:text-primary hover:underline"
+                          >
+                            {site.name}
+                          </Link>
+                        ) : (
+                          <div className="font-medium">{site.name}</div>
+                        )}
+                        <OpenExternalUrl url={site.url} />
+                      </div>
+                      <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                        {site.url}
+                      </div>
+                    </td>
+                    <td className="p-4 whitespace-nowrap text-muted-foreground">
+                      {formatLabel(site.startedAt)}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap items-start gap-4">
+                        <ScoreTagGroup
+                          label="Score actuel"
+                          score={site.score}
+                          grade={site.grade}
+                        />
+                        <ScoreTagGroup
+                          label="Score précédent"
+                          score={site.previousScore}
+                          grade={site.previousGrade}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
