@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
   ChevronRight,
@@ -170,6 +171,11 @@ export function AlertDetailModal({
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [listPanel, setListPanel] = useState<'occurrences' | 'events' | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -227,7 +233,7 @@ export function AlertDetailModal({
     }
   }
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const alert = detail ?? summary;
   const server = getAlertHostingServer(alert);
@@ -245,9 +251,9 @@ export function AlertDetailModal({
           ? 'from-violet-500/35 via-violet-500/10 to-transparent'
           : 'from-sky-500/30 via-sky-500/10 to-transparent';
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-sm"
       onClick={() => {
         if (listPanel) {
           setListPanel(null);
@@ -526,6 +532,7 @@ export function AlertDetailModal({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
