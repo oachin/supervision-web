@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { api, type Alert, type User } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { formatDate } from '@/lib/utils';
 import { useAlerts } from '@/components/alert-provider';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
@@ -205,6 +206,7 @@ export default function AlertsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <SeverityBadge severity={a.severity} />
                     <h3 className="font-semibold">{a.title}</h3>
+                    <OpenExternalUrl url={a.website?.url} />
                     {a.occurrenceCount > 1 && (
                       <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
                     )}

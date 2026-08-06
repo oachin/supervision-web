@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import { ArrowLeft, FileDown, FileText, AlertTriangle } from 'lucide-react';
 import { api, type CyberFinding, type CyberSiteResult } from '@/lib/api';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { cn } from '@/lib/utils';
 
 const SEV_COLORS: Record<string, string> = {
@@ -145,7 +146,10 @@ function SiteDetailInner() {
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{site?.name || 'Site'}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{site?.name || 'Site'}</h1>
+              <OpenExternalUrl url={url || site?.url} iconClassName="h-4 w-4" />
+            </div>
             <p className="font-mono text-sm text-muted-foreground">{url}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

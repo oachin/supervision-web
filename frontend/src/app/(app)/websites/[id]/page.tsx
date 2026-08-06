@@ -14,6 +14,7 @@ import { WebsiteStatusBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
 import { SeverityCountTags } from '@/components/severity-count-tags';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { cn, formatDate, isMaintenanceStatus } from '@/lib/utils';
 import {
   countAlertsBySeverity,
@@ -158,7 +159,10 @@ export default function WebsiteDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold">{website.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{website.name}</h1>
+            <OpenExternalUrl url={website.url} iconClassName="h-4 w-4" />
+          </div>
           <p className="font-mono text-sm text-muted-foreground">{website.url}</p>
           <p className="mt-1 text-xs text-muted-foreground">Supervision externe HTTP/SSL</p>
         </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FileDown, FileText, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview } from '@/lib/api';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
+import { OpenExternalUrl } from '@/components/open-external-url';
 
 export default function CyberRapportPage() {
   const [data, setData] = useState<CyberOverview | null>(null);
@@ -144,7 +145,10 @@ export default function CyberRapportPage() {
               {filteredSites.map((site) => (
                 <tr key={site.url ?? site.name} className="border-b border-white/5">
                   <td className="p-4">
-                    <div className="font-medium">{site.name}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-medium">{site.name}</div>
+                      <OpenExternalUrl url={site.url} />
+                    </div>
                     <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
                       {site.url}
                     </div>

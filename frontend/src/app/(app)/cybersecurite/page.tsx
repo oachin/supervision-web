@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Play, RefreshCw, Shield, AlertTriangle, FileText, TrendingUp, CalendarClock, Info } from 'lucide-react';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
+import { OpenExternalUrl } from '@/components/open-external-url';
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
@@ -476,16 +477,19 @@ export default function CybersecuritePage() {
                     return (
                       <tr key={site.url ?? site.name} className="border-b border-white/5">
                         <td className="p-4 font-medium">
-                          {site.url ? (
-                            <Link
-                              href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
-                              className="hover:text-primary hover:underline"
-                            >
-                              {site.name}
-                            </Link>
-                          ) : (
-                            site.name
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {site.url ? (
+                              <Link
+                                href={`/cybersecurite/site?url=${encodeURIComponent(site.url)}`}
+                                className="hover:text-primary hover:underline"
+                              >
+                                {site.name}
+                              </Link>
+                            ) : (
+                              site.name
+                            )}
+                            <OpenExternalUrl url={site.url} />
+                          </div>
                         </td>
                         <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
                           {site.url}

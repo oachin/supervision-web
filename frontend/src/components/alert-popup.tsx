@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { Alert } from '@/lib/api';
 import { SeverityBadge } from './ui';
+import { OpenExternalUrl } from './open-external-url';
 import { formatDate } from '@/lib/utils';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 
@@ -50,7 +51,14 @@ export function AlertPopup({
           <div className="flex items-center justify-center gap-2">
             <SeverityBadge severity={alert.severity} />
           </div>
-          <h3 className="text-center text-lg font-semibold text-white">{alert.title}</h3>
+          <div className="flex items-center justify-center gap-2">
+            <h3 className="text-center text-lg font-semibold text-white">{alert.title}</h3>
+            <OpenExternalUrl
+              url={alert.website?.url}
+              className="text-red-200/80 hover:bg-red-500/20 hover:text-white"
+              iconClassName="h-4 w-4"
+            />
+          </div>
           <p className="text-center text-sm text-red-100/90">{alert.message}</p>
           {(() => {
             const server = getAlertHostingServer(alert);
@@ -62,7 +70,13 @@ export function AlertPopup({
             ) : null;
           })()}
           {alert.website && (
-            <p className="text-center text-xs text-red-200/70">Site : {alert.website.name}</p>
+            <p className="inline-flex items-center justify-center gap-1 text-center text-xs text-red-200/70">
+              Site : {alert.website.name}
+              <OpenExternalUrl
+                url={alert.website.url}
+                className="text-red-200/80 hover:bg-red-500/20 hover:text-white"
+              />
+            </p>
           )}
           <p className="text-center text-xs text-red-300/60">{formatDate(alert.createdAt)}</p>
         </div>

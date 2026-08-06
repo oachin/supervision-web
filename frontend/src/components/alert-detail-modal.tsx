@@ -6,8 +6,8 @@ import Link from 'next/link';
 import {
   ChevronRight,
   Clock3,
-  ExternalLink,
   FileText,
+  Globe,
   Loader2,
   RotateCcw,
   Server,
@@ -19,6 +19,7 @@ import {
 import { api, type Alert, type AlertDetail, type AlertEvent } from '@/lib/api';
 import { alertActionLabels, occurrenceActions } from '@/lib/alert-event-labels';
 import { SeverityBadge } from '@/components/ui';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { cn, formatDate } from '@/lib/utils';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { displaySeverityOf, isSslExpirationAlert } from '@/lib/alert-severity';
@@ -296,12 +297,19 @@ export function AlertDetailModal({
                   </span>
                 )}
               </div>
-              <h2
-                id="alert-modal-title"
-                className="mt-2.5 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
-              >
-                {alert.title}
-              </h2>
+              <div className="mt-2.5 flex items-start gap-2">
+                <h2
+                  id="alert-modal-title"
+                  className="min-w-0 flex-1 text-lg font-semibold leading-snug tracking-tight sm:text-xl"
+                >
+                  {alert.title}
+                </h2>
+                <OpenExternalUrl
+                  url={website?.url}
+                  className="mt-0.5"
+                  iconClassName="h-4 w-4"
+                />
+              </div>
               <p className="mt-1.5 max-w-3xl text-sm text-muted-foreground">{alert.message}</p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -397,13 +405,16 @@ export function AlertDetailModal({
                     className="group flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.05]"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5">
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                      <Globe className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Site
                       </p>
-                      <p className="truncate font-semibold">{website.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-semibold">{website.name}</p>
+                        <OpenExternalUrl url={website.url} />
+                      </div>
                       <p className="truncate text-[11px] text-muted-foreground">{website.url}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition group-hover:translate-x-0.5" />

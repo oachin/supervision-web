@@ -8,6 +8,7 @@ import { api, type Alert, type User } from '@/lib/api';
 import { SeverityBadge } from '@/components/ui';
 import { SeverityCountTags } from '@/components/severity-count-tags';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { useAlerts } from '@/components/alert-provider';
 import { formatDate, cn } from '@/lib/utils';
 import { groupServerAlertsBySite } from '@/lib/server-alerts';
@@ -122,7 +123,15 @@ export function ServerAlertsBySitePanel({
           {groups.map((group) => (
             <div key={group.key} className="overflow-hidden rounded-lg border border-white/5">
               <div className="border-b border-white/5 bg-secondary/20 px-4 py-2.5">
-                <p className="font-medium">{group.label}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">{group.label}</p>
+                  <OpenExternalUrl
+                    url={
+                      group.alerts[0]?.website?.url ??
+                      (group.subtitle?.startsWith('http') ? group.subtitle : null)
+                    }
+                  />
+                </div>
                 {group.subtitle && (
                   <p className="truncate text-xs text-muted-foreground">{group.subtitle}</p>
                 )}
@@ -147,6 +156,7 @@ export function ServerAlertsBySitePanel({
                               <SeverityBadge severity={alert.severity} />
                             )}
                             <span className="font-medium">{alert.title}</span>
+                            <OpenExternalUrl url={alert.website?.url} />
                             {alert.occurrenceCount > 1 && (
                               <span className="rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
                                 ×{alert.occurrenceCount}

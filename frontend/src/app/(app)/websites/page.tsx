@@ -8,6 +8,7 @@ import { api, type Website } from '@/lib/api';
 import { WebsiteStatusBadge, HttpCodeBadge, DnsBadge } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { StatusSummaryBanner } from '@/components/status-summary-banner';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { formatDate, cn, isSiteDegraded } from '@/lib/utils';
 
 const filterLabels: Record<string, string> = {
@@ -279,7 +280,12 @@ function WebsitesPageContent() {
               {filteredWebsites.map((w) => (
                 <tr key={w.id} className={`border-b border-white/5 hover:bg-secondary/20 ${!w.monitoringEnabled ? 'opacity-60' : ''}`}>
                   <td className="p-4">
-                    <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">{w.name}</Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link href={`/websites/${w.id}`} className="font-medium hover:text-primary">
+                        {w.name}
+                      </Link>
+                      <OpenExternalUrl url={w.url} />
+                    </div>
                   </td>
                   <td className="p-4 font-mono text-xs">{w.url}</td>
                   <td className="p-4">

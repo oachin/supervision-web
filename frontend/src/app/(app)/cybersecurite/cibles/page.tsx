@@ -5,6 +5,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { api, type CyberTargets } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
+import { OpenExternalUrl } from '@/components/open-external-url';
 
 export default function CyberCiblesPage() {
   const { hasPermission } = useAuthProfile();
@@ -168,7 +169,12 @@ export default function CyberCiblesPage() {
             <tbody>
               {filteredSupervision.map((t) => (
                 <tr key={t.id} className="border-b border-white/5">
-                  <td className="p-4 font-medium">{t.name}</td>
+                  <td className="p-4 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      {t.name}
+                      <OpenExternalUrl url={t.url} />
+                    </div>
+                  </td>
                   <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
                     {t.url}
                   </td>
@@ -213,7 +219,12 @@ export default function CyberCiblesPage() {
             <tbody>
               {filteredExternal.map((t) => (
                 <tr key={t.id} className="border-b border-white/5">
-                  <td className="p-4 font-medium">{t.name}</td>
+                  <td className="p-4 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      {t.name}
+                      <OpenExternalUrl url={t.url} />
+                    </div>
+                  </td>
                   <td className="max-w-xs truncate p-4 font-mono text-xs text-muted-foreground">
                     {t.url}
                   </td>

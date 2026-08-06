@@ -17,6 +17,7 @@ import { api, type CyberAutomation, type CyberAutoTarget } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 import { cn } from '@/lib/utils';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
+import { OpenExternalUrl } from '@/components/open-external-url';
 
 const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
@@ -338,9 +339,12 @@ export default function CyberAutomationPage() {
                       aria-label={`Inclure ${t.name} dans le scan auto`}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
-                        {t.name}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className={cn('truncate text-sm font-medium', !t.includedInAuto && 'text-muted-foreground')}>
+                          {t.name}
+                        </p>
+                        <OpenExternalUrl url={t.url} />
+                      </div>
                       <p className="truncate font-mono text-xs text-muted-foreground">{t.url}</p>
                     </div>
                     {!t.includedInAuto && (

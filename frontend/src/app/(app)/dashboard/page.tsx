@@ -6,6 +6,7 @@ import { api, type DashboardData, type ServerWithHistory, type User, type Websit
 import { MetricCard, SeverityBadge } from '@/components/ui';
 import { ServerOverviewCards } from '@/components/server-overview-cards';
 import { AlertDetailModal } from '@/components/alert-detail-modal';
+import { OpenExternalUrl } from '@/components/open-external-url';
 import { getAlertHostingServer } from '@/lib/alert-hosting';
 import { formatDate, cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -153,13 +154,18 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {disabledWebsites.map((w) => (
-              <Link
+              <span
                 key={w.id}
-                href={`/websites/${w.id}`}
-                className="rounded-lg border border-white/10 bg-secondary/20 px-3 py-1.5 text-sm transition-colors hover:border-primary/30"
+                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-secondary/20 px-3 py-1.5 text-sm"
               >
-                {w.name}
-              </Link>
+                <Link
+                  href={`/websites/${w.id}`}
+                  className="transition-colors hover:text-primary"
+                >
+                  {w.name}
+                </Link>
+                <OpenExternalUrl url={w.url} />
+              </span>
             ))}
             {websitesDisabled > disabledWebsites.length && (
               <span className="self-center text-xs text-muted-foreground">
@@ -194,6 +200,7 @@ export default function DashboardPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <SeverityBadge severity={a.severity} />
                       <p className="font-medium">{a.title}</p>
+                      <OpenExternalUrl url={a.website?.url} />
                       {a.occurrenceCount > 1 && (
                         <span className="badge-warning">Occurrence {a.occurrenceCount}</span>
                       )}

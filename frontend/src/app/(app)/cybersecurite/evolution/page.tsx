@@ -14,6 +14,7 @@ import {
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview, type CyberTrendPoint } from '@/lib/api';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
+import { OpenExternalUrl } from '@/components/open-external-url';
 
 function formatLabel(iso?: string | null) {
   if (!iso) return '—';
@@ -194,11 +195,14 @@ export default function CyberEvolutionPage() {
               {filteredSites.map((site) => (
                 <tr key={site.url ?? site.name} className="border-b border-white/5">
                   <td className="p-4">
-                    <div className="font-medium">{site.name}</div>
-                    <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
-                      {site.url}
-                    </div>
-                  </td>
+                      <div className="flex items-center gap-1.5">
+                        <div className="font-medium">{site.name}</div>
+                        <OpenExternalUrl url={site.url} />
+                      </div>
+                      <div className="max-w-md truncate font-mono text-xs text-muted-foreground">
+                        {site.url}
+                      </div>
+                    </td>
                   <td className="p-4">{site.score ?? '—'}/100</td>
                   <td className="p-4">{site.grade ?? '?'}</td>
                   <td className="p-4 text-right">
