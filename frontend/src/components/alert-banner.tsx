@@ -43,39 +43,25 @@ export function AlertBanner() {
   }, []);
 
   const state = useMemo(() => {
-    const counts = summary?.counts ?? { active: 0, acknowledged: 0, pendingClose: 0, closed: 0 };
-    const unresolvedAlerts = counts.active;
-    const hasCriticalActive = summary?.active.some((a) => a.severity === 'CRITICAL') ?? false;
+    const active = summary?.active ?? [];
+    const criticalCount = active.filter((a) => a.severity === 'CRITICAL').length;
+    const warningCount = active.filter(
+      (a) => a.severity === 'WARNING' || a.severity === 'INFO',
+    ).length;
 
     const serversOffline = dashboard?.summary.servers.offline ?? 0;
     const sitesDown = dashboard?.summary.websites.down ?? 0;
     const serversDegraded = dashboard?.summary.servers.degraded ?? 0;
     const sitesDegraded = dashboard?.summary.websites.degraded ?? 0;
-    const sitesDisabled = dashboard?.summary.websites.disabled ?? 0;
 
     let level: GlobalLevel = 'ok';
-    if (serversOffline > 0 || sitesDown > 0 || hasCriticalActive) {
+    if (serversOffline > 0 || sitesDown > 0 || criticalCount > 0) {
       level = 'critical';
-    } else if (
-      unresolvedAlerts > 0 ||
-      serversDegraded > 0 ||
-      sitesDegraded > 0 ||
-      sitesDisabled > 0
-    ) {
+    } else if (warningCount > 0 || serversDegraded > 0 || sitesDegraded > 0) {
       level = 'warning';
     }
 
-    const details: string[] = [];
-    if (unresolvedAlerts > 0) {
-      details.push(`${unresolvedAlerts} alerte${unresolvedAlerts > 1 ? 's' : ''} non résolue${unresolvedAlerts > 1 ? 's' : ''}`);
-    } else {
-      details.push('Aucune alerte active');
-    }
-    if (sitesDisabled > 0) {
-      details.push(`${sitesDisabled} site${sitesDisabled > 1 ? 's' : ''} hors supervision`);
-    }
-
-    return { level, unresolvedAlerts, sitesDisabled, details: details.join(' · ') };
+    return { level, criticalCount, warningCount };
   }, [summary, dashboard]);
 
   const styles = levelStyles[state.level];
@@ -92,8 +78,20 @@ export function AlertBanner() {
       <span className="text-sm">
         <span className="font-semibold">État global : {styles.label}</span>
       </span>
-      <span className={cn('ml-auto text-sm font-normal opacity-90', state.level === 'warning' && 'dark:opacity-100')}>
-        {state.details}
+      <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {state.criticalCount > 0 && (
+          <span className="inline-flex items-center rounded-full border border-red-400/40 bg-red-600 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-white">
+            CRITICAL · {state.criticalCount}
+          </span>
+        )}
+        {state.warningCount > 0 && (
+          <span className="inline-flex items-center rounded-full border border-amber-500/50 bg-amber-400 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-amber-950">
+            WARNING · {state.warningCount}
+          </span>
+        )}
+        {state.criticalCount === 0 && state.warningCount === 0 && (
+          <span className="text-sm font-normal opacity-90">Aucune alerte active</span>
+        )}
       </span>
     </Link>
   );
