@@ -219,6 +219,9 @@ class ApiClient {
   // Websites
   getWebsites() { return this.fetch<WebsiteWithHistory[]>('/websites'); }
   getWebsite(id: string) { return this.fetch<WebsiteDetail>(`/websites/${id}`); }
+  getWebsiteAlertStability(id: string) {
+    return this.fetch<WebsiteAlertStability>(`/websites/${id}/alert-stability`);
+  }
   createWebsite(data: CreateWebsiteData) { return this.fetch<Website>('/websites', { method: 'POST', body: JSON.stringify(data) }); }
   updateWebsite(id: string, data: Partial<CreateWebsiteData>) { return this.fetch<Website>(`/websites/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   deleteWebsite(id: string) { return this.fetch(`/websites/${id}`, { method: 'DELETE' }); }
@@ -600,6 +603,24 @@ export interface WebsiteCheck {
 export interface WebsiteSummary extends Website {}
 export interface WebsiteDetail extends Website {
   checks: WebsiteCheck[];
+}
+
+export type WebsiteAlertStabilityCounts = {
+  CRITICAL: number;
+  WARNING: number;
+  EXPIRATION_SSL: number;
+  INFO: number;
+  total: number;
+};
+
+export interface WebsiteAlertStability {
+  websiteId: string;
+  active: Alert[];
+  periods: {
+    key: string;
+    label: string;
+    counts: WebsiteAlertStabilityCounts;
+  }[];
 }
 
 export interface Alert {

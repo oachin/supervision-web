@@ -121,4 +121,113 @@ export class WebsitesService {
       orderBy: { checkedAt: 'asc' },
     });
   }
+
+  /**
+   * Active alerts + severity counts over stability windows
+   * (occurrences / créations / réouvertures).
+   */
+  async getAlertStability(id: string) {
+    const website = await this.prisma.website.findUnique({ where: { id } });
+    if (!website) throw new NotFoundException('Site introuvable');
+
+    const periods = [
+      { key: '5m', label: '5 min', ms: 5 * 60 * 1000 },
+      { key: '1h', label: '1 h', ms: 60 * 60 * 1000 },
+      { key: '12h', label: '12 h', ms: 12 * 60 * 60 * 1000 },
+      { key: '1d', label: '1 j', ms: 24 * 60 * 60 * 1000 },
+      { key: '1mo', label: '1 mois', ms: 30 * 24 * 60 * 60 * 1000 },
+      { key: '3mo', label: '3 mois', ms: 90 * 24 * 60 * 60 * 1000 },
+      { key: '6mo', label: '6 mois', ms: 180 * 24 * 60 * 60 * 1000 },
+      { key: '1y', label: '1 an', ms: 365 * 24 * 60 * 60 * 1000 },
+    ] as const;
+
+    const longestMs = periods[periods.length - 1].ms;
+    const since = new Date(Date.now() - longestMs);
+
+    const [active, events] = await Promise.all([
+      this.prisma.alert.findMany({
+        where: {
+          websiteId: id,
+          status: { in: ['ACTIVE', 'ACKNOWLEDGED'] },
+        },
+        orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+        include: {
+          server: { select: { id: true, name: true, hostname: true } },
+          website: {
+            select: {
+              id: true,
+              name: true,
+              url: true,
+              serverId: true,
+              server: { select: { id: true, name: true, hostname: true } },
+            },
+          },
+          acknowledgedBy: { select: { id: true, name: true, email: true } },
+          closedBy: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.alertEvent.findMany({
+        where: {
+          createdAt: { gte: since },
+          action: { in: ['CREATED', 'REOPENED', 'OCCURRENCE', 'SNOOZE_EXPIRED'] },
+          alert: { websiteId: id },
+        },
+        select: {
+          createdAt: true,
+          alert: { select: { severity: true, title: true } },
+        },
+      }),
+    ]);
+
+    const empty = () => ({
+      CRITICAL: 0,
+      WARNING: 0,
+      EXPIRATION_SSL: 0,
+      INFO: 0,
+      total: 0,
+    });
+
+    const classify = (title: string, severity: string) => {
+      const t = title.toLowerCase();
+      if (
+        t.includes('expiration ssl') ||
+        t.includes('certificat ssl') ||
+        t.includes('chaîne ssl') ||
+        t.includes('chaine ssl')
+      ) {
+        return 'EXPIRATION_SSL' as const;
+      }
+      if (severity === 'CRITICAL' || severity === 'WARNING' || severity === 'INFO') {
+        return severity as 'CRITICAL' | 'WARNING' | 'INFO';
+      }
+      return 'INFO' as const;
+    };
+
+    const now = Date.now();
+    const byPeriod = Object.fromEntries(
+      periods.map((p) => [p.key, empty()]),
+    ) as Record<string, ReturnType<typeof empty>>;
+
+    for (const ev of events) {
+      if (!ev.alert) continue;
+      const bucket = classify(ev.alert.title, ev.alert.severity);
+      const age = now - ev.createdAt.getTime();
+      for (const p of periods) {
+        if (age <= p.ms) {
+          byPeriod[p.key][bucket] += 1;
+          byPeriod[p.key].total += 1;
+        }
+      }
+    }
+
+    return {
+      websiteId: id,
+      active,
+      periods: periods.map((p) => ({
+        key: p.key,
+        label: p.label,
+        counts: byPeriod[p.key],
+      })),
+    };
+  }
 }

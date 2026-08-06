@@ -39,6 +39,12 @@ export class WebsitesController {
     return this.websites.getChecks(id, hours ? parseInt(hours, 10) : 24);
   }
 
+  @Get(':id/alert-stability')
+  @Roles('ADMIN', 'OPERATOR', 'VIEWER')
+  getAlertStability(@Param('id') id: string) {
+    return this.websites.getAlertStability(id);
+  }
+
   @Post()
   @Roles('ADMIN', 'OPERATOR')
   create(@Body() dto: CreateWebsiteDto, @CurrentUser('id') userId: string) {
