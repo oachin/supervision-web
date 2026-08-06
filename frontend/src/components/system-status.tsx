@@ -76,7 +76,7 @@ export function SystemStatus() {
             </button>
           </div>
 
-          <div className="max-h-64 overflow-y-auto p-2">
+          <div className="max-h-80 overflow-y-auto p-2">
             {health.components.map((c) => (
               <div
                 key={c.id}

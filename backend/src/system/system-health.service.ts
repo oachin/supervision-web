@@ -43,6 +43,7 @@ export class SystemHealthService implements OnModuleDestroy {
       this.checkPostgres(),
       this.checkRedis(),
       this.checkFrontend(),
+      this.checkWebsec(),
     ]);
 
     const faults = components
@@ -187,6 +188,59 @@ export class SystemHealthService implements OnModuleDestroy {
           id: 'frontend',
           name: 'Interface Web',
           container: 'supervision-frontend',
+          status: 'down',
+          message: 'Timeout (5s)',
+        });
+      });
+    });
+  }
+
+  private checkWebsec(): Promise<SystemComponent> {
+    const base = this.config
+      .get<string>('WEBSEC_URL', 'http://websec:8000')
+      .replace(/\/$/, '');
+    const url = `${base}/health`;
+    const start = Date.now();
+
+    return new Promise((resolve) => {
+      const req = http.get(url, { timeout: 5000 }, (res) => {
+        res.resume();
+        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+          resolve({
+            id: 'websec',
+            name: 'Audit cybersécurité',
+            container: 'supervision-websec',
+            status: 'up',
+            message: 'Bridge websec opérationnel',
+            latencyMs: Date.now() - start,
+          });
+        } else {
+          resolve({
+            id: 'websec',
+            name: 'Audit cybersécurité',
+            container: 'supervision-websec',
+            status: 'down',
+            message: `HTTP ${res.statusCode ?? 'erreur'}`,
+          });
+        }
+      });
+
+      req.on('error', () => {
+        resolve({
+          id: 'websec',
+          name: 'Audit cybersécurité',
+          container: 'supervision-websec',
+          status: 'down',
+          message: 'Service websec injoignable',
+        });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({
+          id: 'websec',
+          name: 'Audit cybersécurité',
+          container: 'supervision-websec',
           status: 'down',
           message: 'Timeout (5s)',
         });
