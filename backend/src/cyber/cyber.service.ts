@@ -9,6 +9,14 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebsecClient, type WebsecSiteTarget } from './websec-client';
 import { AppSettingsService } from '../settings/app-settings.service';
+import {
+  countMatchingFindings,
+  DEFAULT_EXTREME_RISK_RULES,
+  gradeMatchesRules,
+  normalizeExtremeRiskRules,
+  type CyberExtremeRiskRules,
+  type FindingSignal,
+} from './cyber-risk-rules';
 
 function domainFromUrl(url: string): string | undefined {
   try {
@@ -137,8 +145,9 @@ export class CyberService {
     }));
     const autoIncludedCount = autoTargets.filter((t) => t.includedInAuto).length;
 
+    const { extremeRiskRules: _rules, ...schedulePublic } = schedule;
     return {
-      ...schedule,
+      ...schedulePublic,
       timezone,
       scanRunning: Boolean((status as { running?: boolean }).running),
       nextIntervalAt,
@@ -148,6 +157,30 @@ export class CyberService {
       autoIncludedCount,
       autoEligibleCount: eligible.length,
     };
+  }
+
+  async getExtremeRiskRules(): Promise<CyberExtremeRiskRules> {
+    const schedule = await this.ensureSchedule();
+    return normalizeExtremeRiskRules(schedule.extremeRiskRules);
+  }
+
+  async updateExtremeRiskRules(
+    body: Partial<CyberExtremeRiskRules> | { reset?: boolean },
+  ): Promise<CyberExtremeRiskRules> {
+    await this.ensureSchedule();
+    if (body && 'reset' in body && body.reset) {
+      await this.prisma.cyberScanSchedule.update({
+        where: { id: 'default' },
+        data: { extremeRiskRules: null },
+      });
+      return structuredClone(DEFAULT_EXTREME_RISK_RULES);
+    }
+    const rules = normalizeExtremeRiskRules(body);
+    await this.prisma.cyberScanSchedule.update({
+      where: { id: 'default' },
+      data: { extremeRiskRules: rules as object },
+    });
+    return rules;
   }
 
   async updateAutomation(data: {
@@ -533,14 +566,16 @@ export class CyberService {
     // Orphan purge in background (debounced) — do not block the page load.
     this.scheduleInventorySync();
 
-    const [targets, status, sites, trend, healthy, automation] = await Promise.all([
-      this.listTargets(),
-      this.websec.getStatus().catch(() => ({ running: false, error: 'unavailable' })),
-      this.websec.listSites({ slim: true }).catch(() => ({ sites: [], count: 0 })),
-      this.websec.getTrend().catch(() => ({ trend: [] })),
-      this.websec.health(),
-      this.overviewAutomation().catch(() => null),
-    ]);
+    const [targets, status, sites, trend, healthy, automation, riskRules] =
+      await Promise.all([
+        this.listTargets(),
+        this.websec.getStatus().catch(() => ({ running: false, error: 'unavailable' })),
+        this.websec.listSites({ slim: true }).catch(() => ({ sites: [], count: 0 })),
+        this.websec.getTrend().catch(() => ({ trend: [] })),
+        this.websec.health(),
+        this.overviewAutomation().catch(() => null),
+        this.getExtremeRiskRules(),
+      ]);
 
     const inventory = new Set<string>();
     for (const t of [...targets.supervision, ...targets.external]) {
@@ -564,12 +599,23 @@ export class CyberService {
               : Array.isArray(s.findings)
                 ? s.findings.length
                 : 0;
-        const extremeRiskCount =
-          typeof s.extreme_risk_count === 'number'
+
+        const hasSignalsField =
+          Array.isArray(s.finding_signals) || Array.isArray(s.findingSignals);
+        const signals = this.extractFindingSignals(s);
+        const matchedFindings = hasSignalsField
+          ? countMatchingFindings(signals, riskRules)
+          : typeof s.extreme_risk_count === 'number'
             ? s.extreme_risk_count
             : typeof s.extremeRiskCount === 'number'
               ? s.extremeRiskCount
               : 0;
+        const gradeHit = gradeMatchesRules(
+          typeof s.grade === 'string' ? s.grade : null,
+          riskRules,
+        );
+        const extremeRiskCount = matchedFindings + (gradeHit ? 1 : 0);
+
         return {
           name: s.name,
           url: s.url,
@@ -609,10 +655,23 @@ export class CyberService {
       grades,
       extremeRiskSites,
       extremeRiskFindings,
+      extremeRiskLabel: riskRules.label,
       sites: slimSites,
       trend: trend.trend,
       automation,
     };
+  }
+
+  private extractFindingSignals(site: Record<string, unknown>): FindingSignal[] {
+    const raw =
+      site.finding_signals ?? site.findingSignals ?? site.findings;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
+      .map((f) => ({
+        code: typeof f.code === 'string' ? f.code : undefined,
+        severity: typeof f.severity === 'string' ? f.severity : undefined,
+      }));
   }
 
   async startScan(options: { deep?: boolean; authorized?: boolean } = {}) {

@@ -71,4 +71,6 @@ def test_latest_site_summaries_extreme_risk_count(engine):
     by_url = {s["url"]: s for s in latest_site_summaries(engine=engine)}
     assert by_url["https://a.example"]["extreme_risk_count"] == 2
     assert by_url["https://a.example"]["findings_count"] == 4
+    assert len(by_url["https://a.example"]["finding_signals"]) == 4
     assert by_url["https://b.example"]["extreme_risk_count"] == 0
+    assert by_url["https://b.example"]["finding_signals"] == []

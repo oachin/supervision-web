@@ -56,12 +56,26 @@ def _iso_utc(dt: datetime | None) -> str | None:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def _extreme_risk_count(findings: list | None) -> int:
-    """Count secrets-leak / account-takeover findings for fleet KPIs.
+def _finding_signals(findings: list | None) -> list[dict]:
+    """Compact code/severity pairs for Supervision KPI rules (no messages)."""
+    if not findings:
+        return []
+    out: list[dict] = []
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        code = f.get("code")
+        if not code:
+            continue
+        out.append({
+            "code": str(code),
+            "severity": str(f.get("severity") or "").lower() or None,
+        })
+    return out
 
-    Includes high+ ``misconfig.exposed_path`` (.env, .git, config backups) and
-    subdomain takeover signals — not generic criticals (expired TLS, downtime).
-    """
+
+def _extreme_risk_count(findings: list | None) -> int:
+    """Legacy default KPI count (secrets leak / takeover). Prefer Supervision rules."""
     if not findings:
         return 0
     n = 0
@@ -467,7 +481,8 @@ def latest_site_summaries(engine=None, limit: int | None = None,
     """Lightweight fleet list for Supervision overview.
 
     Omits findings JSON / compliance / full history. Includes findings_count,
-    extreme_risk_count (secrets leak / takeover), and the previous score/grade.
+    finding_signals (code/severity for Supervision KPI rules), extreme_risk_count
+    (legacy default), and the previous score/grade.
     """
     engine = init_db(engine)
     Session = sessionmaker(bind=engine, future=True)
@@ -539,6 +554,7 @@ def latest_site_summaries(engine=None, limit: int | None = None,
                 "score": site.score,
                 "grade": site.grade,
                 "findings_count": len(findings),
+                "finding_signals": _finding_signals(findings),
                 "extreme_risk_count": _extreme_risk_count(findings),
                 "started_at": _iso_utc(run.started_at),
                 "previous_score": prev.get("score"),

@@ -400,7 +400,7 @@ export default function CybersecuritePage() {
             </div>
           )}
           <Link
-            href="/cybersecurite#risques-critiques"
+            href="/settings/cyber-risk"
             className={cn(
               'card block transition hover:border-destructive/40',
               (data?.extremeRiskSites ?? 0) > 0
@@ -422,7 +422,7 @@ export default function CybersecuritePage() {
               {(data?.extremeRiskFindings ?? 0) === 1 ? '' : 's'}
             </p>
             <p className="mt-2 text-[11px] text-muted-foreground/80">
-              Fuites de secrets & takeovers
+              {data?.extremeRiskLabel || 'Fuites de secrets & takeovers'}
             </p>
           </Link>
         </div>

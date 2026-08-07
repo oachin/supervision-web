@@ -121,7 +121,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
         </Link>
 
         <Link
-          href="/cybersecurite#risques-critiques"
+          href="/settings/cyber-risk"
           className={cn(
             'rounded-lg border p-3 transition',
             (data.extremeRiskSites ?? 0) > 0
@@ -143,7 +143,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
             </span>
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Fuites de secrets & takeovers
+            {data.extremeRiskLabel || 'Fuites de secrets & takeovers'}
           </p>
         </Link>
 

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -95,6 +96,26 @@ export class CyberController {
     },
   ) {
     return this.cyber.updateAutomation(body ?? {});
+  }
+
+  @Get('risk-rules')
+  @RequirePermission('cybersecurity', 'view')
+  getRiskRules() {
+    return this.cyber.getExtremeRiskRules();
+  }
+
+  @Put('risk-rules')
+  @RequirePermission('cybersecurity', 'modify')
+  updateRiskRules(
+    @Body()
+    body: {
+      label?: string;
+      findingMatchers?: { code: string; severities?: string[] }[];
+      grades?: string[];
+      reset?: boolean;
+    },
+  ) {
+    return this.cyber.updateExtremeRiskRules(body ?? {});
   }
 
   @Get('sites')

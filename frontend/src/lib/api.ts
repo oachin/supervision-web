@@ -332,6 +332,15 @@ class ApiClient {
   getCyberAutomation() {
     return this.fetch<CyberAutomation>('/cyber/automation');
   }
+  getCyberRiskRules() {
+    return this.fetch<CyberExtremeRiskRules>('/cyber/risk-rules');
+  }
+  updateCyberRiskRules(data: Partial<CyberExtremeRiskRules> & { reset?: boolean }) {
+    return this.fetch<CyberExtremeRiskRules>('/cyber/risk-rules', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
   updateCyberAutomation(data: {
     enabled?: boolean;
     intervalMinutes?: number;
@@ -854,16 +863,24 @@ export interface CyberScanStatus {
   sites?: CyberScanSiteProgress[];
 }
 
+export interface CyberExtremeRiskRules {
+  label: string;
+  findingMatchers: { code: string; severities?: string[] }[];
+  grades: string[];
+}
+
 export interface CyberOverview {
   healthy: boolean;
   scan: CyberScanStatus;
   enabledTargets: number;
   resultsCount: number;
   grades: Record<string, number>;
-  /** Sites with ≥1 secrets-leak / takeover finding on latest audit */
+  /** Sites with ≥1 matching finding / grade on latest audit */
   extremeRiskSites: number;
-  /** Total secrets-leak / takeover findings across inventory */
+  /** Total matching findings (+1 per grade-only hit) across inventory */
   extremeRiskFindings: number;
+  /** Configurable label from risk rules */
+  extremeRiskLabel?: string;
   sites: CyberSiteResult[];
   trend: CyberTrendPoint[];
   automation?: CyberAutomation | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, Mail, Shield, ChevronRight, Clock } from 'lucide-react';
+import { Users, Mail, Shield, ChevronRight, Clock, AlertTriangle } from 'lucide-react';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
 
 const tiles = [
@@ -11,6 +11,14 @@ const tiles = [
     description: 'Fuseau serveur pour les horodatages et les automations',
     icon: Clock,
     resource: 'settings' as const,
+  },
+  {
+    href: '/settings/cyber-risk',
+    title: 'Risques critiques',
+    description: 'Périmètre du KPI fuites / takeovers / notes (audit cyber)',
+    icon: AlertTriangle,
+    resource: 'cybersecurity' as const,
+    altResource: 'settings' as const,
   },
   {
     href: '/settings/users',
@@ -41,6 +49,9 @@ export default function SettingsHubPage() {
   const visibleTiles = tiles.filter(
     (tile) =>
       hasPermission(tile.resource, 'view') ||
+      ('altResource' in tile &&
+        tile.altResource &&
+        hasPermission(tile.altResource, 'view')) ||
       (tile.resource === 'notifications' && hasPermission('settings', 'view')),
   );
 
@@ -57,7 +68,7 @@ export default function SettingsHubPage() {
       <div>
         <h1 className="text-2xl font-bold">Configuration</h1>
         <p className="text-sm text-muted-foreground">
-          Paramètres de la plateforme — fuseau, accès, profils et notifications
+          Paramètres de la plateforme — fuseau, risques cyber, accès, profils et notifications
         </p>
       </div>
 
