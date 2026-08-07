@@ -6,6 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebsecClient, type WebsecSiteTarget } from './websec-client';
 import { AppSettingsService } from '../settings/app-settings.service';
@@ -171,14 +172,14 @@ export class CyberService {
     if (body && 'reset' in body && body.reset) {
       await this.prisma.cyberScanSchedule.update({
         where: { id: 'default' },
-        data: { extremeRiskRules: null },
+        data: { extremeRiskRules: Prisma.DbNull },
       });
       return structuredClone(DEFAULT_EXTREME_RISK_RULES);
     }
     const rules = normalizeExtremeRiskRules(body);
     await this.prisma.cyberScanSchedule.update({
       where: { id: 'default' },
-      data: { extremeRiskRules: rules as object },
+      data: { extremeRiskRules: rules as Prisma.InputJsonValue },
     });
     return rules;
   }
