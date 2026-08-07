@@ -179,7 +179,7 @@ export class CyberService {
     const rules = normalizeExtremeRiskRules(body);
     await this.prisma.cyberScanSchedule.update({
       where: { id: 'default' },
-      data: { extremeRiskRules: rules as Prisma.InputJsonValue },
+      data: { extremeRiskRules: rules as unknown as Prisma.InputJsonValue },
     });
     return rules;
   }
