@@ -25,20 +25,15 @@ import {
   type CyberSiteResult,
 } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 
 function formatTrendLabel(iso?: string | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function gradeClass(grade?: string) {
@@ -235,17 +230,13 @@ export default function CybersecuritePage() {
       data?.trend?.[data.trend.length - 1]?.started_at ||
       null;
     if (!iso) return 'Aucun';
-    try {
-      return new Date(iso).toLocaleString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return String(iso);
-    }
+    return formatDateTime(iso, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }, [
     scan?.running,
     scan?.finished_at,
@@ -382,7 +373,7 @@ export default function CybersecuritePage() {
           <p className="mt-1 text-xs text-muted-foreground">
             {data?.automation?.enabled
               ? data.automation.nextRunAt
-                ? `Prochain : ${new Date(data.automation.nextRunAt).toLocaleString('fr-FR')}`
+                ? `Prochain : ${formatDateTime(data.automation.nextRunAt)}`
                 : 'Active'
               : 'Configurer les scans auto'}
           </p>
@@ -390,23 +381,51 @@ export default function CybersecuritePage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {data?.grades && Object.keys(data.grades).length > 0 && (
-          <div className="card">
-            <h2 className="mb-3 text-sm font-semibold">Répartition des notes</h2>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(data.grades)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([grade, count]) => (
-                  <span
-                    key={grade}
-                    className={cn('rounded-md border px-3 py-1.5 text-sm font-medium', gradeClass(grade))}
-                  >
-                    {grade} · {count}
-                  </span>
-                ))}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {data?.grades && Object.keys(data.grades).length > 0 && (
+            <div className="card">
+              <h2 className="mb-3 text-sm font-semibold">Répartition des notes</h2>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(data.grades)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([grade, count]) => (
+                    <span
+                      key={grade}
+                      className={cn('rounded-md border px-3 py-1.5 text-sm font-medium', gradeClass(grade))}
+                    >
+                      {grade} · {count}
+                    </span>
+                  ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          <Link
+            href="/cybersecurite#risques-critiques"
+            className={cn(
+              'card block transition hover:border-destructive/40',
+              (data?.extremeRiskSites ?? 0) > 0
+                ? 'border-destructive/40 bg-destructive/10'
+                : 'border-white/10',
+            )}
+          >
+            <h2 id="risques-critiques" className="mb-1 text-sm font-semibold text-destructive">
+              Risques critiques
+            </h2>
+            <p className="text-2xl font-semibold tabular-nums tracking-tight">
+              {data?.extremeRiskSites ?? 0}{' '}
+              <span className="text-base font-medium text-muted-foreground">
+                site{(data?.extremeRiskSites ?? 0) === 1 ? '' : 's'}
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data?.extremeRiskFindings ?? 0} constat
+              {(data?.extremeRiskFindings ?? 0) === 1 ? '' : 's'}
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground/80">
+              Fuites de secrets & takeovers
+            </p>
+          </Link>
+        </div>
         <div className="card">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Évolution du score (parc)</h2>

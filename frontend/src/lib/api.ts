@@ -788,6 +788,8 @@ export interface CyberSiteResult {
   started_at?: string | null;
   findings?: CyberFinding[];
   findingsCount?: number;
+  /** Secrets-leak / takeover findings on latest audit (overview slim payload). */
+  extremeRiskCount?: number;
   history?: CyberHistoryPoint[];
   /** ISO timestamp of the latest audit (overview payload). */
   startedAt?: string | null;
@@ -858,6 +860,10 @@ export interface CyberOverview {
   enabledTargets: number;
   resultsCount: number;
   grades: Record<string, number>;
+  /** Sites with ≥1 secrets-leak / takeover finding on latest audit */
+  extremeRiskSites: number;
+  /** Total secrets-leak / takeover findings across inventory */
+  extremeRiskFindings: number;
   sites: CyberSiteResult[];
   trend: CyberTrendPoint[];
   automation?: CyberAutomation | null;

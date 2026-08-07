@@ -23,24 +23,41 @@ export function setAppTimeZone(timezone: string) {
   }
 }
 
+export function parseAppDate(date?: string | Date | null): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return Number.isNaN(date.getTime()) ? null : date;
+  const raw = date.trim();
+  if (!raw) return null;
+  // Naive ISO from WebSec SQLite is UTC — force Z so browsers don't treat as local.
+  const normalized =
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) &&
+    !/[zZ]|[+-]\d{2}:\d{2}$/.test(raw)
+      ? `${raw}Z`
+      : raw;
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function formatDate(date?: string | Date | null) {
-  if (!date) return '—';
+  const d = parseAppDate(date);
+  if (!d) return '—';
   return new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'short',
     timeStyle: 'short',
     timeZone: getAppTimeZone(),
-  }).format(typeof date === 'string' || date instanceof Date ? new Date(date) : new Date(date));
+  }).format(d);
 }
 
 export function formatDateTime(
   date?: string | Date | null,
   options?: Intl.DateTimeFormatOptions,
 ) {
-  if (!date) return '—';
+  const d = parseAppDate(date);
+  if (!d) return '—';
   return new Intl.DateTimeFormat('fr-FR', {
     timeZone: getAppTimeZone(),
     ...options,
-  }).format(new Date(date));
+  }).format(d);
 }
 
 export function formatUptime(seconds: number) {

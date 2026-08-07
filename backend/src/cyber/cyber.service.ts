@@ -564,6 +564,12 @@ export class CyberService {
               : Array.isArray(s.findings)
                 ? s.findings.length
                 : 0;
+        const extremeRiskCount =
+          typeof s.extreme_risk_count === 'number'
+            ? s.extreme_risk_count
+            : typeof s.extremeRiskCount === 'number'
+              ? s.extremeRiskCount
+              : 0;
         return {
           name: s.name,
           url: s.url,
@@ -571,6 +577,7 @@ export class CyberService {
           score: s.score,
           grade: s.grade,
           findingsCount,
+          extremeRiskCount,
           startedAt: typeof s.started_at === 'string' ? s.started_at : null,
           previousScore:
             typeof s.previous_score === 'number' ? s.previous_score : null,
@@ -585,12 +592,23 @@ export class CyberService {
       return acc;
     }, {});
 
+    let extremeRiskFindings = 0;
+    let extremeRiskSites = 0;
+    for (const s of slimSites) {
+      if (s.extremeRiskCount > 0) {
+        extremeRiskSites += 1;
+        extremeRiskFindings += s.extremeRiskCount;
+      }
+    }
+
     return {
       healthy,
       scan: status,
       enabledTargets: enabledCount,
       resultsCount: slimSites.length,
       grades,
+      extremeRiskSites,
+      extremeRiskFindings,
       sites: slimSites,
       trend: trend.trend,
       automation,

@@ -41,6 +41,42 @@ REMEDIATION_STATUSES = ("open", "in_progress", "fixed")
 DEFAULT_STATUS = "open"
 
 
+def _iso_utc(dt: datetime | None) -> str | None:
+    """Serialize datetimes as UTC ISO-8601.
+
+    SQLite often returns naive UTC values; without a ``Z``/offset, browsers treat
+    them as local time and shift Europe/Paris displays by ~2h.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def _extreme_risk_count(findings: list | None) -> int:
+    """Count secrets-leak / account-takeover findings for fleet KPIs.
+
+    Includes high+ ``misconfig.exposed_path`` (.env, .git, config backups) and
+    subdomain takeover signals — not generic criticals (expired TLS, downtime).
+    """
+    if not findings:
+        return 0
+    n = 0
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        code = f.get("code") or ""
+        sev = (f.get("severity") or "").lower()
+        if code in ("takeover.vulnerable", "takeover.dangling"):
+            n += 1
+        elif code == "misconfig.exposed_path" and sev in ("high", "critical"):
+            n += 1
+    return n
+
+
 class ScanRun(Base):
     __tablename__ = "scan_runs"
 
@@ -346,7 +382,7 @@ def score_history(identifier: str, limit: int = 10, engine=None) -> list[dict]:
         history = [
             {
                 "run_id": run.id,
-                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "started_at": _iso_utc(run.started_at),
                 "score": site.score,
                 "grade": site.grade,
             }
@@ -373,7 +409,7 @@ def _site_state(site: "SiteResult", run: "ScanRun") -> dict:
         "coverage": coverage,
         "compliance": assess_compliance(findings, coverage),
         "run_id": run.id,
-        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "started_at": _iso_utc(run.started_at),
         "rubric_version": run.rubric_version,
     }
 
@@ -430,8 +466,8 @@ def latest_site_summaries(engine=None, limit: int | None = None,
                           offset: int = 0) -> list[dict]:
     """Lightweight fleet list for Supervision overview.
 
-    Omits findings JSON / compliance / full history. Includes findings_count and
-    the previous score/grade (one SQL round-trip for previous runs).
+    Omits findings JSON / compliance / full history. Includes findings_count,
+    extreme_risk_count (secrets leak / takeover), and the previous score/grade.
     """
     engine = init_db(engine)
     Session = sessionmaker(bind=engine, future=True)
@@ -490,9 +526,11 @@ def latest_site_summaries(engine=None, limit: int | None = None,
         summaries: list[dict] = []
         for site, run in rows:
             try:
-                findings_count = len(json.loads(site.findings_json)) if site.findings_json else 0
+                findings = json.loads(site.findings_json) if site.findings_json else []
+                if not isinstance(findings, list):
+                    findings = []
             except (TypeError, json.JSONDecodeError):
-                findings_count = 0
+                findings = []
             prev = previous_by_url.get(site.url) or {}
             summaries.append({
                 "name": site.name,
@@ -500,8 +538,9 @@ def latest_site_summaries(engine=None, limit: int | None = None,
                 "domain": site.domain,
                 "score": site.score,
                 "grade": site.grade,
-                "findings_count": findings_count,
-                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "findings_count": len(findings),
+                "extreme_risk_count": _extreme_risk_count(findings),
+                "started_at": _iso_utc(run.started_at),
                 "previous_score": prev.get("score"),
                 "previous_grade": prev.get("grade"),
             })
@@ -720,7 +759,7 @@ def fleet_trend(limit: int = 30, engine=None) -> list[dict]:
                 continue
             trend.append({
                 "run_id": run.id,
-                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "started_at": _iso_utc(run.started_at),
                 "avg_score": round(sum(scores) / len(scores), 1),
                 "site_count": len(scores),
             })

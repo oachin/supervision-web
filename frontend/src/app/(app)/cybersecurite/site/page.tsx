@@ -24,7 +24,16 @@ import {
   type CyberSiteResult,
 } from '@/lib/api';
 import { OpenExternalUrl } from '@/components/open-external-url';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
+
+function formatLabel(iso?: string | null) {
+  return formatDateTime(iso, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 const SEV_COLORS: Record<string, string> = {
   critical: '#ef4444',
@@ -91,20 +100,6 @@ function gradeClass(grade?: string | null) {
       return 'border-destructive/40 bg-destructive/20 text-destructive';
     default:
       return 'border-white/10 bg-secondary/30 text-foreground';
-  }
-}
-
-function formatLabel(iso?: string | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
   }
 }
 

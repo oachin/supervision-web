@@ -15,20 +15,15 @@ import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { api, type CyberOverview, type CyberTrendPoint } from '@/lib/api';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 import { OpenExternalUrl } from '@/components/open-external-url';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 
 function formatLabel(iso?: string | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function gradeClass(grade?: string | null) {

@@ -11,9 +11,9 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { CalendarClock, Shield } from 'lucide-react';
+import { CalendarClock, Shield, AlertTriangle } from 'lucide-react';
 import type { CyberOverview } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 
 function gradeClass(grade?: string) {
   switch (grade) {
@@ -34,17 +34,12 @@ function gradeClass(grade?: string) {
 }
 
 function formatTrendLabel(iso?: string | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
@@ -73,7 +68,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
         <h2 className="text-sm font-semibold">Cybersécurité</h2>
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-3">
+      <div className="grid gap-2 lg:grid-cols-4">
         <Link
           href="/cybersecurite/automation"
           className="rounded-lg border border-white/10 bg-secondary/20 p-3 transition hover:border-sky-500/30"
@@ -93,7 +88,7 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {automationOn
               ? nextRun
-                ? `Prochain : ${new Date(nextRun).toLocaleString('fr-FR')}`
+                ? `Prochain : ${formatDateTime(nextRun)}`
                 : 'Programmée'
               : 'Configurer les scans auto'}
           </p>
@@ -123,6 +118,33 @@ export function CyberDashboardSummary({ data }: { data: CyberOverview }) {
               ))}
             </div>
           )}
+        </Link>
+
+        <Link
+          href="/cybersecurite#risques-critiques"
+          className={cn(
+            'rounded-lg border p-3 transition',
+            (data.extremeRiskSites ?? 0) > 0
+              ? 'border-destructive/40 bg-destructive/10 hover:border-destructive/60'
+              : 'border-white/10 bg-secondary/20 hover:border-destructive/30',
+          )}
+        >
+          <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-destructive">
+            <AlertTriangle className="h-3 w-3" />
+            Risques critiques
+          </p>
+          <p className="mt-1 text-sm font-semibold tabular-nums">
+            {data.extremeRiskSites ?? 0} site
+            {(data.extremeRiskSites ?? 0) === 1 ? '' : 's'}
+            <span className="font-normal text-muted-foreground">
+              {' '}
+              · {data.extremeRiskFindings ?? 0} constat
+              {(data.extremeRiskFindings ?? 0) === 1 ? '' : 's'}
+            </span>
+          </p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            Fuites de secrets & takeovers
+          </p>
         </Link>
 
         <Link

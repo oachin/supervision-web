@@ -3,7 +3,8 @@
 import pytest
 
 from db.models import (
-    fleet_trend, get_site_state, init_db, get_engine, latest_site_states, save_run,
+    fleet_trend, get_site_state, init_db, get_engine, latest_site_states,
+    latest_site_summaries, save_run,
 )
 
 
@@ -56,3 +57,18 @@ def test_fleet_trend_average_per_run_oldest_first(engine):
     trend = fleet_trend(engine=engine)
     assert [t["avg_score"] for t in trend] == [70.0, 90.0]
     assert trend[0]["site_count"] == 2
+
+
+def test_latest_site_summaries_extreme_risk_count(engine):
+    findings = [
+        {"code": "misconfig.exposed_path", "severity": "high", "message": ".env"},
+        {"code": "misconfig.exposed_path", "severity": "medium", "message": "readme"},
+        {"code": "tls.expired", "severity": "critical", "message": "cert"},
+        {"code": "takeover.vulnerable", "severity": "high", "message": "cname"},
+    ]
+    save_run([_scored("https://a.example", 40, "F", findings)], engine=engine)
+    save_run([_scored("https://b.example", 90, "A")], engine=engine)
+    by_url = {s["url"]: s for s in latest_site_summaries(engine=engine)}
+    assert by_url["https://a.example"]["extreme_risk_count"] == 2
+    assert by_url["https://a.example"]["findings_count"] == 4
+    assert by_url["https://b.example"]["extreme_risk_count"] == 0

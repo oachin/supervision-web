@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { api, type CyberAutomation, type CyberAutoTarget } from '@/lib/api';
 import { useAuthProfile } from '@/hooks/use-auth-profile';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime } from '@/lib/utils';
 import { SiteSearchInput, matchesSiteSearch } from '@/components/site-search-input';
 import { OpenExternalUrl } from '@/components/open-external-url';
 
@@ -23,18 +23,13 @@ const DEEP_MODE_HELP =
   'Active les moteurs lourds (Nuclei, testssl, ZAP…). Plus exhaustif, mais plus long et plus agressif sur les cibles. Le mode standard suffit pour un contrôle de surface courant.';
 
 function formatWhen(iso?: string | null) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('fr-FR', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
+  return formatDateTime(iso, {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default function CyberAutomationPage() {
