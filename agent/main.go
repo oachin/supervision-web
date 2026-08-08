@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -389,9 +392,73 @@ func collectPleskWebsites() []PleskWebsitePayload {
 }
 
 func pveshJSON(args ...string) ([]byte, error) {
+	return pveshJSONTimeout(30*time.Second, args...)
+}
+
+// pveshJSONTimeout runs pvesh with a hard deadline.
+// On timeout we SIGKILL the process group and return without waiting forever
+// (NFS D-state children may linger until the kernel I/O unblocks).
+func pveshJSONTimeout(timeout time.Duration, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	cmdArgs := append([]string{"get"}, args...)
 	cmdArgs = append(cmdArgs, "--output-format", "json")
-	return exec.Command("pvesh", cmdArgs...).Output()
+	cmd := exec.Command("pvesh", cmdArgs...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			msg := strings.TrimSpace(stderr.String())
+			if msg != "" {
+				return nil, fmt.Errorf("pvesh %v: %w (%s)", args, err, msg)
+			}
+			return nil, fmt.Errorf("pvesh %v: %w", args, err)
+		}
+		return stdout.Bytes(), nil
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			log.Printf("pvesh encore bloqué après SIGKILL (I/O NFS probable): %v", args)
+		}
+		return nil, fmt.Errorf("pvesh timeout (%s): %v", timeout, args)
+	}
+}
+
+// Skip listing storage content that recently timed out (avoid stacking hung pvesh).
+var (
+	storageContentSkipMu sync.Mutex
+	storageContentSkip   = map[string]time.Time{}
+)
+
+func storageContentRecentlyTimedOut(storage string) bool {
+	storageContentSkipMu.Lock()
+	defer storageContentSkipMu.Unlock()
+	until, ok := storageContentSkip[storage]
+	return ok && time.Now().Before(until)
+}
+
+func markStorageContentTimeout(storage string) {
+	storageContentSkipMu.Lock()
+	defer storageContentSkipMu.Unlock()
+	storageContentSkip[storage] = time.Now().Add(30 * time.Minute)
+	log.Printf("Proxmox storage %s: listage content en timeout — ignoré 30 min", storage)
 }
 
 func localPveNode() (string, error) {
@@ -833,12 +900,22 @@ func collectProxmoxBackupContent(node string) []ProxmoxBackupPayload {
 		if contentField != "" && !strings.Contains(contentField, "backup") {
 			continue
 		}
+		if storageContentRecentlyTimedOut(storage) {
+			continue
+		}
 
-		craw, err := pveshJSON(
+		// Short deadline: NFS backup shares can hang forever on readdir.
+		craw, err := pveshJSONTimeout(
+			20*time.Second,
 			"/nodes/"+node+"/storage/"+storage+"/content",
 			"--content", "backup",
 		)
 		if err != nil {
+			if strings.Contains(err.Error(), "timeout") {
+				markStorageContentTimeout(storage)
+			} else {
+				log.Printf("Proxmox storage %s content: %v", storage, err)
+			}
 			continue
 		}
 		var items []map[string]interface{}

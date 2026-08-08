@@ -100,6 +100,7 @@ export default function CybersecuritePage() {
   const [scanning, setScanning] = useState(false);
   const [deep, setDeep] = useState(false);
   const [siteQuery, setSiteQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState<string | null>(null);
   const wasRunning = useRef(false);
 
   const load = useCallback(async () => {
@@ -204,15 +205,29 @@ export default function CybersecuritePage() {
         return { result, progress: p };
       });
     }
-    return rows.filter(({ result }) =>
-      matchesSiteSearch(siteQuery, result.name, result.url, result.domain),
-    );
-  }, [data?.sites, scanRunning, scan?.sites, progressByUrl, siteQuery]);
+    return rows.filter(({ result }) => {
+      if (!matchesSiteSearch(siteQuery, result.name, result.url, result.domain)) {
+        return false;
+      }
+      if (gradeFilter) {
+        const g = (result.grade || '').toUpperCase();
+        if (g !== gradeFilter.toUpperCase()) return false;
+      }
+      return true;
+    });
+  }, [data?.sites, scanRunning, scan?.sites, progressByUrl, siteQuery, gradeFilter]);
 
   const totalSitesForSearch = useMemo(() => {
     if (scanRunning && scan?.sites?.length) return scan.sites.length;
     return data?.sites?.length ?? 0;
   }, [scanRunning, scan?.sites, data?.sites]);
+
+  const filteredByGradeCount = useMemo(() => {
+    if (!gradeFilter) return null;
+    const sites = data?.sites ?? [];
+    return sites.filter((s) => (s.grade || '').toUpperCase() === gradeFilter.toUpperCase())
+      .length;
+  }, [data?.sites, gradeFilter]);
 
   const globalPercent = typeof scan?.percent === 'number' ? scan.percent : 0;
   const globalDone = typeof scan?.done === 'number' ? scan.done : 0;
@@ -388,15 +403,50 @@ export default function CybersecuritePage() {
               <div className="flex flex-wrap gap-2">
                 {Object.entries(data.grades)
                   .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([grade, count]) => (
-                    <span
-                      key={grade}
-                      className={cn('rounded-md border px-3 py-1.5 text-sm font-medium', gradeClass(grade))}
-                    >
-                      {grade} · {count}
-                    </span>
-                  ))}
+                  .map(([grade, count]) => {
+                    const active = gradeFilter?.toUpperCase() === grade.toUpperCase();
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        onClick={() =>
+                          setGradeFilter((prev) =>
+                            prev?.toUpperCase() === grade.toUpperCase() ? null : grade,
+                          )
+                        }
+                        className={cn(
+                          'rounded-md border px-3 py-1.5 text-sm font-medium transition',
+                          gradeClass(grade),
+                          active
+                            ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                            : 'hover:brightness-110',
+                        )}
+                        title={
+                          active
+                            ? 'Retirer le filtre'
+                            : `Filtrer les sites en note ${grade}`
+                        }
+                        aria-pressed={active}
+                      >
+                        {grade} · {count}
+                      </button>
+                    );
+                  })}
               </div>
+              {gradeFilter && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Filtre note {gradeFilter}
+                  {filteredByGradeCount != null ? ` · ${filteredByGradeCount} site${filteredByGradeCount === 1 ? '' : 's'}` : ''}
+                  {' · '}
+                  <button
+                    type="button"
+                    className="text-primary hover:underline"
+                    onClick={() => setGradeFilter(null)}
+                  >
+                    Tout afficher
+                  </button>
+                </p>
+              )}
             </div>
           )}
           <Link
@@ -478,16 +528,31 @@ export default function CybersecuritePage() {
             className="ml-auto w-full sm:w-72 sm:flex-none"
           />
         </div>
-        {siteQuery.trim() && totalSitesForSearch > 0 && (
+        {(siteQuery.trim() || gradeFilter) && totalSitesForSearch > 0 && (
           <p className="border-b border-white/5 px-4 py-2 text-xs text-muted-foreground">
-            {displaySites.length} résultat{displaySites.length !== 1 ? 's' : ''} pour «{' '}
-            {siteQuery.trim()} »
+            {displaySites.length} résultat{displaySites.length !== 1 ? 's' : ''}
+            {gradeFilter ? ` · note ${gradeFilter}` : ''}
+            {siteQuery.trim() ? ` pour « ${siteQuery.trim()} »` : ''}
+            {gradeFilter && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => setGradeFilter(null)}
+                >
+                  Retirer le filtre note
+                </button>
+              </>
+            )}
           </p>
         )}
         {displaySites.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            {siteQuery.trim()
-              ? `Aucun site ne correspond à « ${siteQuery.trim()} ».`
+            {siteQuery.trim() || gradeFilter
+              ? `Aucun site ne correspond${gradeFilter ? ` à la note ${gradeFilter}` : ''}${
+                  siteQuery.trim() ? ` pour « ${siteQuery.trim()} »` : ''
+                }.`
               : 'Aucun résultat pour l’instant. Activez des cibles puis lancez un scan.'}
           </p>
         ) : (
