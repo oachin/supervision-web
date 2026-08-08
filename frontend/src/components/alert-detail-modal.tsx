@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
+  CheckCircle2,
   ChevronRight,
   Clock3,
   FileText,
@@ -234,6 +235,27 @@ export function AlertDetailModal({
     }
   }
 
+  async function handleClose() {
+    const current = detail ?? summary;
+    if (!canEdit || current.status === 'CLOSED') return;
+    const ok = window.confirm(
+      'Clôturer cette alerte ? Elle ne réapparaîtra que si le problème est détecté à nouveau.',
+    );
+    if (!ok) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const updated = await api.closeAlert(alertId, note.trim() || undefined);
+      setDetail(updated);
+      setNote('');
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Clôture impossible');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (!open || !mounted) return null;
 
   const alert = detail ?? summary;
@@ -435,6 +457,27 @@ export function AlertDetailModal({
                     {alert.resolutionMethod}
                   </p>
                 )}
+              </div>
+            )}
+
+            {canEdit && alert.status !== 'CLOSED' && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.07] px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-emerald-100">Clôturer l’alerte</p>
+                  <p className="text-xs text-muted-foreground">
+                    Si le problème est corrigé hors Supervision (Proxmox, NAS…). Une note
+                    optionnelle ci-dessous sera enregistrée.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleClose()}
+                  className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/20 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/30 disabled:opacity-60"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {submitting ? 'Clôture…' : 'Clôturer'}
+                </button>
               </div>
             )}
 

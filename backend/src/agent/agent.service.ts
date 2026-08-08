@@ -398,15 +398,21 @@ export class AgentService {
       const vmLabel = String(backup.vmid ?? '?');
 
       if (backup.status === 'failed' || backup.status === 'warning') {
-        const newerOk =
+        const newerOkForVm =
           backup.vmid != null &&
           latestOkByVmid.has(backup.vmid) &&
           latestOkByVmid.get(backup.vmid)!.getTime() > backup.startedAt.getTime();
 
-        if (newerOk) {
+        // Jobs without a parsed VMID (title « VM ? ») never match per-VM OK —
+        // treat any newer successful backup on the host as recovery (e.g. NAS back online).
+        const newerOkAny =
+          backup.vmid == null &&
+          okBackups.some((ok) => ok.startedAt.getTime() > backup.startedAt.getTime());
+
+        if (newerOkForVm || newerOkAny) {
           const resolvePrefixes = [
-            `Backup Proxmox échoué: ${server.name} VM ${backup.vmid}`,
-            `Backup Proxmox avertissement: ${server.name} VM ${backup.vmid}`,
+            `Backup Proxmox échoué: ${server.name} VM ${vmLabel}`,
+            `Backup Proxmox avertissement: ${server.name} VM ${vmLabel}`,
           ];
           for (const titleContains of resolvePrefixes) {
             await this.alerts.onIssueResolved({
@@ -426,6 +432,7 @@ export class AgentService {
           message: backup.error ?? 'Job vzdump en échec',
           severity: backup.status === 'failed' ? 'CRITICAL' : 'WARNING',
           serverId: server.id,
+          issueStartedAt: backup.startedAt,
         });
         continue;
       }

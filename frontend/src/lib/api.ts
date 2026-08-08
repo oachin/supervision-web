@@ -461,6 +461,12 @@ class ApiClient {
   acknowledgeAlert(id: string) {
     return this.fetch<Alert>(`/alerts/${id}/acknowledge`, { method: 'POST' });
   }
+  closeAlert(id: string, note?: string) {
+    return this.fetch<AlertDetail>(`/alerts/${id}/close`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note || undefined }),
+    });
+  }
   addAlertNote(id: string, message: string) {
     return this.fetch<AlertDetail>(`/alerts/${id}/notes`, {
       method: 'POST',

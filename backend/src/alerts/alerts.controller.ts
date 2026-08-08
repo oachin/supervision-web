@@ -48,6 +48,16 @@ export class AlertsController {
     return this.alerts.acknowledge(id, userId);
   }
 
+  @Post(':id/close')
+  @Roles('ADMIN', 'OPERATOR')
+  close(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body() body?: { note?: string },
+  ) {
+    return this.alerts.close(id, userId, body?.note);
+  }
+
   @Post(':id/notes')
   @Roles('ADMIN', 'OPERATOR')
   addNote(

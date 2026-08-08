@@ -187,6 +187,11 @@ export class AlertsService {
     severity: 'INFO' | 'WARNING' | 'CRITICAL';
     serverId?: string;
     websiteId?: string;
+    /**
+     * If set, do not reopen a CLOSED alert that was closed at/after this
+     * incident start (manual close must stick until a newer failure).
+     */
+    issueStartedAt?: Date;
   }) {
     let serverId = data.serverId;
     if (data.websiteId && !serverId) {
@@ -242,6 +247,17 @@ export class AlertsService {
     });
 
     if (closed) {
+      if (
+        data.issueStartedAt &&
+        closed.closedAt &&
+        closed.closedAt.getTime() >= data.issueStartedAt.getTime()
+      ) {
+        return this.prisma.alert.findUniqueOrThrow({
+          where: { id: closed.id },
+          include: alertInclude,
+        });
+      }
+
       const updated = await this.prisma.alert.update({
         where: { id: closed.id },
         data: {
@@ -275,7 +291,10 @@ export class AlertsService {
 
     const alert = await this.prisma.alert.create({
       data: {
-        ...data,
+        title: data.title,
+        message: data.message,
+        severity: data.severity,
+        websiteId: data.websiteId,
         serverId,
         fingerprint: fp,
         status: 'ACTIVE',
@@ -433,6 +452,46 @@ export class AlertsService {
 
     await this.logEvent(id, 'ACKNOWLEDGED', 'Alerte acquittée (plus de popup)', userId);
     return updated;
+  }
+
+  /** Clôture manuelle (opérateur) — ex. alerte orpheline après correction hors Supervision. */
+  async close(id: string, userId: string, note?: string) {
+    const alert = await this.prisma.alert.findUnique({ where: { id } });
+    if (!alert) throw new NotFoundException('Alerte introuvable');
+    if (alert.status === 'CLOSED') {
+      throw new BadRequestException('Alerte déjà clôturée');
+    }
+
+    const now = new Date();
+    const message = (note || '').trim();
+    await this.prisma.alert.update({
+      where: { id },
+      data: {
+        status: 'CLOSED',
+        resolved: true,
+        resolvedAt: now,
+        closedAt: now,
+        issueResolvedAt: now,
+        snoozedUntil: null,
+        closedById: userId,
+        origin: 'Clôture manuelle',
+        resolutionMethod: message || 'Clôturée par un opérateur',
+      },
+    });
+
+    await this.logEvent(
+      id,
+      'CLOSED',
+      message || 'Alerte clôturée manuellement',
+      userId,
+      { manual: true },
+    );
+
+    if (message) {
+      await this.addNote(id, userId, message);
+    }
+
+    return this.findOne(id);
   }
 
   async getSummary() {
