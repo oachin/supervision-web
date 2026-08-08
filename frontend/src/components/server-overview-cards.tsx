@@ -9,6 +9,7 @@ import {
   Globe,
   Bell,
   GripVertical,
+  Boxes,
 } from 'lucide-react';
 import { cn, isMaintenanceStatus, isSiteDegraded } from '@/lib/utils';
 import { TagList } from '@/components/tag-editor';
@@ -35,6 +36,8 @@ export interface ServerOverviewData {
   sitesDegraded: number;
   sitesMaintenance: number;
   sitesUnsupervised: number;
+  /** Proxmox inventory size (0 for non-Proxmox). */
+  vmsTotal: number;
 }
 
 const levelStyles: Record<
@@ -144,6 +147,8 @@ export function buildServerOverview(
     sitesDegraded,
     sitesMaintenance,
     sitesUnsupervised,
+    vmsTotal:
+      server.profile === 'PROXMOX' ? (server._count?.proxmoxVms ?? 0) : 0,
   };
 }
 
@@ -168,10 +173,17 @@ function ServerOverviewCard({
   onDragOver?: (e: React.DragEvent) => void;
   onDrop?: (e: React.DragEvent) => void;
 }) {
-  const { server, level, summaryLines, alertCount, severityCounts, sitesTotal } = data;
+  const { server, level, summaryLines, alertCount, severityCounts, sitesTotal, vmsTotal } =
+    data;
   const styles = levelStyles[level];
   const hostname = server.hostname === 'en-attente' ? 'Hostname en attente' : server.hostname;
   const router = useRouter();
+  const isProxmox = server.profile === 'PROXMOX';
+  const inventoryCount = isProxmox ? vmsTotal : sitesTotal;
+  const inventoryLabel = isProxmox
+    ? `${inventoryCount} VM${inventoryCount !== 1 ? 's' : ''}`
+    : `${inventoryCount} site${inventoryCount !== 1 ? 's' : ''}`;
+  const InventoryIcon = isProxmox ? Boxes : Globe;
 
   const maxSummaryLines = nocMode ? 4 : 3;
   const paddedSummaryLines = [...summaryLines.slice(0, maxSummaryLines)];
@@ -250,8 +262,8 @@ function ServerOverviewCard({
         <div className="flex flex-1 flex-col space-y-2 pl-2">
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Globe className="h-3.5 w-3.5" />
-              {sitesTotal} site{sitesTotal !== 1 ? 's' : ''}
+              <InventoryIcon className="h-3.5 w-3.5" />
+              {inventoryLabel}
             </span>
             <span className="inline-flex items-center gap-1">
               <Bell className="h-3.5 w-3.5" />

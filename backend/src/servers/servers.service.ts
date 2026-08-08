@@ -41,7 +41,7 @@ export class ServersService {
     const servers = await this.prisma.server.findMany({
       orderBy: { name: 'asc' },
       include: {
-        _count: { select: { websites: true, metrics: true } },
+        _count: { select: { websites: true, metrics: true, proxmoxVms: true } },
       },
     });
     return servers.map((s) => this.sanitize(s as unknown as Record<string, unknown>));

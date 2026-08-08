@@ -526,7 +526,7 @@ export interface Server {
   lastSeenAt?: string;
   tags: string[];
   notes?: string;
-  _count?: { websites: number; metrics: number };
+  _count?: { websites: number; metrics: number; proxmoxVms?: number };
 }
 
 export interface ServerMetricPoint {
